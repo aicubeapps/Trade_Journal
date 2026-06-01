@@ -580,6 +580,45 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
       @media(min-width:700px){#heatmapContainer{min-height:200px}}
       </style>
 
+      <!-- Trading Core Rules Section -->
+      <div id="coreRulesSection" style="background:var(--surface);border:2px solid #c0392b;border-radius:6px;overflow:hidden;margin-bottom:14px;">
+        <div style="padding:10px 14px;background:#fdf0ee;border-bottom:1.5px solid #e8b4b0;display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="toggleCoreRules()">
+          <div style="flex:1;display:flex;align-items:center;gap:10px;">
+            <span style="font-size:16px;flex-shrink:0">⚠️</span>
+            <div>
+              <div style="font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;color:#b80000;letter-spacing:1.5px;">TradinG Core Rules</div>
+              <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:1px;" id="coreRulesCount"></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button onclick="event.stopPropagation();openCoreRulesEditor()" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:3px 9px;border:1.5px solid #c0392b;background:transparent;color:#b80000;border-radius:3px;cursor:pointer;letter-spacing:.5px;">EDIT RULES</button>
+            <span id="coreRulesChevron" style="font-size:12px;color:#b80000;transition:transform .2s;display:inline-block;">▼</span>
+          </div>
+        </div>
+        <div id="coreRulesList">
+          <div id="coreRulesEmpty" style="padding:16px;text-align:center;font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);">No rules set yet — tap EDIT RULES to add your trading rules.</div>
+          <ol id="coreRulesOl" style="list-style:none;padding:0;margin:0;"></ol>
+        </div>
+      </div>
+
+      <!-- Core Rules Edit Modal -->
+      <div id="coreRulesModal" style="display:none;position:fixed;inset:0;background:rgba(18,16,14,.75);z-index:600;align-items:center;justify-content:center;padding:16px;">
+        <div style="background:var(--paper);border:2px solid #c0392b;border-radius:8px;width:100%;max-width:520px;margin:auto;">
+          <div style="padding:12px 16px;border-bottom:1.5px solid #e8b4b0;display:flex;align-items:center;gap:10px;background:#fdf0ee;">
+            <span style="font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;color:#b80000;letter-spacing:1.5px;flex:1;">TradinG Core Rules</span>
+            <button onclick="closeCoreRulesModal()" style="font-size:16px;cursor:pointer;color:var(--muted);background:none;border:none;padding:2px 6px;">✕</button>
+          </div>
+          <div style="padding:16px;">
+            <div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:6px;letter-spacing:1px;">ONE RULE PER LINE — these will be numbered automatically</div>
+            <textarea id="coreRulesTextarea" style="width:100%;min-height:200px;background:var(--surface);border:1.5px solid var(--border);border-radius:4px;padding:10px;font-family:'Familjen Grotesk',sans-serif;font-size:13px;color:var(--ink);outline:none;resize:vertical;" placeholder="e.g. Only trade during Kill Zones&#10;Wait for liquidity sweep before entry&#10;Max 2 trades per session"></textarea>
+          </div>
+          <div style="padding:10px 16px;border-top:1.5px solid #e8b4b0;display:flex;gap:8px;justify-content:flex-end;background:#fdf0ee;flex-wrap:wrap;">
+            <button onclick="closeCoreRulesModal()" style="padding:9px 12px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:transparent;color:var(--muted);border-radius:4px;">CANCEL</button>
+            <button onclick="saveCoreRules()" style="padding:9px 16px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;cursor:pointer;border:2px solid #c0392b;background:#c0392b;color:#fff;border-radius:4px;">SAVE RULES</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Quick nav tiles -->
       <div class="quick-nav">
         <button class="qn-tile" onclick="navTo('idea')">
@@ -1993,8 +2032,8 @@ function readImg(file, ctx){
 }
 function renderSsGrid(gridId, arr, ctx){
   const g=document.getElementById(gridId); if(!g) return;
-  const tfCtx=['wb','wbn','intra'];
-  const tfOptions=['Weekly','Daily','4H','1H','Custom'];
+  const tfCtx=['wb','wbn','intra','idea'];
+  const tfOptions=['Weekly','Daily','4H','1H','15m','5m','Custom'];
   g.innerHTML=arr.map((ss,i)=>{
     const labelEl = tfCtx.includes(ctx)
       ? `<select class="ss-tf-sel" onclick="event.stopPropagation()" onchange="setSsLabel(${i},'${ctx}',this.value)">${tfOptions.map(tf=>`<option value="${tf} Chart"${ss.label===tf+' Chart'?' selected':''}>${tf}</option>`).join('')}</select>`
@@ -2006,7 +2045,7 @@ function renderSsGrid(gridId, arr, ctx){
   }).join('');
 }
 function setSsLabel(i,ctx,label){
-  const map={idea:'ideaSS',cm:'cmSS',eoi:'eoiSS',ec:'ecSS',wb:'wbSS',wbn:'wbnSS',intra:'intraSS',tn:'tnSS'};
+  const map={idea:'ideaSS',cm:'cmSS',eoi:'eoiSS',ec:'ecSS',wb:'wbSS',wbn:'wbnSS',intra:'intraSS',tn:'tnSS',wbn:'wbnSS'};
   const arr=map[ctx]; if(!arr||!S[arr]||!S[arr][i]) return;
   S[arr][i].label=label;
 }
@@ -2087,6 +2126,10 @@ function renderOpen(){
     const gc=gradeClass(t.grade);
     const allSS=[...(t.screenshots||[]),...(t.eodScreenshots||[])];
     const ssHtml=allSS.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""><div class="ss-lbl">${ss.label||''}</div></div>`).join('');
+    const biasColor=t.biasSet==='BULLISH'?'var(--bull)':t.biasSet==='BEARISH'?'var(--bear)':'var(--muted)';
+    const biasBg=t.biasSet==='BULLISH'?'var(--bull-lt)':t.biasSet==='BEARISH'?'var(--bear-lt)':'var(--cream)';
+    const biasBorder=t.biasSet==='BULLISH'?'var(--bull)':t.biasSet==='BEARISH'?'var(--bear)':'var(--border)';
+    const biasPill=t.biasSet?`<span style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px;border:1px solid ${biasBorder};background:${biasBg};color:${biasColor};white-space:nowrap;">DAILY BIAS: ${t.biasSet}</span>`:'';
     return`<div class="otc">
       <div class="otc-head">
         <div>
@@ -2095,7 +2138,10 @@ function renderOpen(){
             · <span class="time-badge">${new Date(t.openTime).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
           </div>
         </div>
-        ${t.score!==null?`<div class="otc-score"><span class="pill pill-${gc}">${t.grade} — ${t.score.toFixed(1)}/10</span></div>`:''}
+        <div class="otc-score" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+          ${t.score!==null?`<span class="pill pill-${gc}">${t.grade} — ${t.score.toFixed(1)}/10</span>`:''}
+          ${biasPill}
+        </div>
       </div>
       <div class="otc-body">
         ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
