@@ -522,6 +522,10 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
       <span class="ni-icon">📋</span>
       <span class="ni-label">Closed Trades</span>
     </button>
+    <button class="nav-item" id="navitem-notes" onclick="navTo('notes')">
+      <span class="ni-icon">🗒️</span>
+      <span class="ni-label">Notes</span>
+    </button>
     <div class="sidebar-section" style="margin-top:8px;">Actions</div>
     <button class="nav-item" onclick="exportExcel()">
       <span class="ni-icon">⬇</span>
@@ -619,6 +623,11 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
 
       <!-- Open ideas section on home -->
       <div id="homeOpenSection"></div>
+
+      <!-- Mini Calendar -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;padding:14px 14px 12px;margin-top:12px;margin-bottom:6px;">
+        <div id="miniCalendarWidget"></div>
+      </div>
 
     </div>
     </div>
@@ -786,11 +795,11 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
           </div>
         </div>
 
-        <!-- Context selector: link to a weekly bias -->
+        <!-- Context selector: link to an open trade idea -->
         <div style="background:#e8eaf6;border:1.5px solid #9fa8da;border-radius:6px;padding:12px 14px;margin-bottom:12px;">
-          <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#3949ab;text-transform:uppercase;margin-bottom:6px;">Link to Weekly Bias Context</div>
+          <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#3949ab;text-transform:uppercase;margin-bottom:6px;">Link to Next Day Trade Idea (Open Entry)</div>
           <select id="intraWeeklyLink" style="width:100%;background:var(--paper);border:1.5px solid #9fa8da;border-radius:4px;padding:8px 10px;font-family:'Familjen Grotesk',sans-serif;font-size:13px;color:var(--ink);outline:none;appearance:none;" onchange="onIntraWeeklyLink()">
-            <option value="">— Select active weekly bias (optional) —</option>
+            <option value="">— Select open trade idea (optional) —</option>
           </select>
           <div id="intraContextBar" style="display:none;margin-top:8px" class="intra-context-bar">
             <div>
@@ -798,11 +807,11 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
               <div class="intra-context-val" id="intraCtxPair">—</div>
             </div>
             <div>
-              <div class="intra-context-label">Weekly Bias</div>
+              <div class="intra-context-label">Trade Bias</div>
               <div class="intra-context-val" id="intraCtxBias">—</div>
             </div>
             <div>
-              <div class="intra-context-label">Key Levels</div>
+              <div class="intra-context-label">Idea Notes</div>
               <div class="intra-context-val" id="intraCtxNotes" style="font-size:10px;font-weight:400;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
             </div>
           </div>
@@ -931,6 +940,20 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
         </table>
       </div>
       <div class="empty-state" id="closedEmpty" style="display:none">No closed trades match filters.</div>
+    </div>
+    </div>
+
+    <!-- ══ NOTES ══ -->
+    <div class="page" id="page-notes">
+    <div class="shell">
+      <div class="sec-head">
+        <h2>NOTES</h2>
+        <p>Trading notes &amp; observations</p>
+        <div class="sec-head-actions">
+          <button class="btn-primary btn-sm" onclick="openNewNoteModal()">+ NEW NOTE</button>
+        </div>
+      </div>
+      <div id="notesContainer"><div class="empty-state">No notes yet — tap <strong>+ NEW NOTE</strong> to add one.</div></div>
     </div>
     </div>
 
@@ -1168,6 +1191,42 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
 </div>
 
 
+<!-- ══ NOTE MODAL ══ -->
+<div class="modal-overlay" id="noteModal">
+<div class="modal" style="max-width:520px">
+  <div class="modal-head">
+    <h3 id="noteModalTitle">NEW NOTE</h3>
+    <button class="modal-close" onclick="closeNoteModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="field"><label>Title</label><input type="text" id="noteTitle" placeholder="Note title…"></div>
+    <div class="field" style="margin-top:8px"><label>Content</label>
+      <div class="rte-wrap">
+        <div class="rte-toolbar">
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('noteBody','bold')"><b>B</b></button>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('noteBody','italic')"><i>I</i></button>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('noteBody','underline')"><u>U</u></button>
+          <div class="rte-divider"></div>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('noteBody','insertUnorderedList')">&#8226;&#8212;</button>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('noteBody','insertOrderedList')">1.</button>
+          <div class="rte-divider"></div>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('noteBody','formatBlock','H4')" style="font-size:9px">H</button>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('noteBody','formatBlock','P')" style="font-size:9px">P</button>
+          <div class="rte-divider"></div>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteClear('noteBody')" style="font-size:8px">✕fmt</button>
+        </div>
+        <div class="rte-body" id="noteBody" contenteditable="true" data-placeholder="Write your note…" style="min-height:160px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-ghost" onclick="closeNoteModal()">CANCEL</button>
+    <button class="btn-primary" onclick="saveNote()">SAVE NOTE</button>
+  </div>
+</div>
+</div>
+
+
 <!-- ══ NEW WEEKLY BIAS MODAL ══ -->
 <div class="modal-overlay" id="weeklyModal">
 <div class="modal" style="max-width:520px">
@@ -1263,6 +1322,47 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
   <div class="modal-footer" style="background:#e8eaf6">
     <button class="btn-ghost" onclick="document.getElementById('wbNoteModal').classList.remove('open')">CANCEL</button>
     <button class="btn-primary" style="background:#283593;border-color:#283593" onclick="saveWbNote()">SAVE NOTE</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ ADD NOTE TO TRADE IDEA MODAL ══ -->
+<div class="modal-overlay" id="tradeNoteModal">
+<div class="modal" style="max-width:480px">
+  <div class="modal-head" style="background:#e8eaf6;border-bottom-color:#9fa8da">
+    <h3 id="tradeNoteTitle" style="color:#283593">ADD NOTE</h3>
+    <button class="modal-close" onclick="document.getElementById('tradeNoteModal').classList.remove('open')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="field"><label>Note</label>
+      <div class="rte-wrap">
+        <div class="rte-toolbar">
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('tradeNoteText','bold')"><b>B</b></button>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('tradeNoteText','italic')"><i>I</i></button>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('tradeNoteText','underline')"><u>U</u></button>
+          <div class="rte-divider"></div>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('tradeNoteText','insertUnorderedList')">&#8226;&#8212;</button>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('tradeNoteText','insertOrderedList')">1.</button>
+          <div class="rte-divider"></div>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('tradeNoteText','formatBlock','H4')" style="font-size:9px">H</button>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteExec('tradeNoteText','formatBlock','P')" style="font-size:9px">P</button>
+          <div class="rte-divider"></div>
+          <button class="rte-btn" onmousedown="event.preventDefault();rteClear('tradeNoteText')" style="font-size:8px">✕fmt</button>
+        </div>
+        <div class="rte-body" id="tradeNoteText" contenteditable="true" data-placeholder="Market observations, price action update…" data-rte="true"></div>
+      </div>
+    </div>
+    <div class="field"><label>Screenshot (optional)</label>
+      <div class="upload-zone" style="padding:10px" onclick="document.getElementById('tradeNoteFileIn').click()">
+        <div style="font-size:16px">📸</div><p>Add chart screenshot</p>
+        <input type="file" id="tradeNoteFileIn" accept="image/*" multiple onchange="handleFileSelect(event,'tn')">
+      </div>
+      <div class="ss-grid" id="tradeNoteSsGrid"></div>
+    </div>
+  </div>
+  <div class="modal-footer" style="background:#e8eaf6">
+    <button class="btn-ghost" onclick="document.getElementById('tradeNoteModal').classList.remove('open')">CANCEL</button>
+    <button class="btn-primary" style="background:#283593;border-color:#283593" onclick="saveTradeNote()">SAVE NOTE</button>
   </div>
 </div>
 </div>
@@ -1380,44 +1480,6 @@ const BIAS_CARDS = [
           {label:'No 4H or Daily zone · 0pts', pts:0, val:'h4_nothing'},
         ]}
     ]},
-  { id:'bc4', num:'06', title:'1H Liquidity Sweep', tf:'1H chart', maxPts:2,
-    kills:[
-      {id:'k_sweepthrough', text:'Sweep candle closed THROUGH the level (not a rejection) — invalidated.'},
-      {id:'k_bothsides', text:'Both sides swept in the same session (liquidity above AND below taken) — no edge.'},
-    ],
-    questions:[
-      { id:'q_sweep', label:'Has a 1H liquidity sweep occurred at or near the Daily/4H POI?',
-        hint:'SBCA = bullish entry. SACB = bearish. No sweep = wait.',
-        options:[
-          {label:'— Select —', pts:null, val:''},
-          {label:'Clean SBCA or SACB at Daily+4H POI · 2pts', pts:2, val:'sweep_clean'},
-          {label:'Sweep at 4H zone only (not at Daily level) · 1pt', pts:1, val:'sweep_partial'},
-          {label:'No sweep yet — monitoring · 0pts', pts:0, val:'sweep_none'},
-        ]}
-    ]},
-  { id:'bc5', num:'07', title:'1H Entry Confluence', tf:'1H chart', maxPts:2,
-    kills:[
-      {id:'k_fvgfilled', text:'1H FVG already fully filled before entry triggers — setup is done.'},
-      {id:'k_rr', text:'RR to TP 2R is less than 2:1 from entry price — do not take.'},
-    ],
-    questions:[
-      { id:'q_1h_fvg', label:'Is there a 1H FVG formed from the sweep move, still unfilled?',
-        hint:'1H FVG is your limit order zone. If filled before entry triggers, setup is done.',
-        options:[
-          {label:'— Select —', pts:null, val:''},
-          {label:'Yes — clean unfilled 1H FVG nested inside 4H zone · 1pt', pts:1, val:'fvg_clean'},
-          {label:'1H FVG present but partially filled · 0.5pts', pts:0.5, val:'fvg_partial'},
-          {label:'No 1H FVG — would use OB only · 0pts', pts:0, val:'fvg_none'},
-        ]},
-      { id:'q_1h_bias', label:'Is 1H structure aligned with the HTF bias?',
-        hint:'1H structure should confirm the Daily/4H direction. A conflicting 1H trend means you are fighting the entry timeframe — subtract 1pt. Can be updated later if 1H develops.',
-        options:[
-          {label:'— Select —', pts:null, val:''},
-          {label:'Yes — 1H structure confirms HTF direction · 1pt', pts:1, val:'h1_agree'},
-          {label:'Neutral — 1H ranging, no clear conflict · 0pts', pts:0, val:'h1_neutral'},
-          {label:'No — 1H structure opposing HTF bias · -1pt', pts:-1, val:'h1_conflict'},
-        ]}
-    ]}
 ];
 
 // ════════════════════════════════════════════════
@@ -1925,6 +1987,7 @@ function readImg(file, ctx){
     if(ctx==='cm'){S.cmSS.push(ss);renderSsGrid('cmSsGrid',S.cmSS,'cm');}
     if(ctx==='eoi'){S.eoiSS.push(ss);renderSsGrid('eoiSsGrid',S.eoiSS,'eoi');}
     if(ctx==='ec'){S.ecSS.push(ss);renderSsGrid('ecSsGrid',S.ecSS,'ec');}
+    if(ctx==='tn'){S.tnSS.push(ss);renderSsGrid('tradeNoteSsGrid',S.tnSS,'tn');}
   };
   r.readAsDataURL(file);
 }
@@ -1943,7 +2006,7 @@ function renderSsGrid(gridId, arr, ctx){
   }).join('');
 }
 function setSsLabel(i,ctx,label){
-  const map={idea:'ideaSS',cm:'cmSS',eoi:'eoiSS',ec:'ecSS',wb:'wbSS',wbn:'wbnSS',intra:'intraSS'};
+  const map={idea:'ideaSS',cm:'cmSS',eoi:'eoiSS',ec:'ecSS',wb:'wbSS',wbn:'wbnSS',intra:'intraSS',tn:'tnSS'};
   const arr=map[ctx]; if(!arr||!S[arr]||!S[arr][i]) return;
   S[arr][i].label=label;
 }
@@ -1956,6 +2019,7 @@ function removeSS(i,ctx){
     wb:['wbSS','wbSsGrid'],
     wbn:['wbnSS','wbNSsGrid'],
     intra:['intraSS','intraSsGrid'],
+    tn:['tnSS','tradeNoteSsGrid'],
   };
   const [arr,grid]=map[ctx]||[]; if(!arr) return;
   S[arr].splice(i,1); renderSsGrid(grid,S[arr],ctx);
@@ -2036,6 +2100,7 @@ function renderOpen(){
       <div class="otc-body">
         ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
         ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(t.updateNotes)}</div>`:''}
+        ${(t.tradeNotes&&t.tradeNotes.length>0)?`<div style="margin-bottom:10px;border-top:1px solid var(--cream);padding-top:8px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#3949ab;text-transform:uppercase;margin-bottom:5px">NOTES TIMELINE</div>${[...t.tradeNotes].reverse().map(n=>`<div style="margin-bottom:6px;padding:7px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px">${new Date(n.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:12px;line-height:1.6">${rteDisplay(n.text)||''}</div>${(n.screenshots&&n.screenshots.length>0)?`<div class="ss-grid" style="margin-top:5px">${n.screenshots.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""></div>`).join('')}</div>`:''}</div>`).join('')}</div>`:''}
         <div class="otc-prices">
           <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${t.entryPrice||''}" onchange="patchOpen(${t.id},'entryPrice',this.value)"></div>
           <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
@@ -2044,6 +2109,7 @@ function renderOpen(){
         ${allSS.length>0?`<div style="margin-bottom:10px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">Screenshots (${allSS.length})</div><div class="ss-grid">${ssHtml}</div></div>`:''}
         <div class="otc-actions">
           <button class="btn-gold" onclick="openCloseModal(${t.id})">CLOSE TRADE ✓</button>
+          <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px" onclick="openTradeNoteModal(${t.id})">+ ADD NOTE</button>
           <button class="btn-ghost" onclick="openEditOpenModal(${t.id})">✏ EDIT / UPDATE</button>
           <button class="btn-ghost" onclick="openChecklistEdit(${t.id})" style="border-color:var(--gold);color:var(--gold)">📋 UPDATE CHECKLIST</button>
           <button class="btn-ghost" onclick="addSsToOpenTrade(${t.id})" style="padding:5px 10px;font-size:8px">+ SCREENSHOT</button>
@@ -2077,6 +2143,32 @@ function addSsToOpenTrade(id){
 function deleteOpenTrade(id){
   if(!confirm('Delete this trade idea? Cannot be undone.')) return;
   S.trades=S.trades.filter(t=>t.id!==id); saveTrades(); renderOpen(); renderDashboard();
+}
+
+// ── TRADE NOTES ──
+S.tradeNoteEditId = null;
+S.tnSS = [];
+
+function openTradeNoteModal(id){
+  const t=S.trades.find(t=>t.id===id); if(!t) return;
+  S.tradeNoteEditId=id; S.tnSS=[];
+  document.getElementById('tradeNoteTitle').textContent='ADD NOTE — '+t.pair;
+  rteSet('tradeNoteText','');
+  document.getElementById('tradeNoteSsGrid').innerHTML='';
+  document.getElementById('tradeNoteModal').classList.add('open');
+}
+
+function saveTradeNote(){
+  const t=S.trades.find(t=>t.id===S.tradeNoteEditId); if(!t) return;
+  const text=rteGet('tradeNoteText').trim();
+  if(!text && S.tnSS.length===0){alert('Add a note or screenshot.');return;}
+  t.tradeNotes=t.tradeNotes||[];
+  t.tradeNotes.push({text, screenshots:[...S.tnSS], at:new Date().toISOString()});
+  saveTrade(t);
+  document.getElementById('tradeNoteModal').classList.remove('open');
+  S.tradeNoteEditId=null; S.tnSS=[];
+  renderOpen();
+  if(window.showToast) showToast('Note added ✓');
 }
 
 // Questions that can be updated after logging (LTF questions)
@@ -2493,61 +2585,82 @@ async function triggerInstall(){
 // INTRADAY CHECKLIST SCHEMA
 // ════════════════════════════════════════════════
 const INTRA_CARDS = [
-  { id:'ic1', num:'I-01', title:'HTF Bias Alignment', tf:'Daily / 4H', maxPts:3,
+  { id:'ic1', num:'I-01', title:'External Liquidity Taken', tf:'4H time markers · HTF', maxPts:2,
     kills:[
-      {id:'ik_monday', text:'Monday — no intraday trade. Wait for Monday range to form first.'},
-      {id:'ik_conflict', text:'Intraday direction CONFLICTS with weekly bias — do not trade against the swing.'},
+      {id:'ik_monday', text:'Monday — no intraday trade. Let Monday range form; the sweep needs a reference range.'},
+      {id:'ik_nolq', text:'No liquidity level swept — do not anticipate. Wait for confirmed sweep before any entry.'},
     ],
     questions:[
-      { id:'iq_htf_align', label:"Does today's intraday direction align with the linked weekly bias?",
-        hint:'Intraday trades must flow in the direction of the HTF swing. Counter-trend is lower probability.',
+      { id:'iq_lq_level', label:'Which external liquidity pool was taken at the 4H time marker?',
+        hint:'CRT requires a defined liquidity pool to be swept at a key 4H forex time marker (London open, NY open, NY PM, Asia). Identify the exact level swept: Asia H/L, PDH/PDL, London H/L, or Weekly H/L. The cleaner and more significant the level, the higher probability the CRT.',
         options:[
           {label:'— Select —', pts:null, val:''},
-          {label:'Yes — intraday direction matches weekly bias exactly · 3pts', pts:3, val:'ia_match'},
-          {label:'Partial — HTF neutral but intraday has clear structure · 1pt', pts:1, val:'ia_partial'},
-          {label:'No — intraday against weekly bias · 0pts', pts:0, val:'ia_conflict'},
+          {label:'Weekly High/Low swept — highest significance, strongest CRT signal · 2pts', pts:2, val:'lq_weekly'},
+          {label:'PDH/PDL swept at 4H time marker · 2pts', pts:2, val:'lq_pdhl'},
+          {label:'London High/Low swept · 2pts', pts:2, val:'lq_london'},
+          {label:'Asia High/Low swept at session open · 1pt', pts:1, val:'lq_asia'},
+          {label:'No clear liquidity pool swept — wick only / no close beyond level · 0pts', pts:0, val:'lq_none'},
         ]},
     ]},
-  { id:'ic2', num:'I-02', title:'4H / 1H Entry Zone', tf:'4H · 1H', maxPts:3,
-    kills:[],
-    questions:[
-      { id:'iq_4h_zone', label:'Is price at or approaching a key 4H OB / FVG today?',
-        hint:'The 4H zone provides the anchor for intraday entries. Without a 4H zone, the trade is low probability.',
-        options:[
-          {label:'— Select —', pts:null, val:''},
-          {label:'Price at 4H OB or FVG that aligns with weekly bias · 3pts', pts:3, val:'iz_at4h'},
-          {label:'Price near 4H zone (within 10 pips / 5 points) · 2pts', pts:2, val:'iz_near4h'},
-          {label:'No clear 4H zone — using 1H only · 1pt', pts:1, val:'iz_1h_only'},
-          {label:'No clear zone at all · 0pts', pts:0, val:'iz_none'},
-        ]},
-    ]},
-  { id:'ic3', num:'I-03', title:'15m / 5m Liquidity Sweep', tf:'15m · 5m', maxPts:2,
+  { id:'ic2', num:'I-02', title:'OHLC/OLHC Candle Model', tf:'4H / 1H candle', maxPts:2,
     kills:[
-      {id:'ik_nolq', text:'No liquidity sweep on 15m/5m — do not anticipate, wait for the sweep.'},
+      {id:'ik_wickonly', text:'Wick-only sweep with no order flow change — invalid CRT. Requires actual OHLC/OLHC structure, not just a wick.'},
     ],
     questions:[
-      { id:'iq_lq_sweep', label:'Has there been a 15m or 5m liquidity sweep into the 4H/1H zone?',
-        hint:'Look for equal lows swept (for longs) or equal highs swept (for shorts) on the 15m or 5m before entry.',
+      { id:'iq_ohlc', label:'Did price produce a valid OHLC or OLHC candle after the sweep?',
+        hint:'After the liquidity sweep, the 4H or 1H candle must form a defined OHLC (Open→High→Low→Close, bearish reversal) or OLHC (Open→Low→High→Close, bullish reversal) sequence. A wick touching a level is NOT enough — the full candle model must be present showing real order flow change.',
         options:[
           {label:'— Select —', pts:null, val:''},
-          {label:'Clean 15m sweep into the 4H zone, rejection candle confirmed · 2pts', pts:2, val:'is_clean15'},
-          {label:'5m sweep present, 15m still developing · 1pt', pts:1, val:'is_5m'},
-          {label:'No sweep yet — monitoring only · 0pts', pts:0, val:'is_none'},
+          {label:'Clean OLHC (bullish reversal) — Open, Low sweep, High, Close above midpoint · 2pts', pts:2, val:'ohlc_olhc'},
+          {label:'Clean OHLC (bearish reversal) — Open, High sweep, Low, Close below midpoint · 2pts', pts:2, val:'ohlc_ohlc'},
+          {label:'Partial model forming — candle still open, structure developing · 1pt', pts:1, val:'ohlc_partial'},
+          {label:'Wick sweep only — no valid OHLC/OLHC model confirmed · 0pts', pts:0, val:'ohlc_none'},
         ]},
     ]},
-  { id:'ic4', num:'I-04', title:'Entry Timeframe Confluence', tf:'5m · 1m', maxPts:2,
+  { id:'ic3', num:'I-03', title:'Displacement & FVG', tf:'15m · 5m', maxPts:3,
     kills:[
-      {id:'ik_fvgfilled', text:'5m FVG already filled — entry trigger gone, do not chase.'},
-      {id:'ik_rr', text:'R:R to TP is less than 1.5:1 — skip this setup.'},
+      {id:'ik_nodisplace', text:'No displacement candle — choppy price action or weak move is not a valid CRT entry signal.'},
     ],
     questions:[
-      { id:'iq_entry_fvg', label:'Is there a 5m FVG or 1m OB formed from the sweep move?',
-        hint:'The 5m FVG is your limit order entry. Place buy/sell limit at the 50% of the FVG.',
+      { id:'iq_displacement', label:'Did strong displacement occur after the OHLC/OLHC model confirmed?',
+        hint:'Displacement is a strong impulse candle (or series of candles) that moves away from the swept level with conviction, leaving a clear Fair Value Gap (FVG) or imbalance behind. This is the engine of the CRT — it shows institutions are driving price away. The FVG left behind becomes the C2/C3 entry zone.',
         options:[
           {label:'— Select —', pts:null, val:''},
-          {label:'Clean unfilled 5m FVG formed from the sweep candle · 2pts', pts:2, val:'ie_fvg'},
-          {label:'1m OB present but no 5m FVG · 1pt', pts:1, val:'ie_ob'},
-          {label:'No entry model — would be a market order only · 0pts', pts:0, val:'ie_none'},
+          {label:'Strong displacement on 15m or lower — clear FVG left behind, no overlap · 3pts', pts:3, val:'disp_strong'},
+          {label:'Moderate displacement — FVG present but partially filled or small · 2pts', pts:2, val:'disp_moderate'},
+          {label:'Weak move — small FVG, no real conviction in displacement · 1pt', pts:1, val:'disp_weak'},
+          {label:'No displacement — price drifted, no impulse candle · 0pts', pts:0, val:'disp_none'},
+        ]},
+    ]},
+  { id:'ic4', num:'I-04', title:'C2/C3 Return to Origin', tf:'15m · 5m · 1m', maxPts:2,
+    kills:[
+      {id:'ik_overshoot', text:'Price has already traded through the origin zone without entry — setup is invalidated, do not chase.'},
+      {id:'ik_rr', text:'R:R to TP is less than 1.5:1 from the origin zone — skip this setup.'},
+    ],
+    questions:[
+      { id:'iq_c2c3', label:'Has price returned (or is it returning) to the origin of displacement?',
+        hint:'In the C1/C2/C3 swing model: C1 is the sweep candle, C2 is the displacement away, C3 is the return to the origin (OB, FVG, Rejection Block, or Breaker) before continuing. The origin zone is where limit orders are placed. Price must retrace into this zone — not blow through it — for a valid entry.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Price returning cleanly to OB origin of the displacement move · 2pts', pts:2, val:'c3_ob'},
+          {label:'Price returning to FVG (imbalance left by displacement candle) · 2pts', pts:2, val:'c3_fvg'},
+          {label:'Price returning to Rejection Block or Breaker · 2pts', pts:2, val:'c3_rejblock'},
+          {label:'Price approaching origin zone — not yet arrived · 1pt', pts:1, val:'c3_approaching'},
+          {label:'Price has not retraced — would be a breakout/chase entry · 0pts', pts:0, val:'c3_none'},
+        ]},
+    ]},
+  { id:'ic5', num:'I-05', title:'4H Narrative & Context', tf:'4H context', maxPts:1,
+    kills:[
+      {id:'ik_htfconflict', text:'CRT direction directly opposes the 4H DOL/structure — counter-trend CRT requires extreme caution and is lower probability.'},
+    ],
+    questions:[
+      { id:'iq_4h_narrative', label:'Does the 4H narrative support this CRT direction?',
+        hint:'Even within a CRT setup, the broader 4H context must be considered. Is the DOL (Draw on Liquidity) aligned with where the CRT is pushing price? Is 4H structure pointing the same way? Trading a bullish CRT into a major 4H bearish block or against the 4H DOL is low probability. The 4H context adds conviction — it should not be fighting you.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'4H DOL and structure fully aligned with CRT direction · 1pt', pts:1, val:'h4n_aligned'},
+          {label:'4H neutral — no strong HTF conflict, CRT can still work · 0.5pts', pts:0.5, val:'h4n_neutral'},
+          {label:'4H narrative against CRT direction — lower probability setup · 0pts', pts:0, val:'h4n_conflict'},
         ]},
     ]},
 ];
@@ -2885,12 +2998,12 @@ function toggleWeeklyShowClosed(){ S.weeklyShowClosed=!S.weeklyShowClosed; rende
 // ════════════════════════════════════════════════
 function refreshIntraWeeklyDropdown(){
   const sel = document.getElementById('intraWeeklyLink'); if(!sel) return;
-  const open = S.weeklies.filter(w=>w.status==='open');
-  sel.innerHTML = '<option value="">— Select active weekly bias (optional) —</option>'
-    + open.map(w=>`<option value="${w.id}">${w.pair} — ${w.bias} (${w.date})</option>`).join('');
+  const openTrades = (S.trades||[]).filter(t=>t.status==='open'&&!t.isIntraday);
+  sel.innerHTML = '<option value="">— Select open trade idea (optional) —</option>'
+    + openTrades.map(t=>`<option value="${t.id}">${t.pair} — ${t.biasSet||'—'} (${t.date})</option>`).join('');
   // Also update pair suggestions
   const dl = document.getElementById('intraPairSuggestions'); if(!dl) return;
-  dl.innerHTML = open.map(w=>`<option value="${w.pair}">`).join('');
+  dl.innerHTML = openTrades.map(t=>`<option value="${t.pair}">`).join('');
 }
 
 function onIntraWeeklyLink(){
@@ -2898,15 +3011,16 @@ function onIntraWeeklyLink(){
   const id = parseInt(sel.value);
   const bar = document.getElementById('intraContextBar');
   if(!id || isNaN(id)){ if(bar) bar.style.display='none'; return; }
-  const w = S.weeklies.find(w=>w.id===id);
-  if(!w){ if(bar) bar.style.display='none'; return; }
+  const t = (S.trades||[]).find(t=>t.id===id);
+  if(!t){ if(bar) bar.style.display='none'; return; }
   if(bar) bar.style.display='flex';
-  document.getElementById('intraCtxPair').textContent = w.pair;
-  document.getElementById('intraCtxBias').textContent = w.bias;
-  document.getElementById('intraCtxNotes').textContent = w.notes ? w.notes.substring(0,60)+(w.notes.length>60?'…':'') : '—';
+  document.getElementById('intraCtxPair').textContent = t.pair;
+  document.getElementById('intraCtxBias').textContent = t.biasSet||'—';
+  const notes = t.ideaNotes ? t.ideaNotes.replace(/<[^>]+>/g,'') : '';
+  document.getElementById('intraCtxNotes').textContent = notes ? notes.substring(0,60)+(notes.length>60?'…':'') : '—';
   // Auto-fill pair
   const pairIn = document.getElementById('intraPair');
-  if(pairIn && !pairIn.value) pairIn.value = w.pair;
+  if(pairIn && !pairIn.value) pairIn.value = t.pair;
   updateIntraScoreStrip();
 }
 
@@ -3232,6 +3346,7 @@ renderOpen = function(){
       <div class="otc-body">
         ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
         ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(t.updateNotes)}</div>`:''}
+        ${(t.tradeNotes&&t.tradeNotes.length>0)?`<div style="margin-bottom:10px;border-top:1px solid var(--cream);padding-top:8px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#3949ab;text-transform:uppercase;margin-bottom:5px">NOTES TIMELINE</div>${[...t.tradeNotes].reverse().map(n=>`<div style="margin-bottom:6px;padding:7px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px">${new Date(n.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:12px;line-height:1.6">${rteDisplay(n.text)||''}</div>${(n.screenshots&&n.screenshots.length>0)?`<div class="ss-grid" style="margin-top:5px">${n.screenshots.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""></div>`).join('')}</div>`:''}</div>`).join('')}</div>`:''}
         <div class="otc-prices">
           <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${t.entryPrice||''}" onchange="patchOpen(${t.id},'entryPrice',this.value)"></div>
           <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
@@ -3240,6 +3355,7 @@ renderOpen = function(){
         ${allSS.length>0?`<div style="margin-bottom:10px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">Screenshots (${allSS.length})</div><div class="ss-grid">${ssHtml}</div></div>`:''}
         <div class="otc-actions">
           <button class="btn-gold" onclick="openCloseModal(${t.id})">CLOSE TRADE ✓</button>
+          <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px" onclick="openTradeNoteModal(${t.id})">+ NOTE</button>
           <button class="btn-ghost" onclick="openEditOpenModal(${t.id})">✏ EDIT</button>
           <button class="btn-ghost" onclick="openChecklistEdit(${t.id})" style="border-color:var(--gold);color:var(--gold)">📋 CHECKLIST</button>
           <button class="btn-ghost" onclick="addSsToOpenTrade(${t.id})" style="padding:5px 10px;font-size:8px">+ SHOT</button>
@@ -3304,6 +3420,263 @@ setTimeout(()=>{ renderTagsInWrap('intraTagWrap', S.intraTags, 'intra'); }, 100)
 document.getElementById('ideaDate').value=new Date().toISOString().split('T')[0];
 // renderDashboard() called after login via loadAllData()
 
+
+// ════════════════════════════════════════════════
+// NOTES (Supabase-synced)
+// ════════════════════════════════════════════════
+S.notes = [];
+let _editNoteId = null;
+
+function noteToDb(n){
+  return { id:n.id, user_id:_currentUser.id, title:n.title||'', body:n.body||'', created_at:n.createdAt, updated_at:n.updatedAt||n.createdAt };
+}
+function dbToNote(r){
+  return { id:r.id, title:r.title||'', body:r.body||'', createdAt:r.created_at, updatedAt:r.updated_at };
+}
+
+async function loadNotes(){
+  if(!_currentUser) return;
+  try{
+    const {data,error}=await _sb.from('notes').select('*').eq('user_id',_currentUser.id).order('updated_at',{ascending:false});
+    if(error) throw error;
+    S.notes=(data||[]).map(dbToNote);
+  } catch(e){ console.warn('Notes load error',e); }
+}
+
+async function saveNoteToDb(n){
+  try{
+    const {error}=await _sb.from('notes').upsert(noteToDb(n),{onConflict:'id'});
+    if(error) throw error;
+  } catch(e){ console.warn('Note save error',e); }
+}
+
+async function deleteNoteFromDb(id){
+  try{
+    const {error}=await _sb.from('notes').delete().eq('id',id).eq('user_id',_currentUser.id);
+    if(error) throw error;
+  } catch(e){ console.warn('Note delete error',e); }
+}
+
+function renderNotes(){
+  const c=document.getElementById('notesContainer'); if(!c) return;
+  if(!S.notes||S.notes.length===0){
+    c.innerHTML='<div class="empty-state">No notes yet — tap <strong>+ NEW NOTE</strong> to add one.</div>';
+    return;
+  }
+  c.innerHTML=S.notes.map(n=>{
+    const d=new Date(n.updatedAt||n.createdAt);
+    const ds=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const preview=n.body?n.body.replace(/<[^>]+>/g,'').substring(0,120):'';
+    return `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;padding:14px;margin-bottom:10px;cursor:pointer;transition:border-color .15s" onmouseenter="this.style.borderColor='var(--ink)'" onmouseleave="this.style.borderColor='var(--border)'" onclick="openEditNoteModal(${n.id})">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px;">
+        <div style="font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;color:var(--ink);flex:1">${n.title||'Untitled'}</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          <span style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted)">${ds}</span>
+          <button onclick="event.stopPropagation();deleteNote(${n.id})" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:12px;padding:2px 5px;border-radius:3px;transition:color .15s" onmouseenter="this.style.color='var(--bear)'" onmouseleave="this.style.color='var(--muted)'">✕</button>
+        </div>
+      </div>
+      ${preview?`<div style="font-size:12px;color:var(--muted);line-height:1.5">${preview}${n.body&&n.body.replace(/<[^>]+>/g,'').length>120?'…':''}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function openNewNoteModal(){
+  _editNoteId=null;
+  document.getElementById('noteModalTitle').textContent='NEW NOTE';
+  document.getElementById('noteTitle').value='';
+  rteSet('noteBody','');
+  document.getElementById('noteModal').classList.add('open');
+  setTimeout(()=>document.getElementById('noteTitle').focus(),100);
+}
+
+function openEditNoteModal(id){
+  const n=S.notes.find(x=>x.id===id); if(!n) return;
+  _editNoteId=id;
+  document.getElementById('noteModalTitle').textContent='EDIT NOTE';
+  document.getElementById('noteTitle').value=n.title||'';
+  rteSet('noteBody',n.body||'');
+  document.getElementById('noteModal').classList.add('open');
+  setTimeout(()=>document.getElementById('noteTitle').focus(),100);
+}
+
+function closeNoteModal(){
+  document.getElementById('noteModal').classList.remove('open');
+  _editNoteId=null;
+}
+
+async function saveNote(){
+  const title=document.getElementById('noteTitle').value.trim();
+  const body=rteGet('noteBody');
+  if(!title&&!body){ alert('Add a title or content.'); return; }
+  const now=new Date().toISOString();
+  if(_editNoteId){
+    const n=S.notes.find(x=>x.id===_editNoteId);
+    if(n){ n.title=title; n.body=body; n.updatedAt=now; await saveNoteToDb(n); }
+  } else {
+    const n={id:Date.now(),title,body,createdAt:now,updatedAt:now};
+    S.notes.unshift(n);
+    await saveNoteToDb(n);
+  }
+  closeNoteModal();
+  renderNotes();
+  if(window.showToast) showToast('Note saved ✓');
+}
+
+async function deleteNote(id){
+  if(!confirm('Delete this note?')) return;
+  S.notes=S.notes.filter(n=>n.id!==id);
+  await deleteNoteFromDb(id);
+  renderNotes();
+}
+
+// Hook into loadAllData to also load notes
+const _origLoadAllData2 = loadAllData;
+loadAllData = async function(){
+  await _origLoadAllData2();
+  await loadNotes();
+};
+
+// Hook into navTo for notes page
+const _origNavToForNotes = navTo;
+navTo = function(page){
+  _origNavToForNotes(page);
+  if(page==='notes') renderNotes();
+};
+
+// ════════════════════════════════════════════════
+// MINI CALENDAR (Dashboard bottom)
+// ════════════════════════════════════════════════
+function renderMiniCalendar(){
+  const el=document.getElementById('miniCalendarWidget'); if(!el) return;
+  const today=new Date();
+  const yr=today.getFullYear(), curMo=today.getMonth(), curD=today.getDate();
+  const start=new Date(yr,0,0);
+  const doy=Math.floor((today-start)/(1000*60*60*24));
+  const isLeap=(yr%4===0&&yr%100!==0)||(yr%400===0);
+  const total=isLeap?366:365;
+  const DAYS=['M','T','W','T','F','S','S'];
+
+  function buildMonthHtml(mo, moYr){
+    const isCurrentMonth = mo===curMo && moYr===yr;
+    const monthName=new Date(moYr,mo,1).toLocaleString('default',{month:'short'});
+    const firstDow=new Date(moYr,mo,1).getDay();
+    const firstMon=(firstDow+6)%7;
+    const daysInMonth=new Date(moYr,mo+1,0).getDate();
+    let cells='';
+    for(let i=0;i<firstMon;i++) cells+=`<div></div>`;
+    for(let i=1;i<=daysInMonth;i++){
+      const isToday=isCurrentMonth&&i===curD;
+      const isPast=isCurrentMonth?i<curD:false;
+      cells+=`<div style="width:19px;height:19px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-family:'Azeret Mono',monospace;font-size:8px;${isToday?'background:var(--ink);color:var(--paper);font-weight:700;':isPast?'color:var(--muted);':'color:var(--ink);'}">${i}</div>`;
+    }
+    return `<div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid var(--border);">
+        <div style="font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;color:${isCurrentMonth?'var(--ink)':'var(--muted)'};letter-spacing:1px;">${monthName.toUpperCase()} ${moYr}</div>
+        ${isCurrentMonth?`<div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);">${doy}d</div>`:''}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,19px);gap:1px;">
+        ${DAYS.map(d=>`<div style="width:19px;height:16px;display:flex;align-items:center;justify-content:center;font-family:'Azeret Mono',monospace;font-size:7px;font-weight:700;color:var(--muted);">${d}</div>`).join('')}
+        ${cells}
+      </div>
+    </div>`;
+  }
+
+  // Show current month + next 3 months
+  let months = [];
+  for(let i=0; i<4; i++){
+    const mo = (curMo+i)%12;
+    const moYr = yr + Math.floor((curMo+i)/12);
+    months.push(buildMonthHtml(mo, moYr));
+  }
+
+  el.innerHTML=`
+    <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">${yr} CALENDAR · ${total - doy} DAYS REMAINING</div>
+    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;">
+      ${months.join('')}
+    </div>`;
+}
+
+// Patch renderDashboard to render mini calendar
+const _origRdCal = renderDashboard;
+renderDashboard = function(){
+  _origRdCal();
+  setTimeout(renderMiniCalendar, 50);
+};
+setTimeout(renderMiniCalendar, 300);
+
+// ════════════════════════════════════════════════
+// CORE RULES
+// ════════════════════════════════════════════════
+(function(){
+  const STORAGE_KEY='ict_core_rules';
+  let rulesOpen=true;
+
+  function loadRules(){
+    try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); }
+    catch(e){ return []; }
+  }
+  function saveRulesData(arr){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+  }
+  function renderCoreRules(){
+    const rules=loadRules();
+    const ol=document.getElementById('coreRulesOl');
+    const empty=document.getElementById('coreRulesEmpty');
+    const count=document.getElementById('coreRulesCount');
+    if(!ol) return;
+    if(rules.length===0){
+      ol.innerHTML='';
+      if(empty) empty.style.display='block';
+      if(count) count.textContent='';
+    } else {
+      if(empty) empty.style.display='none';
+      if(count) count.textContent=rules.length+' RULE'+(rules.length!==1?'S':'');
+      ol.innerHTML=rules.map((r,i)=>`
+        <li style="display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-bottom:1px solid var(--cream);">
+          <span style="font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;color:#b80000;background:#fdeaea;border:1px solid #f0b0b0;border-radius:3px;padding:2px 7px;min-width:28px;text-align:center;flex-shrink:0;margin-top:1px;">${i+1}</span>
+          <span style="font-size:13px;color:var(--ink);line-height:1.55;flex:1;">${r.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>
+        </li>`).join('');
+    }
+  }
+
+  window.toggleCoreRules=function(){
+    rulesOpen=!rulesOpen;
+    const list=document.getElementById('coreRulesList');
+    const chev=document.getElementById('coreRulesChevron');
+    if(list){ list.style.display=rulesOpen?'block':'none'; }
+    if(chev){ chev.style.transform=rulesOpen?'rotate(0deg)':'rotate(-90deg)'; }
+  };
+
+  window.openCoreRulesEditor=function(){
+    const rules=loadRules();
+    const ta=document.getElementById('coreRulesTextarea');
+    if(ta) ta.value=rules.join('\n');
+    const modal=document.getElementById('coreRulesModal');
+    if(modal){ modal.style.display='flex'; }
+  };
+
+  window.closeCoreRulesModal=function(){
+    const modal=document.getElementById('coreRulesModal');
+    if(modal) modal.style.display='none';
+  };
+
+  window.saveCoreRules=function(){
+    const ta=document.getElementById('coreRulesTextarea');
+    if(!ta) return;
+    const rules=ta.value.split('\n').map(r=>r.trim()).filter(r=>r.length>0);
+    saveRulesData(rules);
+    renderCoreRules();
+    closeCoreRulesModal();
+    if(window.showToast) showToast('Core rules saved ✓');
+  };
+
+  document.addEventListener('click',function(e){
+    const modal=document.getElementById('coreRulesModal');
+    if(modal && e.target===modal) closeCoreRulesModal();
+  });
+
+  setTimeout(renderCoreRules, 200);
+})();
 
 // ════════════════════════════════════════════════
 // RICH TEXT EDITOR HELPERS
