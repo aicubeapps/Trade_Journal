@@ -418,6 +418,23 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
 .toast-msg.err{border-left-color:#ff5555;}
 .toast-msg.warn{border-left-color:#c8a84a;}
 
+
+/* ── RICH TEXT EDITOR ── */
+.rte-wrap{border:1.5px solid var(--border);border-radius:4px;background:var(--surface);overflow:hidden;transition:border-color .15s;}
+.rte-wrap:focus-within{border-color:var(--ink);}
+.rte-toolbar{display:flex;align-items:center;gap:2px;padding:4px 6px;background:var(--cream);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.rte-btn{padding:3px 7px;font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--muted);border-radius:3px;transition:all .12s;line-height:1.3;min-width:24px;text-align:center;}
+.rte-btn:hover{background:var(--paper);border-color:var(--border);color:var(--ink);}
+.rte-btn.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.rte-divider{width:1px;height:16px;background:var(--border);margin:0 2px;flex-shrink:0;}
+.rte-body{min-height:80px;padding:8px 10px;font-family:'Familjen Grotesk',sans-serif;font-size:13px;color:var(--ink);outline:none;line-height:1.6;}
+.rte-body:empty:before{content:attr(data-placeholder);color:#aaa;pointer-events:none;}
+.rte-body ul,.rte-body ol{padding-left:20px;margin:4px 0;}
+.rte-body li{margin:2px 0;}
+.rte-body b,.rte-body strong{font-weight:700;}
+.rte-body i,.rte-body em{font-style:italic;}
+.rte-body u{text-decoration:underline;}
+
 </style>
 </head>
 <body>
@@ -461,10 +478,11 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
     <p>D · 4H · 1H · SCORED</p>
   </div>
   <div class="topbar-actions">
-    <button class="gdrive-btn" id="driveBtn" onclick="openDriveModal()">
-      <span class="gdrive-dot"></span>
-      <span class="gdrive-label">BACKUP</span>
-    </button>
+    <div id="dbStatusDot" onclick="openDriveModal()" title="Database status" style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:4px 8px;border-radius:3px;border:1px solid #2a2520">
+      <div id="dbDotTopbar" style="width:8px;height:8px;border-radius:50%;background:#3a3530;transition:background .4s;flex-shrink:0"></div>
+      <span id="dbLabelTopbar" style="font-family:'Azeret Mono',monospace;font-size:8px;color:#5a5040;letter-spacing:1px">DB</span>
+    </div>
+    <button id="syncBtnTop" onclick="manualSync()" style="padding:5px 9px;font-family:'Azeret Mono',monospace;font-size:9px;cursor:pointer;border:1px solid #3a3530;background:transparent;color:#6a6050;border-radius:3px;transition:all .15s" title="Sync data">⟳</button>
   </div>
 </div>
 
@@ -511,7 +529,7 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
     </button>
     <button class="nav-item" onclick="openDriveModal()">
       <span class="ni-icon">☁</span>
-      <span class="ni-label">Backup / Restore</span>
+      <span class="ni-label">Database Status</span>
     </button>
     <div class="sidebar-footer">
       <p>ICT Trading Journal<br>D · 4H · 1H Scored<br><span id='sbUserEmail' style='color:#6a6050'></span></p>
@@ -525,10 +543,13 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
     <div class="page active" id="page-home">
     <div class="shell">
       <div id="installBannerWrap"></div>
-      <div class="drive-bar" id="driveBar">
+      <div class="drive-bar" id="driveBar" style="cursor:pointer" onclick="openDriveModal()">
         <div class="drive-dot off" id="driveDot"></div>
-        <span id="driveBarText">No backup saved yet</span>
-        <button class="btn-ghost btn-sm" style="margin-left:auto" onclick="openDriveModal()">BACKUP / RESTORE</button>
+        <div style="flex:1">
+          <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:1px">SUPABASE</div>
+          <div id="driveBarText" style="font-size:11px">Not yet synced — tap to check</div>
+        </div>
+        <div id="syncTimeDisplay" style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);text-align:right;flex-shrink:0"></div>
       </div>
 
       <div class="sec-head">
@@ -542,13 +563,18 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
       <!-- Forex Heatmap Widget -->
       <div style="border-radius:6px;overflow:hidden;margin-bottom:14px;border:1.5px solid var(--border)">
         <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;padding:8px 12px;background:var(--cream);border-bottom:1px solid var(--border)">FOREX HEATMAP</div>
-        <div class="tradingview-widget-container" style="width:100%;height:220px">
+        <div class="tradingview-widget-container" id="heatmapContainer" style="width:100%;height:auto;min-height:160px">
           <div class="tradingview-widget-container__widget" style="width:100%;height:100%"></div>
           <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-forex-heat-map.js" async>
-          {"colorTheme":"dark","isTransparent":false,"locale":"en","currencies":["EUR","USD","GBP","CHF"],"backgroundColor":"#0F0F0F","width":"100%","height":220}
+          {"colorTheme":"dark","isTransparent":false,"locale":"en","currencies":["EUR","USD","GBP","CHF","JPY","AUD"],"backgroundColor":"#0F0F0F","width":"100%","height":"auto","autosize":true}
           </script>
         </div>
       </div>
+      <style>
+      .tradingview-widget-container iframe{width:100%!important;max-width:100%!important;font-size:clamp(8px,1.5vw,13px)!important;}
+      @media(max-width:480px){#heatmapContainer{min-height:140px}}
+      @media(min-width:700px){#heatmapContainer{min-height:200px}}
+      </style>
 
       <!-- Quick nav tiles -->
       <div class="quick-nav">
@@ -679,7 +705,22 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
               </div>
               <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:3px">Press Enter or comma to add · Backspace to remove last</div>
             </div>
-            <div class="field"><label>Idea Notes</label><textarea id="ideaNotes" placeholder="Setup rationale, key levels, POI…"></textarea></div>
+            <div class="field"><label>Idea Notes</label><div class="rte-wrap">
+              <div class="rte-toolbar">
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ideaNotes','bold')" title="Bold"><b>B</b></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ideaNotes','italic')" title="Italic"><i>I</i></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ideaNotes','underline')" title="Underline"><u>U</u></button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ideaNotes','insertUnorderedList')" title="Bullet list">&#8226;&#8212;</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ideaNotes','insertOrderedList')" title="Numbered list">1.</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ideaNotes','formatBlock','H4')" title="Heading" style="font-size:9px">H</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ideaNotes','formatBlock','P')" title="Normal text" style="font-size:9px">P</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteClear('ideaNotes')" title="Clear formatting" style="font-size:8px">✕fmt</button>
+              </div>
+              <div class="rte-body" id="ideaNotes" contenteditable="true" data-placeholder="Setup rationale, key levels, POI…" data-rte="true"></div>
+            </div></div>
             <div id="logFormActions" style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn-primary" id="logPrimaryBtn" onclick="saveIdeaAsOpen()">💡 LOG AS OPEN TRADE</button>
               <button class="btn-ghost" onclick="fullResetChecklist()">🗑 CLEAR ALL</button>
@@ -836,7 +877,22 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
               </div>
               <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:3px">Press Enter or comma to add · Backspace to remove</div>
             </div>
-            <div class="field"><label>Idea Notes</label><textarea id="intraNotes" placeholder="Entry rationale, 15m/5m confluence, key levels…"></textarea></div>
+            <div class="field"><label>Idea Notes</label><div class="rte-wrap">
+              <div class="rte-toolbar">
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('intraNotes','bold')" title="Bold"><b>B</b></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('intraNotes','italic')" title="Italic"><i>I</i></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('intraNotes','underline')" title="Underline"><u>U</u></button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('intraNotes','insertUnorderedList')" title="Bullet list">&#8226;&#8212;</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('intraNotes','insertOrderedList')" title="Numbered list">1.</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('intraNotes','formatBlock','H4')" title="Heading" style="font-size:9px">H</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('intraNotes','formatBlock','P')" title="Normal text" style="font-size:9px">P</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteClear('intraNotes')" title="Clear formatting" style="font-size:8px">✕fmt</button>
+              </div>
+              <div class="rte-body" id="intraNotes" contenteditable="true" data-placeholder="Entry rationale, 15m/5m confluence, key levels…" data-rte="true"></div>
+            </div></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn-primary" style="background:#283593;border-color:#283593" onclick="saveIntradayIdea()">⚡ LOG INTRADAY IDEA</button>
               <button class="btn-ghost" onclick="fullResetIntraday()">🗑 CLEAR</button>
@@ -937,7 +993,22 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
       </div>
       <div class="ss-grid" id="cmSsGrid"></div>
     </div>
-    <div class="field"><label>Post-Trade Notes</label><textarea id="cmNotes" placeholder="What happened? Lessons learned…"></textarea></div>
+    <div class="field"><label>Post-Trade Notes</label><div class="rte-wrap">
+              <div class="rte-toolbar">
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('cmNotes','bold')" title="Bold"><b>B</b></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('cmNotes','italic')" title="Italic"><i>I</i></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('cmNotes','underline')" title="Underline"><u>U</u></button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('cmNotes','insertUnorderedList')" title="Bullet list">&#8226;&#8212;</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('cmNotes','insertOrderedList')" title="Numbered list">1.</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('cmNotes','formatBlock','H4')" title="Heading" style="font-size:9px">H</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('cmNotes','formatBlock','P')" title="Normal text" style="font-size:9px">P</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteClear('cmNotes')" title="Clear formatting" style="font-size:8px">✕fmt</button>
+              </div>
+              <div class="rte-body" id="cmNotes" contenteditable="true" data-placeholder="What happened? Lessons learned…" data-rte="true"></div>
+            </div></div>
   </div>
   <div class="modal-footer">
     <button class="btn-ghost" onclick="closeModalHide()">CANCEL</button>
@@ -964,7 +1035,22 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
       <div class="field"><label>Current Price</label><input type="number" step="any" id="eoiCurrent" placeholder="0.00000"></div>
     </div>
     <div class="field"><label>Updated Notes / Chart Developments</label>
-      <textarea id="eoiNotes" placeholder="How is the setup developing? Any updates…" style="min-height:70px"></textarea>
+      <div class="rte-wrap">
+              <div class="rte-toolbar">
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('eoiNotes','bold')" title="Bold"><b>B</b></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('eoiNotes','italic')" title="Italic"><i>I</i></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('eoiNotes','underline')" title="Underline"><u>U</u></button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('eoiNotes','insertUnorderedList')" title="Bullet list">&#8226;&#8212;</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('eoiNotes','insertOrderedList')" title="Numbered list">1.</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('eoiNotes','formatBlock','H4')" title="Heading" style="font-size:9px">H</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('eoiNotes','formatBlock','P')" title="Normal text" style="font-size:9px">P</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteClear('eoiNotes')" title="Clear formatting" style="font-size:8px">✕fmt</button>
+              </div>
+              <div class="rte-body" id="eoiNotes" contenteditable="true" data-placeholder="How is the setup developing? Any updates…" data-rte="true"></div>
+            </div>
     </div>
     <div class="field"><label>Add Screenshot</label>
       <div class="upload-zone" style="padding:10px" onclick="document.getElementById('eoiFileIn').click()">
@@ -1024,7 +1110,22 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
       </div>
     </div>
     <div class="field"><label>Follow-up Notes</label>
-      <textarea id="ecFollowup" placeholder="Follow-up observations, lessons, what played out…" style="min-height:70px"></textarea>
+      <div class="rte-wrap">
+              <div class="rte-toolbar">
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ecFollowup','bold')" title="Bold"><b>B</b></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ecFollowup','italic')" title="Italic"><i>I</i></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ecFollowup','underline')" title="Underline"><u>U</u></button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ecFollowup','insertUnorderedList')" title="Bullet list">&#8226;&#8212;</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ecFollowup','insertOrderedList')" title="Numbered list">1.</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ecFollowup','formatBlock','H4')" title="Heading" style="font-size:9px">H</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('ecFollowup','formatBlock','P')" title="Normal text" style="font-size:9px">P</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteClear('ecFollowup')" title="Clear formatting" style="font-size:8px">✕fmt</button>
+              </div>
+              <div class="rte-body" id="ecFollowup" contenteditable="true" data-placeholder="Follow-up observations, lessons, what played out…" data-rte="true"></div>
+            </div>
     </div>
     <div class="field"><label>Add Follow-up Screenshot</label>
       <div class="upload-zone" style="padding:10px" onclick="document.getElementById('ecFileIn').click()">
@@ -1041,52 +1142,27 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
 </div>
 </div>
 
-<!-- ══ GOOGLE DRIVE MODAL ══ -->
+<!-- ══ DATABASE STATUS MODAL ══ -->
 <div class="modal-overlay" id="driveModal">
-<div class="modal" style="max-width:440px">
+<div class="modal" style="max-width:420px">
   <div class="modal-head">
-    <h3>BACKUP &amp; AUTO-EXPORT</h3>
+    <h3>DATABASE STATUS</h3>
     <button class="modal-close" onclick="document.getElementById('driveModal').classList.remove('open')">✕</button>
   </div>
   <div class="modal-body">
-
-    <!-- Auto-export folder -->
-    <div style="margin-bottom:14px">
-      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Auto-Export Folder</div>
-      <p style="font-size:11px;color:var(--ink);line-height:1.6;margin-bottom:8px">Select the folder your sync app watches. The journal will automatically write a backup file there every week when you open the app.</p>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn-primary" style="flex:1" onclick="pickExportFolder()">📁 SELECT FOLDER</button>
-        <button class="btn-ghost" id="clearFolderBtn" onclick="clearExportFolder()" style="display:none">✕ CLEAR</button>
+    <div style="background:var(--cream);border-radius:6px;padding:12px 14px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div class="drive-dot" id="modalDbDot" style="width:10px;height:10px"></div>
+        <div style="font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700" id="modalDbStatus">Checking…</div>
       </div>
-      <div style="font-family:'Azeret Mono',monospace;font-size:9px;margin-top:8px;padding:7px 10px;border-radius:4px;border:1px solid var(--border)" id="folderStatus">
-        No folder selected
-      </div>
+      <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted)" id="modalDbDetail">—</div>
     </div>
-
-    <!-- Manual export now -->
-    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:2px;margin-bottom:14px">
-      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Manual Export</div>
-      <div style="display:flex;gap:8px">
-        <button class="btn-ghost" style="flex:1" id="exportToFolderBtn" onclick="exportToFolder()" style="display:none">⬇ WRITE TO FOLDER NOW</button>
-        <button class="btn-ghost" style="flex:1" onclick="exportDownload()">⬇ DOWNLOAD FILE</button>
-      </div>
-      <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:6px" id="exportStatus"></div>
-    </div>
-
-    <!-- Restore -->
-    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:2px">
-      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Restore from Backup</div>
-      <p style="font-size:11px;color:var(--ink);line-height:1.6;margin-bottom:8px">Pick a <code style="background:var(--cream);padding:1px 4px;border-radius:2px">.json</code> backup to restore. This will <strong>replace</strong> all current data.</p>
-      <label class="btn-ghost" style="display:block;text-align:center;cursor:pointer;padding:8px">
-        ⬆ CHOOSE BACKUP FILE
-        <input type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)">
-      </label>
-      <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:6px" id="importStatus"></div>
-    </div>
-
-    <div style="background:var(--cream);border-radius:4px;padding:8px 10px;font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);line-height:1.7;margin-top:12px" id="fsaNotice">
-      💡 Folder selection uses the browser's File System Access API — supported in Chrome and Edge. The folder permission is remembered until you clear it. Auto-export runs once per week on app open.
-    </div>
+    <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Signed In As</div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:12px" id="modalUserEmail">—</div>
+    <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Export</div>
+    <button class="btn-ghost" style="width:100%;margin-bottom:6px" onclick="exportExcel()">⬇ DOWNLOAD EXCEL</button>
+    <button class="btn-ghost" style="width:100%;margin-bottom:12px" onclick="manualSync()">⟳ SYNC NOW</button>
+    <button class="btn-ghost" style="width:100%;color:var(--bear);border-color:var(--bear)" onclick="doLogout()">⏻ SIGN OUT</button>
   </div>
 </div>
 </div>
@@ -1112,7 +1188,22 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
       </div>
     </div>
     <div class="field"><label>Key Levels / Notes</label>
-      <textarea id="wbNotes" placeholder="Weekly draw on liquidity, key HTF levels, what to watch…" style="min-height:80px"></textarea>
+      <div class="rte-wrap">
+              <div class="rte-toolbar">
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNotes','bold')" title="Bold"><b>B</b></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNotes','italic')" title="Italic"><i>I</i></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNotes','underline')" title="Underline"><u>U</u></button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNotes','insertUnorderedList')" title="Bullet list">&#8226;&#8212;</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNotes','insertOrderedList')" title="Numbered list">1.</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNotes','formatBlock','H4')" title="Heading" style="font-size:9px">H</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNotes','formatBlock','P')" title="Normal text" style="font-size:9px">P</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteClear('wbNotes')" title="Clear formatting" style="font-size:8px">✕fmt</button>
+              </div>
+              <div class="rte-body" id="wbNotes" contenteditable="true" data-placeholder="Weekly draw on liquidity, key HTF levels, what to watch…" data-rte="true"></div>
+            </div>
     </div>
     <div class="field"><label>Tags</label>
       <div class="tag-input-wrap" id="wbTagWrap" onclick="document.getElementById('wbTagInput').focus()">
@@ -1144,7 +1235,22 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
   </div>
   <div class="modal-body">
     <div class="field"><label>Update Note</label>
-      <textarea id="wbNoteText" placeholder="How is the market developing? Key observations…" style="min-height:80px"></textarea>
+      <div class="rte-wrap">
+              <div class="rte-toolbar">
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNoteText','bold')" title="Bold"><b>B</b></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNoteText','italic')" title="Italic"><i>I</i></button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNoteText','underline')" title="Underline"><u>U</u></button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNoteText','insertUnorderedList')" title="Bullet list">&#8226;&#8212;</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNoteText','insertOrderedList')" title="Numbered list">1.</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNoteText','formatBlock','H4')" title="Heading" style="font-size:9px">H</button>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteExec('wbNoteText','formatBlock','P')" title="Normal text" style="font-size:9px">P</button>
+                <div class="rte-divider"></div>
+                <button class="rte-btn" onmousedown="event.preventDefault();rteClear('wbNoteText')" title="Clear formatting" style="font-size:8px">✕fmt</button>
+              </div>
+              <div class="rte-body" id="wbNoteText" contenteditable="true" data-placeholder="Market observations, how price is developing…" data-rte="true"></div>
+            </div>
     </div>
     <div class="field"><label>Screenshot (optional)</label>
       <div class="upload-zone" style="padding:10px" onclick="document.getElementById('wbNoteFileIn').click()">
@@ -1411,9 +1517,23 @@ _sb.auth.onAuthStateChange((event,session)=>{
 // SUPABASE DATA LAYER
 // ══════════════════════════════════════
 function setSyncStatus(s){
-  const el=document.getElementById('syncIndicator'); if(!el) return;
-  el.className='sync-indicator'+(s==='syncing'?' syncing':s==='synced'?' synced':s==='error'?' error':'');
-  el.innerHTML=s==='syncing'?'<span class="spin">⟳</span> SYNCING':s==='synced'?'✓ SYNCED':s==='error'?'✕ ERROR':'☁ SYNC';
+  S.syncStatus=s;
+  // Topbar dot
+  const dbDot=document.getElementById('dbDotTopbar'), dbLabel=document.getElementById('dbLabelTopbar'), syncBtn=document.getElementById('syncBtnTop');
+  if(s==='syncing'){
+    if(dbDot) dbDot.style.background='#c8a84a';
+    if(dbLabel){ dbLabel.textContent='SYNC'; dbLabel.style.color='#c8a84a'; }
+    if(syncBtn) syncBtn.innerHTML='<span class="spin">⟳</span>';
+  } else if(s==='error'){
+    if(dbDot) dbDot.style.background='#ff5555';
+    if(dbLabel){ dbLabel.textContent='ERR'; dbLabel.style.color='#ff5555'; }
+    if(syncBtn){ syncBtn.innerHTML='⟳'; syncBtn.style.borderColor='#ff5555'; syncBtn.style.color='#ff5555'; }
+    const dot=document.getElementById('driveDot'),txt=document.getElementById('driveBarText');
+    if(dot) dot.className='drive-dot off';
+    if(txt){ txt.textContent='Sync error — tap to retry'; txt.style.color='var(--bear)'; txt.style.fontWeight=''; }
+  } else if(s==='synced'){
+    if(syncBtn) syncBtn.innerHTML='⟳';
+  }
 }
 
 function tradeToDb(t){
@@ -1516,10 +1636,22 @@ function saveTrades(){ /* data saved via saveTrade() per record */ }
 async function manualSync(){ await loadAllData(); }
 
 function updateSyncBar(){
-  const dot=document.getElementById('driveDot'),txt=document.getElementById('driveBarText');
   const now=new Date();
+  const timeStr=now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const dateStr=now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+  const fullLabel=dateStr+' · '+timeStr;
+  // Drive bar on home
+  const dot=document.getElementById('driveDot'),txt=document.getElementById('driveBarText');
   if(dot) dot.className='drive-dot on';
-  if(txt) txt.textContent='Synced to Supabase · '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+' · '+now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+  if(txt){ txt.textContent='Connected to Supabase'; txt.style.color='var(--bull)'; txt.style.fontWeight='600'; }
+  const tsd=document.getElementById('syncTimeDisplay');
+  if(tsd){ tsd.textContent='Last sync: '+fullLabel; }
+  // Topbar DB dot — green
+  const dbDot=document.getElementById('dbDotTopbar'), dbLabel=document.getElementById('dbLabelTopbar');
+  if(dbDot) dbDot.style.background='#34a853';
+  if(dbLabel){ dbLabel.textContent='LIVE'; dbLabel.style.color='#34a853'; }
+  const syncBtn=document.getElementById('syncBtnTop');
+  if(syncBtn){ syncBtn.style.borderColor='#34a853'; syncBtn.style.color='#34a853'; }
 }
 
 function showToast(msg,type='ok'){
@@ -1766,7 +1898,7 @@ function fullResetChecklist(){
   if(pairFld){pairFld.value='';pairFld.disabled=false;pairFld.style.background='';}
   if(dateFld){dateFld.value=new Date().toISOString().split('T')[0];dateFld.disabled=false;dateFld.style.background='';}
   if(sessFld){sessFld.selectedIndex=0;sessFld.disabled=false;sessFld.style.background='';}
-  document.getElementById('ideaNotes').value='';
+  rteSet('ideaNotes','');
   document.getElementById('ideaSsGrid').innerHTML='';
   const vd=document.getElementById('ideaVerdict'); if(vd) vd.style.display='none';
   setTradeType('BUY');
@@ -1846,7 +1978,7 @@ function saveIdeaAsOpen(){
     score:ans?score:null, grade:ans?grade:'N/A',
     biasSet:bias, biasPlayed:'', biasMatch:'', result:'',
     tp2r:'N/A', tp15r:'N/A',
-    ideaNotes:document.getElementById('ideaNotes').value.trim(),
+    ideaNotes:rteGet('ideaNotes').trim(),
     updateNotes:'', closeNotes:'', followupNotes:'',
     entryPrice:null, closePrice:null, slPrice:null,
     openTime:new Date().toISOString(), closeTime:null,
@@ -1860,7 +1992,7 @@ function saveIdeaAsOpen(){
   document.getElementById('ideaPair').value='';
   document.getElementById('ideaDate').value=new Date().toISOString().split('T')[0];
   document.getElementById('ideaSession').selectedIndex=0;
-  document.getElementById('ideaNotes').value='';
+  rteSet('ideaNotes','');
   document.getElementById('ideaSsGrid').innerHTML='';
   const vd=document.getElementById('ideaVerdict'); if(vd) vd.style.display='none';
   updateScoreStrip(); renderBiasCards(); renderEntrySection();
@@ -1902,8 +2034,8 @@ function renderOpen(){
         ${t.score!==null?`<div class="otc-score"><span class="pill pill-${gc}">${t.grade} — ${t.score.toFixed(1)}/10</span></div>`:''}
       </div>
       <div class="otc-body">
-        ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${t.ideaNotes}</div>`:''}
-        ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${t.updateNotes}</div>`:''}
+        ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
+        ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(t.updateNotes)}</div>`:''}
         <div class="otc-prices">
           <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${t.entryPrice||''}" onchange="patchOpen(${t.id},'entryPrice',this.value)"></div>
           <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
@@ -1993,7 +2125,7 @@ function openEditOpenModal(id){
   document.getElementById('eoiEntry').value=t.entryPrice||'';
   document.getElementById('eoiSL').value=t.slPrice||'';
   document.getElementById('eoiCurrent').value=t.closePrice||'';
-  document.getElementById('eoiNotes').value=t.updateNotes||'';
+  rteSet('eoiNotes',t.updateNotes||'');
   document.getElementById('eoiSsGrid').innerHTML='';
   document.getElementById('editOpenModal').classList.add('open');
 }
@@ -2004,7 +2136,7 @@ function saveEditOpen(){
   t.entryPrice=parseFloat(document.getElementById('eoiEntry').value)||t.entryPrice;
   t.slPrice=parseFloat(document.getElementById('eoiSL').value)||t.slPrice;
   t.closePrice=parseFloat(document.getElementById('eoiCurrent').value)||t.closePrice;
-  t.updateNotes=document.getElementById('eoiNotes').value.trim();
+  t.updateNotes=rteGet('eoiNotes').trim();
   if(S.eoiSS.length>0) t.screenshots=[...(t.screenshots||[]),...S.eoiSS];
   saveTrades();
   document.getElementById('editOpenModal').classList.remove('open');
@@ -2022,7 +2154,7 @@ function openCloseModal(id){
   document.getElementById('cmEntry').value=t.entryPrice||'';
   document.getElementById('cmClose').value=t.closePrice||'';
   document.getElementById('cmSL').value=t.slPrice||'';
-  document.getElementById('cmNotes').value='';
+  rteSet('cmNotes','');
   document.getElementById('cmSsGrid').innerHTML='';
   ['cmResultBtns','cmBiasBtns','cmTp2Btns','cmTp15Btns'].forEach(id=>
     document.getElementById(id).querySelectorAll('.seg-btn').forEach(b=>b.className=b.className.replace(/sel-\w+/g,'').trim())
@@ -2076,7 +2208,7 @@ function saveClosure(){
   t.biasMatch=(t.biasSet===S.cmData.biasPlayed)?'YES':'NO';
   t.tp2r=S.cmData.tp2r||'N/A'; t.tp15r=S.cmData.tp15r||'N/A';
   t.entryPrice=entryVal; t.closePrice=closeVal; t.slPrice=slVal;
-  t.closeNotes=document.getElementById('cmNotes').value.trim();
+  t.closeNotes=rteGet('cmNotes').trim();
   t.closeTime=new Date().toISOString();
   t.eodScreenshots=[...(t.eodScreenshots||[]),...S.cmSS];
   saveTrade(t); closeModalHide();
@@ -2095,7 +2227,7 @@ function openEditClosedModal(id){
   document.getElementById('ecEntry').value=t.entryPrice||'';
   document.getElementById('ecClose').value=t.closePrice||'';
   document.getElementById('ecSL').value=t.slPrice||'';
-  document.getElementById('ecFollowup').value=t.followupNotes||'';
+  rteSet('ecFollowup',t.followupNotes||'');
   document.getElementById('ecSsGrid').innerHTML='';
   // preset seg buttons
   const presetSeg=(groupId, val, valMap)=>{
@@ -2147,7 +2279,7 @@ function saveEditClosed(){
     const profit = isSell ? (entryVal - closeVal) : (closeVal - entryVal);
     t.result = profit > 0 ? 'WIN' : profit < 0 ? 'LOSS' : 'BE';
   }
-  t.followupNotes=document.getElementById('ecFollowup').value.trim();
+  t.followupNotes=rteGet('ecFollowup').trim();
   if(S.ecSS.length>0) t.followupScreenshots=[...(t.followupScreenshots||[]),...S.ecSS];
   // recalc bias match
   t.biasMatch=(t.biasSet&&t.biasPlayed&&t.biasSet===t.biasPlayed)?'YES':'NO';
@@ -2324,281 +2456,21 @@ function exportExcel(){
 // ════════════════════════════════════════════════
 // GOOGLE DRIVE
 // ════════════════════════════════════════════════
-function openDriveModal(){ renderDriveStatus(); renderFolderStatus(); document.getElementById('driveModal').classList.add('open'); }
-
-// ════════════════════════════════════════════════
-// FILE SYSTEM ACCESS — FOLDER PERSISTENCE
-// Uses IndexedDB to store the DirectoryHandle across sessions
-// ════════════════════════════════════════════════
-const IDB_NAME='ict_journal_fs', IDB_STORE='handles', IDB_KEY='exportFolder';
-
-function idbOpen(){
-  return new Promise((res,rej)=>{
-    const req=indexedDB.open(IDB_NAME,1);
-    req.onupgradeneeded=e=>e.target.result.createObjectStore(IDB_STORE);
-    req.onsuccess=e=>res(e.target.result);
-    req.onerror=e=>rej(e.target.error);
-  });
-}
-async function idbGet(key){
-  const db=await idbOpen();
-  return new Promise((res,rej)=>{
-    const tx=db.transaction(IDB_STORE,'readonly');
-    const req=tx.objectStore(IDB_STORE).get(key);
-    req.onsuccess=e=>res(e.target.result);
-    req.onerror=e=>rej(e.target.error);
-  });
-}
-async function idbSet(key,val){
-  const db=await idbOpen();
-  return new Promise((res,rej)=>{
-    const tx=db.transaction(IDB_STORE,'readwrite');
-    tx.objectStore(IDB_STORE).put(val,key);
-    tx.oncomplete=()=>res();
-    tx.onerror=e=>rej(e.target.error);
-  });
-}
-async function idbDel(key){
-  const db=await idbOpen();
-  return new Promise((res,rej)=>{
-    const tx=db.transaction(IDB_STORE,'readwrite');
-    tx.objectStore(IDB_STORE).delete(key);
-    tx.oncomplete=()=>res();
-    tx.onerror=e=>rej(e.target.error);
-  });
+function openDriveModal(){
+  const emailEl=document.getElementById('modalUserEmail');
+  if(emailEl && _currentUser) emailEl.textContent=_currentUser.email||'—';
+  const dot=document.getElementById('modalDbDot'), stat=document.getElementById('modalDbStatus'), det=document.getElementById('modalDbDetail');
+  if(dot) dot.className='drive-dot '+(S.syncStatus==='synced'?'on':'off');
+  if(stat) stat.textContent=S.syncStatus==='synced'?'Connected':'Not synced';
+  const lastSync=document.getElementById('driveBarText');
+  if(det && lastSync) det.textContent=lastSync.textContent;
+  document.getElementById('driveModal').classList.add('open');
 }
 
-// ════════════════════════════════════════════════
-// EXPORT HELPERS
-// ════════════════════════════════════════════════
-function buildPayload(){
-  return JSON.stringify({version:6, exportedAt:new Date().toISOString(), trades:S.trades},null,2);
-}
-function exportFilename(){
-  return 'ict-journal-backup-'+new Date().toISOString().split('T')[0]+'.json';
-}
 
-// Write to the stored folder handle
-async function writeToFolder(dirHandle, silent=false){
-  const filename=exportFilename();
-  const json=buildPayload();
-  try{
-    const fh=await dirHandle.getFileHandle(filename,{create:true});
-    const w=await fh.createWritable();
-    await w.write(json); await w.close();
-    const now=new Date().toISOString();
-    localStorage.setItem('ict_last_backup', now);
-    localStorage.setItem('ict_last_auto_export', now);
-    localStorage.setItem('ict_export_filename', filename);
-    if(!silent) renderDriveStatus();
-    return {ok:true, filename, size:(json.length/1024).toFixed(1)};
-  }catch(e){
-    return {ok:false, err:e.message};
-  }
-}
-
-// ════════════════════════════════════════════════
-// PICK FOLDER
-// ════════════════════════════════════════════════
-async function pickExportFolder(){
-  if(!window.showDirectoryPicker){
-    showFsaUnsupported(); return;
-  }
-  try{
-    const dirHandle=await window.showDirectoryPicker({mode:'readwrite', startIn:'documents'});
-    // Verify write permission
-    const perm=await dirHandle.requestPermission({mode:'readwrite'});
-    if(perm!=='granted'){
-      setFolderStatus('⚠ Permission denied — please allow write access.','var(--bear)'); return;
-    }
-    await idbSet(IDB_KEY, dirHandle);
-    localStorage.setItem('ict_export_folder_name', dirHandle.name);
-    renderFolderStatus();
-    renderDriveStatus();
-    // Immediately write first export
-    const result=await writeToFolder(dirHandle);
-    if(result.ok){
-      setExportStatus('✓ Folder set & first backup written — '+result.filename+' ('+result.size+' KB)','var(--bull)');
-    } else {
-      setExportStatus('✕ Folder set but write failed: '+result.err,'var(--bear)');
-    }
-  }catch(e){
-    if(e.name!=='AbortError') setFolderStatus('✕ Error: '+e.message,'var(--bear)');
-  }
-}
-
-async function clearExportFolder(){
-  if(!confirm('Remove the saved folder? Auto-export will stop until you select a new one.')) return;
-  await idbDel(IDB_KEY);
-  localStorage.removeItem('ict_export_folder_name');
-  renderFolderStatus(); renderDriveStatus();
-  setFolderStatus('Folder cleared.','var(--muted)');
-}
-
-// ════════════════════════════════════════════════
-// EXPORT TO FOLDER (manual button)
-// ════════════════════════════════════════════════
-async function exportToFolder(){
-  const dirHandle=await idbGet(IDB_KEY);
-  if(!dirHandle){ setExportStatus('No folder selected. Click SELECT FOLDER first.','var(--bear)'); return; }
-  // Re-request permission (may be needed after page reload)
-  const perm=await dirHandle.requestPermission({mode:'readwrite'});
-  if(perm!=='granted'){ setExportStatus('⚠ Permission denied. Please re-select the folder.','var(--bear)'); return; }
-  setExportStatus('Writing…','var(--muted)');
-  const result=await writeToFolder(dirHandle);
-  if(result.ok){
-    setExportStatus('✓ Written — '+result.filename+' ('+result.size+' KB)','var(--bull)');
-    renderDriveStatus();
-  } else {
-    setExportStatus('✕ Write failed: '+result.err,'var(--bear)');
-  }
-}
-
-// ════════════════════════════════════════════════
-// FALLBACK DOWNLOAD
-// ════════════════════════════════════════════════
-function exportDownload(){
-  const json=buildPayload();
-  const blob=new Blob([json],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url; a.download=exportFilename(); a.click(); URL.revokeObjectURL(url);
-  const size=(blob.size/1024).toFixed(1);
-  localStorage.setItem('ict_last_backup',new Date().toISOString());
-  setExportStatus('✓ Downloaded — '+S.trades.length+' trades · '+size+' KB','var(--bull)');
-  renderDriveStatus();
-}
-
-// ════════════════════════════════════════════════
-// AUTO-EXPORT ON STARTUP (weekly)
-// ════════════════════════════════════════════════
-async function checkAutoExport(){
-  const folderName=localStorage.getItem('ict_export_folder_name');
-  if(!folderName) return; // no folder configured
-  const lastStr=localStorage.getItem('ict_last_auto_export');
-  const SEVEN_DAYS=7*24*60*60*1000;
-  if(lastStr && (Date.now()-new Date(lastStr).getTime()) < SEVEN_DAYS) return; // not due yet
-  // Due — try to write
-  try{
-    const dirHandle=await idbGet(IDB_KEY);
-    if(!dirHandle) return;
-    // queryPermission (non-blocking, no dialog) — only proceed if already granted
-    const perm=await dirHandle.queryPermission({mode:'readwrite'});
-    if(perm!=='granted') return; // don't prompt on auto, wait for user interaction
-    const result=await writeToFolder(dirHandle, true);
-    if(result.ok){
-      // Show a small non-blocking toast
-      showAutoExportToast('Weekly backup written to '+folderName+' — '+result.filename);
-    }
-  }catch(e){ /* silent fail on auto */ }
-}
-
-function showAutoExportToast(msg){
-  let t=document.getElementById('autoExportToast');
-  if(!t){
-    t=document.createElement('div');
-    t.id='autoExportToast';
-    t.style.cssText='position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;font-family:\'Azeret Mono\',monospace;font-size:10px;padding:8px 14px;border-radius:5px;z-index:9999;border-left:3px solid #34a853;max-width:320px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.3)';
-    document.body.appendChild(t);
-  }
-  t.textContent='✓ '+msg;
-  t.style.display='block';
-  setTimeout(()=>{ t.style.display='none'; }, 5000);
-}
-
-// ════════════════════════════════════════════════
-// IMPORT RESTORE
-// ════════════════════════════════════════════════
-function importBackup(input){
-  const file=input.files[0]; if(!file) return;
-  const statusEl=document.getElementById('importStatus');
-  if(statusEl){statusEl.textContent='Reading file…'; statusEl.style.color='var(--muted)';}
-  const r=new FileReader();
-  r.onload=ev=>{
-    try{
-      const data=JSON.parse(ev.target.result);
-      if(!data.trades||!Array.isArray(data.trades)) throw new Error('Invalid backup — no trades array found.');
-      const dated=data.exportedAt?data.exportedAt.split('T')[0]:'unknown date';
-      if(!confirm('Restore '+data.trades.length+' trades from backup dated '+dated+'?\n\nThis will REPLACE all current data. Export first if needed.')){
-        if(statusEl){statusEl.textContent='Restore cancelled.';} return;
-      }
-      S.trades=data.trades; saveTrades();
-      localStorage.setItem('ict_last_backup',data.exportedAt||new Date().toISOString());
-      if(statusEl){statusEl.textContent='✓ Restored '+S.trades.length+' trades from '+dated+'.'; statusEl.style.color='var(--bull)';}
-      renderDriveStatus(); renderDashboard(); renderOpen(); renderClosed(); updateOpenBadge();
-    }catch(e){
-      if(statusEl){statusEl.textContent='✕ Error: '+e.message; statusEl.style.color='var(--bear)';}
-    }
-  };
-  r.readAsText(file); input.value='';
-}
-
-// ════════════════════════════════════════════════
-// UI HELPERS
-// ════════════════════════════════════════════════
-function setExportStatus(msg, color){
-  const el=document.getElementById('exportStatus'); if(!el) return;
-  el.textContent=msg; el.style.color=color;
-}
-function setFolderStatus(msg, color){
-  const el=document.getElementById('folderStatus'); if(!el) return;
-  el.textContent=msg; el.style.color=color||'var(--ink)';
-}
-function showFsaUnsupported(){
-  const el=document.getElementById('fsaNotice'); if(!el) return;
-  el.style.background='#fff3f3'; el.style.borderColor='var(--bear)'; el.style.color='var(--bear)';
-  el.textContent='⚠ Your browser does not support folder selection (File System Access API). Use Chrome or Edge for auto-export. The Download button always works as a fallback.';
-}
-
-async function renderFolderStatus(){
-  const name=localStorage.getItem('ict_export_folder_name');
-  const clearBtn=document.getElementById('clearFolderBtn');
-  const exportFolderBtn=document.getElementById('exportToFolderBtn');
-  const statusEl=document.getElementById('folderStatus');
-  if(!name){
-    if(statusEl){statusEl.textContent='No folder selected'; statusEl.style.color='var(--muted)';}
-    if(clearBtn) clearBtn.style.display='none';
-    if(exportFolderBtn) exportFolderBtn.style.display='none';
-    return;
-  }
-  // Check if handle is still accessible
-  const dirHandle=await idbGet(IDB_KEY).catch(()=>null);
-  const perm=dirHandle?await dirHandle.queryPermission({mode:'readwrite'}).catch(()=>'unknown'):'none';
-  const last=localStorage.getItem('ict_last_auto_export');
-  const lastLabel=last?new Date(last).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'never';
-  const nextExport=last?new Date(new Date(last).getTime()+7*24*60*60*1000):null;
-  const nextLabel=nextExport?nextExport.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'next open';
-  if(statusEl){
-    statusEl.innerHTML=
-      '<span style="color:var(--bull);font-weight:700">📁 '+name+'</span>'
-      +'<br>Permission: '+(perm==='granted'?'<span style="color:var(--bull)">Granted ✓</span>':'<span style="color:var(--gold)">'+perm+' — open modal to restore</span>')
-      +'<br>Last export: '+lastLabel
-      +'<br>Next auto-export: '+nextLabel;
-  }
-  if(clearBtn) clearBtn.style.display='';
-  if(exportFolderBtn) exportFolderBtn.style.display='';
-}
-
-function renderDriveAccList(){}
-function addDriveAccount(){}
-function removeDrive(){}
-function setActiveDrive(){}
 
 function renderDriveStatus(){
-  const dot=document.getElementById('driveDot'), txt=document.getElementById('driveBarText'), btn=document.getElementById('driveBtn');
-  const last=localStorage.getItem('ict_last_backup');
-  const folder=localStorage.getItem('ict_export_folder_name');
-  if(last){
-    const d=new Date(last);
-    const label=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-    if(dot) dot.className='drive-dot on';
-    if(txt) txt.textContent=(folder?'Auto-export: ':'Last backup: ')+label+(folder?' → '+folder:'');
-    if(btn) btn.className='gdrive-btn connected';
-  } else {
-    if(dot) dot.className='drive-dot off';
-    if(txt) txt.textContent=folder?'Folder set — no export yet':'No backup saved yet';
-    if(btn) btn.className='gdrive-btn';
-  }
+  // Now handled by updateSyncBar() / setSyncStatus() from Supabase layer
 }
 
 // ════════════════════════════════════════════════
@@ -2786,7 +2658,7 @@ function openNewWeeklyModal(){
   document.getElementById('wbSaveBtn').textContent='📅 SAVE WEEKLY BIAS';
   document.getElementById('wbPair').value='';
   document.getElementById('wbDate').value=new Date().toISOString().split('T')[0];
-  document.getElementById('wbNotes').value='';
+  rteSet('wbNotes','');
   document.getElementById('wbSsGrid').innerHTML='';
   // Reset tags
   S.wbTags=['weekly'];
@@ -2818,14 +2690,14 @@ function saveWeeklyBias(){
     // edit mode
     const w = S.weeklies.find(w=>w.id===S.wbEditId); if(!w) return;
     w.pair=pair; w.date=date; w.bias=S.wbData.bias;
-    w.notes=document.getElementById('wbNotes').value.trim();
+    w.notes=rteGet('wbNotes').trim();
     w.tags=[...S.wbTags];
     if(S.wbSS.length>0) w.screenshots=[...(w.screenshots||[]),...S.wbSS];
   } else {
     const entry = {
       id: Date.now(), status:'open', pair, date,
       bias: S.wbData.bias,
-      notes: document.getElementById('wbNotes').value.trim(),
+      notes: rteGet('wbNotes').trim(),
       tags: [...S.wbTags],
       screenshots: [...S.wbSS],
       updates: [],
@@ -2868,7 +2740,7 @@ function openEditWeeklyModal(id){
   document.getElementById('wbSaveBtn').textContent='💾 SAVE CHANGES';
   document.getElementById('wbPair').value=w.pair;
   document.getElementById('wbDate').value=w.date;
-  document.getElementById('wbNotes').value=w.notes||'';
+  rteSet('wbNotes',w.notes||'');
   document.getElementById('wbSsGrid').innerHTML='';
   S.wbTags=[...(w.tags||['weekly'])];
   const wrap=document.getElementById('wbTagWrap');
@@ -2888,14 +2760,14 @@ function openAddNoteModal(id){
   S.wbNoteEditId=id; S.wbnSS=[];
   const w=S.weeklies.find(w=>w.id===id); if(!w) return;
   document.getElementById('wbNoteTitle').textContent='ADD NOTE — '+w.pair;
-  document.getElementById('wbNoteText').value='';
+  rteSet('wbNoteText','');
   document.getElementById('wbNSsGrid').innerHTML='';
   document.getElementById('wbNoteModal').classList.add('open');
 }
 
 function saveWbNote(){
   const w=S.weeklies.find(w=>w.id===S.wbNoteEditId); if(!w) return;
-  const text=document.getElementById('wbNoteText').value.trim();
+  const text=rteGet('wbNoteText').trim();
   if(!text && S.wbnSS.length===0){alert('Add a note or screenshot.');return;}
   w.updates=w.updates||[];
   w.updates.push({text, screenshots:[...S.wbnSS], at:new Date().toISOString()});
@@ -3178,7 +3050,7 @@ function fullResetIntraday(){
   document.getElementById('intraPair').value='';
   document.getElementById('intraDate').value=new Date().toISOString().split('T')[0];
   document.getElementById('intraSession').selectedIndex=0;
-  document.getElementById('intraNotes').value='';
+  rteSet('intraNotes','');
   document.getElementById('intraEntry').value='';
   document.getElementById('intraSL').value='';
   document.getElementById('intraTP').value='';
@@ -3209,7 +3081,7 @@ function saveIntradayIdea(){
     score:ans?score:null, grade:ans?grade:'N/A',
     biasSet:bias, biasPlayed:'', biasMatch:'', result:'',
     tp2r:'N/A', tp15r:'N/A',
-    ideaNotes:document.getElementById('intraNotes').value.trim(),
+    ideaNotes:rteGet('intraNotes').trim(),
     updateNotes:'', closeNotes:'', followupNotes:'',
     entryPrice:parseFloat(document.getElementById('intraEntry').value)||null,
     closePrice:null,
@@ -3303,7 +3175,7 @@ saveIdeaAsOpen = function(){
     score:ans?score:null, grade:ans?grade:'N/A',
     biasSet:bias, biasPlayed:'', biasMatch:'', result:'',
     tp2r:'N/A', tp15r:'N/A',
-    ideaNotes:document.getElementById('ideaNotes').value.trim(),
+    ideaNotes:rteGet('ideaNotes').trim(),
     updateNotes:'', closeNotes:'', followupNotes:'',
     entryPrice:null, closePrice:null, slPrice:null,
     openTime:new Date().toISOString(), closeTime:null,
@@ -3316,7 +3188,7 @@ saveIdeaAsOpen = function(){
   document.getElementById('ideaPair').value='';
   document.getElementById('ideaDate').value=new Date().toISOString().split('T')[0];
   document.getElementById('ideaSession').selectedIndex=0;
-  document.getElementById('ideaNotes').value='';
+  rteSet('ideaNotes','');
   document.getElementById('ideaSsGrid').innerHTML='';
   const wt=document.getElementById('ideaTagWrap');
   if(wt){ wt.querySelectorAll('.tag.rm').forEach(el=>el.remove()); }
@@ -3358,8 +3230,8 @@ renderOpen = function(){
         ${t.score!==null?`<div class="otc-score"><span class="pill pill-${gc}">${t.grade} — ${t.score.toFixed(1)}/10</span></div>`:''}
       </div>
       <div class="otc-body">
-        ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${t.ideaNotes}</div>`:''}
-        ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${t.updateNotes}</div>`:''}
+        ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
+        ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(t.updateNotes)}</div>`:''}
         <div class="otc-prices">
           <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${t.entryPrice||''}" onchange="patchOpen(${t.id},'entryPrice',this.value)"></div>
           <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
@@ -3431,7 +3303,47 @@ setTimeout(()=>{ renderTagsInWrap('intraTagWrap', S.intraTags, 'intra'); }, 100)
 // ════════════════════════════════════════════════
 document.getElementById('ideaDate').value=new Date().toISOString().split('T')[0];
 // renderDashboard() called after login via loadAllData()
-// Data is synced via Supabase — see loadAllData()
+
+
+// ════════════════════════════════════════════════
+// RICH TEXT EDITOR HELPERS
+// ════════════════════════════════════════════════
+function rteExec(id, cmd, val){
+  const el=document.getElementById(id); if(!el) return;
+  el.focus();
+  document.execCommand(cmd, false, val||null);
+  el.focus();
+}
+function rteClear(id){
+  const el=document.getElementById(id); if(!el) return;
+  el.focus();
+  document.execCommand('removeFormat',false,null);
+  document.execCommand('formatBlock',false,'p');
+}
+// Get RTE value (HTML) — used when saving
+function rteGet(id){
+  const el=document.getElementById(id);
+  if(!el) return '';
+  if(el.tagName==='TEXTAREA') return el.value;
+  // contenteditable
+  const val=el.innerHTML.replace(/<br\s*\/?>/gi,'\n').trim();
+  if(val==='') return '';
+  return el.innerHTML.trim();
+}
+// Set RTE value
+function rteSet(id, val){
+  const el=document.getElementById(id); if(!el) return;
+  if(el.tagName==='TEXTAREA'){ el.value=val||''; return; }
+  el.innerHTML=val||'';
+}
+// Render stored HTML in read-only display
+function rteDisplay(html){
+  if(!html) return '';
+  // If plain text (no tags), just return it
+  if(!/<[a-z]/.test(html)) return html.replace(/\n/g,'<br>');
+  return html;
+}
+
 </script>
 </body>
 </html>
