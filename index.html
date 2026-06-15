@@ -2582,7 +2582,7 @@ function setSyncStatus(s){
 
 // Columns to fetch in bulk loads — excludes the 3 heavy screenshot jsonb
 // columns, which are fetched per-trade on demand via loadTradeScreenshots().
-const LIGHT_TRADE_COLS = 'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,tags,checklist_answers,checklist_kills,checklist_model';
+const LIGHT_TRADE_COLS = 'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,tags,trade_notes,checklist_answers,checklist_kills,checklist_model';
 
 function tradeToDb(t){
   const row = {
@@ -2597,6 +2597,7 @@ function tradeToDb(t){
     sl_price:t.slPrice||null, tp_price:t.tpPrice||null,
     open_time:t.openTime, close_time:t.closeTime||null,
     tags:t.tags||[],
+    trade_notes:t.tradeNotes||[],
     checklist_answers:t.checklistAnswers||{}, checklist_kills:t.checklistKills||{},
 
   };
@@ -2623,6 +2624,7 @@ function dbToTrade(r){
     entryPrice:r.entry_price, closePrice:r.close_price, slPrice:r.sl_price, tpPrice:r.tp_price, lotSize:r.lot_size||null,
     openTime:r.open_time, closeTime:r.close_time,
     tags:r.tags||[],
+    tradeNotes:r.trade_notes||[],
     // Screenshot fields are absent from light (bulk) queries — undefined means
     // "not loaded yet" vs [] meaning "loaded and empty".
     screenshots:r.screenshots||[], eodScreenshots:r.eod_screenshots||[], followupScreenshots:r.followup_screenshots||[],
@@ -2648,6 +2650,7 @@ function weeklyToDb(w){
     id:w.id, user_id:_currentUser.id, status:w.status,
     pair:w.pair, date:w.date, bias:w.bias, notes:w.notes||'',
     tags:w.tags||[], screenshots:w.screenshots||[], updates:w.updates||[],
+    wb_checklist_answers:w.wbChecklistAnswers||{},
     created_at:w.createdAt, closed_at:w.closedAt||null,
   };
 }
@@ -2655,7 +2658,8 @@ function dbToWeekly(r){
   return {
     id:r.id, status:r.status, pair:r.pair, date:r.date, bias:r.bias,
     notes:r.notes||'', tags:r.tags||[], screenshots:r.screenshots||[],
-    updates:r.updates||[], createdAt:r.created_at, closedAt:r.closed_at,
+    updates:r.updates||[], wbChecklistAnswers:r.wb_checklist_answers||{},
+    createdAt:r.created_at, closedAt:r.closed_at,
   };
 }
 
