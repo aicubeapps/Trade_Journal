@@ -8178,7 +8178,7 @@
                   <div class="ss-lbl">${ss.label||'Chart'}</div>
                 </div>
                 <div class="ss-del-bar">
-                  <button class="ss-del-btn" onclick="deleteWbScreenshot(${w.id},${si})">✕ DELETE</button>
+                  <button class="ss-del-btn" onclick="deleteWbScreenshot('${w.id}',${si})">✕ DELETE</button>
                 </div>
               </div>`
                 ).join('');
@@ -8246,15 +8246,15 @@
                 ${reviewSummary}
                 <div class="wb-actions">
                   ${w.status==='open'?`
-                    <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px" onclick="openAddNoteModal(${w.id})">+ ADD NOTE</button>
-                    <button class="btn-primary" style="background:#1b5e20;border-color:#1b5e20;font-size:8px" onclick="newIntradayFromWeekly(${w.id})">⚡ NEW INTRADAY</button>
-                    <button class="btn-ghost" style="font-size:8px" onclick="openEditWeeklyModal(${w.id})">✏ EDIT</button>
-                    <button class="btn-gold" style="font-size:8px" onclick="closeWeeklyBias(${w.id})">📋 REVIEW & CLOSE</button>
+                    <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px" onclick="openAddNoteModal('${w.id}')">+ ADD NOTE</button>
+                    <button class="btn-primary" style="background:#1b5e20;border-color:#1b5e20;font-size:8px" onclick="newIntradayFromWeekly('${w.id}')">⚡ NEW INTRADAY</button>
+                    <button class="btn-ghost" style="font-size:8px" onclick="openEditWeeklyModal('${w.id}')">✏ EDIT</button>
+                    <button class="btn-gold" style="font-size:8px" onclick="closeWeeklyBias('${w.id}')">📋 REVIEW & CLOSE</button>
                   `:`
-                    <button class="btn-ghost" style="font-size:8px" onclick="openWeeklyReview(${w.id})">📋 VIEW REVIEW</button>
-                    <button class="btn-ghost" style="font-size:8px" onclick="reopenWeeklyBias(${w.id})">REOPEN</button>
+                    <button class="btn-ghost" style="font-size:8px" onclick="openWeeklyReview('${w.id}')">📋 VIEW REVIEW</button>
+                    <button class="btn-ghost" style="font-size:8px" onclick="reopenWeeklyBias('${w.id}')">REOPEN</button>
                   `}
-                  <button class="del-btn" onclick="deleteWeeklyBias(${w.id})">DEL</button>
+                  <button class="del-btn" onclick="deleteWeeklyBias('${w.id}')">DEL</button>
                 </div>
               </div>
             </div>`;
@@ -8389,7 +8389,7 @@
                     }
                 }
 
-                return `<div class="intra-list-card" onclick="editIntradayFromList(${t.id})">
+                return `<div class="intra-list-card" onclick="editIntradayFromList('${t.id}')">
               <div class="ilc-top">
                 <div class="ilc-pair">${t.pair}</div>
                 <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
@@ -9867,7 +9867,7 @@
                 return `<div style="margin-bottom:10px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">Screenshots (${allSS.length})</div><div class="ss-grid">${ssHtml}</div></div>`;
             }
             return `<div style="margin-bottom:10px">
-            <div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;cursor:pointer;display:inline-flex;align-items:center;gap:4px" onclick="toggleTradeScreenshots(${id})">📷 SCREENSHOTS <span style="text-decoration:underline">TAP TO LOAD</span></div>
+            <div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;cursor:pointer;display:inline-flex;align-items:center;gap:4px" onclick="toggleTradeScreenshots('${id}')">📷 SCREENSHOTS <span style="text-decoration:underline">TAP TO LOAD</span></div>
             <div id="ss-section-${id}"></div>
           </div>`;
         }
@@ -9990,7 +9990,7 @@
                     const itDecision=it.intraDecision||'WAIT';
                     const decisionPill=itDecision==='EXECUTE'?'pill-execute':itDecision==='WAIT'?'pill-wait':'pill-notrade';
                     return `<div class="intra-sub">
-                      <div class="intra-sub-head" onclick="toggleIntraSub(${it.id})">
+                      <div class="intra-sub-head" onclick="toggleIntraSub('${it.id}')">
                         <span style="font-size:11px">⚡</span>
                         <div style="flex:1;min-width:0;">
                           <div style="font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;color:#283593;">${it.pair} · ${it.session||''} · ${it.date}</div>
@@ -10014,14 +10014,14 @@
                         </div>
                         ${ssLazySection(it.id)}
                         <div class="intra-sub-actions">
-                          <button class="btn-gold" style="font-size:9px;padding:5px 10px;" onclick="openCloseModal(${it.id})">CLOSE ✓</button>
-                          <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px;padding:5px 10px;" onclick="openTradeNoteModal(${it.id})">+ NOTE</button>
-                          <button class="btn-ghost" style="font-size:8px;padding:5px 10px;" onclick="openEditOpenModal(${it.id})">✏ EDIT</button>
-                          <button class="btn-ghost" style="font-size:8px;padding:5px 10px;" onclick="openChecklistEdit(${it.id})">📋 CHECKLIST</button>
-                          <button class="btn-ghost" style="font-size:8px;padding:5px 10px;" onclick="addSsToOpenTrade(${it.id})">+ SHOT</button>
-                          <button class="btn-ghost" style="font-size:8px;padding:5px 10px;" onclick="shareOpenTrade(${it.id})">📤 SHARE</button>
-                          <button onclick="pullPricesFromIntra(${t.id},${it.id})" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:5px 10px;border:1.5px solid #283593;background:transparent;color:#283593;border-radius:3px;cursor:pointer;">↓ USE PRICES</button>
-                          <button class="del-btn" style="font-size:8px;padding:4px 8px;" onclick="deleteOpenTrade(${it.id})">DEL</button>
+                          <button class="btn-gold" style="font-size:9px;padding:5px 10px;" onclick="openCloseModal('${it.id}')">CLOSE ✓</button>
+                          <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px;padding:5px 10px;" onclick="openTradeNoteModal('${it.id}')">+ NOTE</button>
+                          <button class="btn-ghost" style="font-size:8px;padding:5px 10px;" onclick="openEditOpenModal('${it.id}')">✏ EDIT</button>
+                          <button class="btn-ghost" style="font-size:8px;padding:5px 10px;" onclick="openChecklistEdit('${it.id}')">📋 CHECKLIST</button>
+                          <button class="btn-ghost" style="font-size:8px;padding:5px 10px;" onclick="addSsToOpenTrade('${it.id}')">+ SHOT</button>
+                          <button class="btn-ghost" style="font-size:8px;padding:5px 10px;" onclick="shareOpenTrade('${it.id}')">📤 SHARE</button>
+                          <button onclick="pullPricesFromIntra('${t.id}','${it.id}')" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:5px 10px;border:1.5px solid #283593;background:transparent;color:#283593;border-radius:3px;cursor:pointer;">↓ USE PRICES</button>
+                          <button class="del-btn" style="font-size:8px;padding:4px 8px;" onclick="deleteOpenTrade('${it.id}')">DEL</button>
                         </div>
                       </div>
                     </div>`;
@@ -10029,14 +10029,14 @@
                 </div>`:''}
                 ${ssLazySection(t.id)}
                 <div class="otc-actions">
-                  <button class="btn-gold" onclick="openCloseModal(${t.id})">CLOSE TRADE ✓</button>
-                  ${!t.isIntraday?`<button class="btn-primary" style="background:#1b5e20;border-color:#1b5e20;font-size:8px" onclick="openIntraForTrade(${t.id})">⚡ INTRADAY IDEA</button>`:''}
-                  <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px" onclick="openTradeNoteModal(${t.id})">+ NOTE</button>
-                  <button class="btn-ghost" onclick="openEditOpenModal(${t.id})">✏ EDIT</button>
-                  <button class="btn-ghost" onclick="openChecklistEdit(${t.id})" style="border-color:var(--gold);color:var(--gold)">📋 CHECKLIST</button>
-                  <button class="btn-ghost" onclick="addSsToOpenTrade(${t.id})" style="padding:5px 10px;font-size:8px">+ SHOT</button>
-                  <button class="btn-ghost" onclick="shareOpenTrade(${t.id})" style="padding:5px 10px;font-size:8px">📤 SHARE</button>
-                  <button class="del-btn" onclick="deleteOpenTrade(${t.id})">DEL</button>
+                  <button class="btn-gold" onclick="openCloseModal('${t.id}')">CLOSE TRADE ✓</button>
+                  ${!t.isIntraday?`<button class="btn-primary" style="background:#1b5e20;border-color:#1b5e20;font-size:8px" onclick="openIntraForTrade('${t.id}')">⚡ INTRADAY IDEA</button>`:''}
+                  <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px" onclick="openTradeNoteModal('${t.id}')">+ NOTE</button>
+                  <button class="btn-ghost" onclick="openEditOpenModal('${t.id}')">✏ EDIT</button>
+                  <button class="btn-ghost" onclick="openChecklistEdit('${t.id}')" style="border-color:var(--gold);color:var(--gold)">📋 CHECKLIST</button>
+                  <button class="btn-ghost" onclick="addSsToOpenTrade('${t.id}')" style="padding:5px 10px;font-size:8px">+ SHOT</button>
+                  <button class="btn-ghost" onclick="shareOpenTrade('${t.id}')" style="padding:5px 10px;font-size:8px">📤 SHARE</button>
+                  <button class="del-btn" onclick="deleteOpenTrade('${t.id}')">DEL</button>
                 </div>
               </div>
             </div>`;
@@ -10358,7 +10358,7 @@
                 const bsc = t.biasSet === 'BULLISH' ? 'bull' : t.biasSet === 'BEARISH' ? 'bear' : 'neutral';
                 const hasFollowup = t.followupNotes || (t.followupScreenshots && t.followupScreenshots.length >
                 0);
-                return `<tr style="cursor:pointer" onclick="openTradeHistory(${t.id})">
+                return `<tr style="cursor:pointer" onclick="openTradeHistory('${t.id}')">
               <td style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted)">${t.date}</td>
               <td style="font-family:'Azeret Mono',monospace;font-weight:700">${t.pair}</td>
               <td><span class="pill pill-${gc}">${displayGrade}</span></td>
@@ -10371,8 +10371,8 @@
               <td><span class="pill pill-${bsc}">${t.biasSet||'—'}</span></td>
               <td style="font-size:10px;color:var(--muted);max-width:120px;white-space:normal">${t.followupNotes||t.closeNotes||t.ideaNotes||'—'} ${hasFollowup?'<span style="color:var(--gold)">★</span>':''}</td>
               <td style="white-space:nowrap" onclick="event.stopPropagation()">
-                <button class="edit-btn" onclick="openEditClosedModal(${t.id})">✏ EDIT</button>
-                <button class="del-btn" onclick="deleteTrade(${t.id})">DEL</button>
+                <button class="edit-btn" onclick="openEditClosedModal('${t.id}')">✏ EDIT</button>
+                <button class="del-btn" onclick="deleteTrade('${t.id}')">DEL</button>
               </td>
             </tr>`;
             }).join('');
@@ -11201,12 +11201,12 @@
                 const d = new Date(n.updatedAt || n.createdAt);
                 const ds = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
                 const preview = n.body ? n.body.replace(/<[^>]+>/g, '').substring(0, 120) : '';
-                return `<div class="note-card" onclick="openEditNoteModal(${n.id})">
+                return `<div class="note-card" onclick="openEditNoteModal('${n.id}')">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px;">
                 <div style="font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;color:var(--ink);flex:1">${n.title||'Untitled'}</div>
                 <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
                   <span style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted)">${ds}</span>
-                  <button onclick="event.stopPropagation();deleteNote(${n.id})" class="note-del-btn">✕</button>
+                  <button onclick="event.stopPropagation();deleteNote('${n.id}')" class="note-del-btn">✕</button>
                 </div>
               </div>
               ${preview?`<div style="font-size:12px;color:var(--muted);line-height:1.5">${preview}${n.body&&n.body.replace(/<[^>]+>/g,'').length>120?'…':''}</div>`:''}
@@ -11349,8 +11349,8 @@
                     ${it.ideaNotes?`<div style="font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;">${it.ideaNotes.replace(/<[^>]+>/g,'').substring(0,80)}</div>`:''}
                   </div>
                   <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
-                    ${!alreadyLinked?`<button onclick="linkAndPullIntra(${tradeId},${it.id})" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:5px 10px;border:1.5px solid #283593;background:#283593;color:#fff;border-radius:3px;cursor:pointer;white-space:nowrap;">LINK + USE PRICES</button>`:''}
-                    ${(it.entryPrice||it.slPrice)?`<button onclick="pullPricesFromIntra(${tradeId},${it.id})" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:5px 10px;border:1.5px solid #9fa8da;background:transparent;color:#283593;border-radius:3px;cursor:pointer;white-space:nowrap;">↓ USE PRICES ONLY</button>`:''}
+                    ${!alreadyLinked?`<button onclick="linkAndPullIntra('${tradeId}','${it.id}')" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:5px 10px;border:1.5px solid #283593;background:#283593;color:#fff;border-radius:3px;cursor:pointer;white-space:nowrap;">LINK + USE PRICES</button>`:''}
+                    ${(it.entryPrice||it.slPrice)?`<button onclick="pullPricesFromIntra('${tradeId}','${it.id}')" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:5px 10px;border:1.5px solid #9fa8da;background:transparent;color:#283593;border-radius:3px;cursor:pointer;white-space:nowrap;">↓ USE PRICES ONLY</button>`:''}
                   </div>
                 </div>
               </div>`;
