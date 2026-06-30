@@ -1,7 +1,47 @@
 <!-- 
     Trade Journal
-    Version: v1.4.0
-    Released: 2026-06-28
+    Version: v1.5.3
+    Released: 2026-06-29
+
+    UI — Server sync status chip
+    - Replaced old DB dot + LIVE label with a tap-to-expand sync chip in topbar
+    - Chip shows coloured pulsing dot: green (live), amber (syncing), red (error)
+    - Tapping chip opens popover with 3 fields:
+        SERVER UPDATED — last_modified timestamp from sync_meta (date · time)
+        LAST PUSH FROM — "This device" if last_device matches DEVICE_ID, else "Other device · <shortId>"
+        THIS DEVICE — "✓ Up to date" / "⚠ Behind server" / "✕ Sync error"
+    - S.serverLastMod and S.serverLastDevice populated from sync_meta on every loadAllData
+    - sync_meta query expanded to include last_device (was select('last_modified') only)
+    - Popover closes on outside click; content refreshed each open
+    - Legacy dbDotTopbar / dbLabelTopbar elements removed from DOM; setSyncStatus kept compatible
+    - Removed "Synced 29 Jun · 13:49" from PERFORMANCE OVERVIEW header (perfSyncStatus hidden)
+    - Font size bump: topbar h1 13→14px, nav label 10→11px, nav icon 16→18px,
+      qt-label 10→11px, qt-sub 11→12px, nav-item base 13→14px
+    - Nav panel: new deep-navy colour scheme (#0f172a base) replacing old dark-sepia
+    - Per-item bright accent colours: sky-blue (Dashboard), indigo (Weekly), orange (Daily),
+      green (Intraday), amber (Open), slate (Closed), cyan (Insights), pink (Notes),
+      violet (News), emerald (Settings)
+    - Topbar: matches nav navy with sky-blue accent bottom border and #38bdf8 subtitle
+    - Topbar DB/sync button colours updated to slate palette
+    - Fixed note edit/delete: UUIDs in onclick attrs were unquoted, causing JS syntax errors
+    - Fixed note/rules sync: silent console.warn errors now surface as toast notifications
+    - Fixed notes not editable: edit modal now opens correctly with content pre-populated
+    - Fixed core rules localStorage key: now user-scoped (ict_core_rules_{userId}) to prevent
+      cross-user contamination; falls back to legacy key for migration on first login
+    - Added _currentUser guard to saveNoteToDb (graceful degradation if called pre-auth)
+
+    Phase 5 — Settings Page Archive UI
+    - Replaced DEV archive trigger with production ARCHIVE MANAGEMENT section in Settings
+    - Storage quota display: lists bucket files per user, sums sizes, renders progress bar with colour coding (green/amber/red)
+    - getStorageQuota() lists userId/ subfolders then files within each (capped at 20 subfolders; shows "estimated" if capped)
+    - Archive history table: last 5 archive_log runs showing date, trade+weekly counts, zip size, status (✓/…/✕)
+    - renderArchiveHistory() queries archive_log, renders inline grid rows
+    - RUN QUARTERLY ARCHIVE button: production style (ink/paper); disabled with reason text if last archive < 30 days ago
+    - Quarterly reminder banner: shown during last 3 days of every 3rd month from lastArchived; dismissible per session
+    - showArchiveReminderBanner() checks archive_log for last completed run, computes 3-month due date, compares to today
+    - dismissArchiveBanner() sets session flag _archiveBannerDismissed to suppress re-show on page revisit
+    - populateArchiveInfo() extended to call getStorageQuota, renderArchiveHistory, showArchiveReminderBanner
+    - All existing IDs (archiveLastRunDisplay, archiveCutoffDisplay) preserved — populateArchiveInfo wiring unchanged
 
     Phase 4 — Archival System
     - New Supabase table: archive_log tracks each archive run (started_at, completed_at, status, stats)
@@ -113,16 +153,16 @@
             --wb-low-bg: #ffebd4;
 
             /* ── Nav-specific tokens ── */
-            --nav-bg: #0d0b09;
-            --nav-hover: #1a1714;
-            --nav-active-bg: #1e1b17;
-            --nav-active-accent: #c8a84a;
-            --nav-text: #a09888;
-            --nav-text-active: #f5ede0;
-            --nav-section-text: #5a5248;
-            --nav-border: #252220;
-            --nav-badge-bg: #c8a84a;
-            --nav-badge-text: #0d0b09;
+            --nav-bg: #0f172a;
+            --nav-hover: #1e2d47;
+            --nav-active-bg: #1e2d47;
+            --nav-active-accent: #38bdf8;
+            --nav-text: #94a3b8;
+            --nav-text-active: #f1f5f9;
+            --nav-section-text: #475569;
+            --nav-border: #1e293b;
+            --nav-badge-bg: #f59e0b;
+            --nav-badge-text: #0f172a;
 
             /* ── Readable muted (lifted from #7a7060 → #7a7060 is fine but used contextually) ── */
             --text-secondary: #5e5648;
@@ -150,8 +190,8 @@
 
         /* ── TOPBAR ── */
         .topbar {
-            background: var(--ink);
-            color: var(--paper);
+            background: #0f172a;
+            color: #f1f5f9;
             display: flex;
             align-items: center;
             padding: 0 12px;
@@ -160,11 +200,12 @@
             gap: 10px;
             position: relative;
             z-index: 300;
+            border-bottom: 2px solid #38bdf8;
         }
         .burger {
             background: none;
             border: none;
-            color: var(--paper);
+            color: #f1f5f9;
             cursor: pointer;
             padding: 8px;
             display: flex;
@@ -185,14 +226,14 @@
         }
         .topbar-brand h1 {
             font-family: var(--font-mono);
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 700;
             letter-spacing: 2px;
         }
         .topbar-brand p {
             font-family: var(--font-mono);
             font-size: 8px;
-            color: #6a6050;
+            color: #38bdf8;
             letter-spacing: 1px;
             margin-top: 1px;
         }
@@ -200,7 +241,123 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            position: relative;
         }
+
+        /* ── Sync chip ── */
+        .sync-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            border: 1px solid #1e293b;
+            background: #0a1628;
+            cursor: pointer;
+            transition: border-color .2s, background .2s;
+            user-select: none;
+        }
+        .sync-chip:hover { border-color: #38bdf8; background: #0f2040; }
+        .sync-chip-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #334155;
+            flex-shrink: 0;
+            transition: background .4s;
+        }
+        .sync-chip-dot.live    { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+        .sync-chip-dot.syncing { background: #f59e0b; animation: pulse-dot .8s ease-in-out infinite alternate; }
+        .sync-chip-dot.error   { background: #ef4444; }
+        .sync-chip-label {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #64748b;
+            transition: color .2s;
+        }
+        .sync-chip-label.live    { color: #22c55e; }
+        .sync-chip-label.syncing { color: #f59e0b; }
+        .sync-chip-label.error   { color: #ef4444; }
+
+        .sync-refresh-btn {
+            padding: 5px 9px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid #1e293b;
+            background: transparent;
+            color: #64748b;
+            border-radius: 6px;
+            transition: all .15s;
+            line-height: 1;
+        }
+        .sync-refresh-btn:hover { border-color: #38bdf8; color: #38bdf8; }
+
+        @keyframes pulse-dot {
+            from { opacity: .5; transform: scale(.9); }
+            to   { opacity: 1;  transform: scale(1.1); }
+        }
+
+        /* ── Sync popover ── */
+        .sync-popover {
+            display: none;
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            width: 260px;
+            background: #0f172a;
+            border: 1px solid #1e3a5f;
+            border-radius: 8px;
+            padding: 12px 14px;
+            z-index: 999;
+            box-shadow: 0 8px 24px rgba(0,0,0,.6);
+        }
+        .sync-popover.open { display: block; }
+        .sync-popover-arrow {
+            position: absolute;
+            top: -6px;
+            right: 52px;
+            width: 10px;
+            height: 10px;
+            background: #0f172a;
+            border-left: 1px solid #1e3a5f;
+            border-top: 1px solid #1e3a5f;
+            transform: rotate(45deg);
+        }
+        .sp-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 5px 0;
+        }
+        .sp-key {
+            font-family: var(--font-mono);
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            color: #475569;
+            text-transform: uppercase;
+            flex-shrink: 0;
+            padding-top: 1px;
+        }
+        .sp-val {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: #94a3b8;
+            text-align: right;
+            line-height: 1.4;
+        }
+        .sp-divider {
+            height: 1px;
+            background: #1e293b;
+            margin: 6px 0;
+        }
+        .sp-status-val.up-to-date { color: #22c55e; font-weight: 700; }
+        .sp-status-val.behind     { color: #f59e0b; font-weight: 700; }
+        .sp-status-val.error      { color: #ef4444; font-weight: 700; }
         .gdrive-btn {
             display: flex;
             align-items: center;
@@ -274,7 +431,7 @@
             border-left: 3px solid transparent;
             transition: all .15s;
             color: var(--nav-text);
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 500;
             text-decoration: none;
             border: none;
@@ -286,7 +443,6 @@
         .nav-item:hover {
             background: var(--nav-hover);
             color: var(--nav-text-active);
-            border-left-color: rgba(200, 168, 74, 0.35);
         }
         .nav-item.active {
             background: var(--nav-active-bg);
@@ -294,9 +450,9 @@
             border-left: 3px solid var(--nav-active-accent);
         }
         .nav-item .ni-icon {
-            font-size: 16px;
+            font-size: 18px;
             flex-shrink: 0;
-            width: 20px;
+            width: 22px;
             text-align: center;
             opacity: 0.85;
         }
@@ -307,15 +463,46 @@
         .nav-item .ni-label {
             flex: 1;
             font-family: var(--font-mono);
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 500;
             letter-spacing: 0.8px;
             text-transform: uppercase;
         }
         .nav-item.active .ni-label {
-            color: #f0e8d8;
+            color: #f1f5f9;
             font-weight: 700;
         }
+
+        /* ── Per-item bright accent colours ── */
+        #navitem-home.active,   #navitem-home:hover   { border-left-color: #38bdf8; }
+        #navitem-home.active .ni-icon                 { filter: drop-shadow(0 0 4px #38bdf8aa); }
+
+        #navitem-weekly.active, #navitem-weekly:hover { border-left-color: #818cf8; }
+        #navitem-weekly.active .ni-icon               { filter: drop-shadow(0 0 4px #818cf8aa); }
+
+        #navitem-idea.active,   #navitem-idea:hover   { border-left-color: #fb923c; }
+        #navitem-idea.active .ni-icon                 { filter: drop-shadow(0 0 4px #fb923caa); }
+
+        #navitem-intraday.active, #navitem-intraday:hover { border-left-color: #4ade80; }
+        #navitem-intraday.active .ni-icon             { filter: drop-shadow(0 0 4px #4ade80aa); }
+
+        #navitem-open.active,   #navitem-open:hover   { border-left-color: #fbbf24; }
+        #navitem-open.active .ni-icon                 { filter: drop-shadow(0 0 4px #fbbf24aa); }
+
+        #navitem-closed.active, #navitem-closed:hover { border-left-color: #94a3b8; }
+        #navitem-closed.active .ni-icon               { filter: drop-shadow(0 0 4px #94a3b8aa); }
+
+        #navitem-insights.active, #navitem-insights:hover { border-left-color: #22d3ee; }
+        #navitem-insights.active .ni-icon             { filter: drop-shadow(0 0 4px #22d3eeaa); }
+
+        #navitem-notes.active,  #navitem-notes:hover  { border-left-color: #f472b6; }
+        #navitem-notes.active .ni-icon                { filter: drop-shadow(0 0 4px #f472b6aa); }
+
+        #navitem-news.active,   #navitem-news:hover   { border-left-color: #a78bfa; }
+        #navitem-news.active .ni-icon                 { filter: drop-shadow(0 0 4px #a78bfaaa); }
+
+        #navitem-settings.active, #navitem-settings:hover { border-left-color: #6ee7b7; }
+        #navitem-settings.active .ni-icon             { filter: drop-shadow(0 0 4px #6ee7b7aa); }
         .nav-item .ni-badge {
             background: var(--nav-badge-bg);
             color: var(--nav-badge-text);
@@ -3752,12 +3939,12 @@
         }
         .qn-tile .qt-label {
             font-family: var(--font-mono);
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 700;
             letter-spacing: 1px;
         }
         .qn-tile .qt-sub {
-            font-size: 11px;
+            font-size: 12px;
             color: #8a8070;
             margin-top: 2px;
         }
@@ -4387,6 +4574,332 @@
         /* WB alignment grid */
         .wb-align-grid .align-item .align-label { color: var(--text-secondary); }
         .wb-align-grid .align-item .align-value { color: var(--ink); }
+
+        /* ══ NEWS SECTION (v2) ══ */
+        /* Search bar */
+        .news-search-wrap { position:relative; margin-bottom:14px; }
+        .news-search-input {
+            width:100%; box-sizing:border-box;
+            font-family:var(--font-sans); font-size:13px; font-weight:400;
+            padding:9px 36px 9px 14px; border:1.5px solid var(--border); border-radius:6px;
+            background:var(--surface); color:var(--ink); outline:none; transition:border-color .15s;
+        }
+        .news-search-input::placeholder { color:var(--muted); }
+        .news-search-input:focus { border-color:var(--ink); }
+        .news-search-clear {
+            position:absolute; right:10px; top:50%; transform:translateY(-50%);
+            background:none; border:none; cursor:pointer; font-size:13px; color:var(--muted);
+            line-height:1; padding:2px; display:none;
+        }
+        .news-search-clear.visible { display:block; }
+        /* Filter chips */
+        .news-chips { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+        .news-chip {
+            display:inline-flex; align-items:center; gap:6px;
+            padding:5px 13px; font-family:var(--font-mono); font-size:8px; font-weight:700;
+            letter-spacing:1px; border-radius:3px; cursor:pointer; border:1.5px solid var(--border);
+            background:transparent; color:var(--muted); transition:all .15s; text-transform:uppercase; white-space:nowrap;
+        }
+        .news-chip:hover { border-color:var(--ink); color:var(--ink); }
+        .news-chip.active { background:var(--ink); color:var(--paper); border-color:var(--ink); }
+        .news-chip-box {
+            width:9px; height:9px; border-radius:2px; border:1.5px solid currentColor;
+            display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+        }
+        .news-chip.active .news-chip-box { background:var(--paper); }
+        .news-chip.active .news-chip-box::after {
+            content:''; width:5px; height:5px; border-radius:1px; background:var(--ink);
+        }
+        .news-chip-all { border-style:dashed; }
+        .news-chip-custom { border-style:dashed; }
+        /* Add asset button + form */
+        .news-chip-add {
+            display:inline-flex; align-items:center; gap:4px;
+            padding:5px 11px; font-family:var(--font-mono); font-size:8px; font-weight:700;
+            letter-spacing:1px; border-radius:3px; cursor:pointer; border:1.5px dashed var(--border);
+            background:transparent; color:var(--muted); transition:all .15s; text-transform:uppercase;
+        }
+        .news-chip-add:hover { border-color:var(--gold); color:var(--gold); }
+        .news-asset-form {
+            display:none; flex-direction:column; gap:8px;
+            padding:12px; margin-bottom:14px;
+            border:1.5px solid var(--border); border-radius:6px; background:var(--surface);
+        }
+        .news-asset-form.open { display:flex; }
+        .news-asset-form-row { display:flex; gap:8px; flex-wrap:wrap; }
+        .news-asset-form-field { flex:1; min-width:120px; display:flex; flex-direction:column; gap:3px; }
+        .news-asset-form-field label {
+            font-family:var(--font-mono); font-size:7px; font-weight:700; letter-spacing:1px;
+            color:var(--muted); text-transform:uppercase;
+        }
+        .news-asset-form-field input {
+            font-family:var(--font-sans); font-size:12px; padding:7px 10px;
+            border:1.5px solid var(--border); border-radius:4px; background:var(--cream);
+            color:var(--ink); outline:none;
+        }
+        .news-asset-form-field input:focus { border-color:var(--ink); }
+        .news-asset-form-actions { display:flex; gap:8px; justify-content:flex-end; }
+        .news-asset-form-actions button {
+            font-family:var(--font-mono); font-size:8px; font-weight:700; letter-spacing:1px;
+            padding:7px 14px; border-radius:4px; cursor:pointer; text-transform:uppercase; transition:all .15s;
+        }
+        .news-asset-save { background:var(--ink); color:var(--paper); border:1.5px solid var(--ink); }
+        .news-asset-save:hover { opacity:.85; }
+        .news-asset-cancel { background:transparent; color:var(--muted); border:1.5px solid var(--border); }
+        .news-asset-cancel:hover { border-color:var(--ink); color:var(--ink); }
+        .news-asset-slot-label {
+            font-family:var(--font-mono); font-size:7px; font-weight:700; letter-spacing:1px;
+            color:var(--gold); text-transform:uppercase; margin-bottom:2px;
+        }
+        .news-asset-remove {
+            background:none; border:none; color:var(--muted); cursor:pointer;
+            font-size:11px; padding:0 0 0 4px; line-height:1;
+        }
+        .news-asset-remove:hover { color:#e74c3c; }
+        /* Status bar */
+        .news-statusbar {
+            font-family:var(--font-mono); font-size:8px; color:var(--muted); letter-spacing:0.5px;
+            padding:4px 0 10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-height:24px;
+        }
+        .nspin { display:inline-block; animation:_nspin 0.9s linear infinite; }
+        @keyframes _nspin { to { transform:rotate(360deg); } }
+        /* Article list */
+        .news-list { display:flex; flex-direction:column; gap:0; }
+        /* Article card */
+        .news-card {
+            display:flex; align-items:flex-start; gap:12px;
+            padding:14px 0; border-bottom:1px solid var(--border);
+            text-decoration:none; color:var(--ink); cursor:pointer;
+            transition:opacity .12s;
+        }
+        .news-card:last-child { border-bottom:none; }
+        .news-card:hover { opacity:.78; }
+        .news-card:hover .news-card-title { text-decoration:underline; text-underline-offset:2px; }
+        /* Thumbnail */
+        .news-thumb {
+            width:72px; height:56px; object-fit:cover; border-radius:4px;
+            flex-shrink:0; background:var(--cream); border:1px solid var(--border);
+        }
+        .news-thumb-placeholder {
+            width:72px; height:56px; border-radius:4px; flex-shrink:0;
+            background:var(--cream); border:1px solid var(--border);
+            display:flex; align-items:center; justify-content:center;
+            font-size:20px; color:var(--muted);
+        }
+        /* Card body */
+        .news-card-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
+        .news-card-meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+        .news-src-badge {
+            display:inline-block; font-family:var(--font-mono); font-size:7px; font-weight:700;
+            letter-spacing:0.8px; padding:2px 7px; border-radius:3px; text-transform:uppercase;
+        }
+        .news-card-time { font-family:var(--font-mono); font-size:7px; color:var(--muted); white-space:nowrap; }
+        .news-asset-tag {
+            font-family:var(--font-mono); font-size:7px; font-weight:700; letter-spacing:0.5px;
+            padding:1px 6px; border-radius:2px; background:var(--cream); color:var(--muted); border:1px solid var(--border);
+        }
+        .news-card-title {
+            font-size:13px; font-weight:600; line-height:1.45; color:var(--ink);
+            display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+        }
+        .news-card-desc {
+            font-size:11px; color:var(--muted); line-height:1.5;
+            display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+        }
+        /* Skeleton */
+        .news-skel { background:var(--cream); border-radius:3px; animation:_nsk 1.4s ease-in-out infinite; }
+        @keyframes _nsk { 0%,100%{opacity:.5} 50%{opacity:1} }
+        /* State cards */
+        .news-state-card {
+            padding:40px 20px; text-align:center; border:1.5px dashed var(--border);
+            border-radius:6px; margin-top:8px;
+        }
+        .news-state-icon { font-size:28px; margin-bottom:8px; }
+        .news-state-title {
+            font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:1px;
+            color:var(--muted); margin-bottom:5px; text-transform:uppercase;
+        }
+        .news-state-body { font-size:12px; color:var(--muted); line-height:1.6; }
+        /* Load more */
+        .news-load-more {
+            display:block; width:100%; margin-top:14px; padding:10px;
+            font-family:var(--font-mono); font-size:8px; font-weight:700; letter-spacing:1px;
+            text-transform:uppercase; background:transparent; border:1.5px solid var(--border);
+            border-radius:4px; color:var(--muted); cursor:pointer; transition:all .15s;
+        }
+        .news-load-more:hover { border-color:var(--ink); color:var(--ink); }
+        .news-load-more:disabled { opacity:.4; cursor:default; }
+
+        /* ══ NEWS LAYOUT GRID (v3) ══ */
+        /* Override shell width for news page only */
+        #page-news .shell { max-width:1200px; }
+
+        .news-layout-grid {
+            display:grid;
+            grid-template-columns:1fr 320px;
+            gap:20px;
+            align-items:start;
+        }
+        .news-left-col  { display:flex; flex-direction:column; gap:0; min-width:0; }
+        .news-right-col { display:flex; flex-direction:column; gap:14px; }
+
+        /* ── Economic Calendar panel ── */
+        .ec-panel {
+            border:1.5px solid var(--border);
+            border-radius:6px;
+            overflow:hidden;
+            margin-bottom:20px;
+            background:var(--surface);
+        }
+        .ec-panel-head {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:10px 14px;
+            background:var(--ink); color:var(--paper);
+            font-family:var(--font-mono); font-size:8px; font-weight:700; letter-spacing:1.5px;
+        }
+        .ec-panel-head-left { display:flex; align-items:center; gap:8px; }
+        .ec-week-toggle {
+            font-family:var(--font-mono); font-size:7px; font-weight:700; letter-spacing:1px;
+            padding:3px 10px; border-radius:3px; cursor:pointer;
+            background:transparent; color:var(--paper);
+            border:1px solid rgba(255,255,255,0.3);
+            transition:all .15s; text-transform:uppercase;
+        }
+        .ec-week-toggle:hover { background:rgba(255,255,255,0.12); }
+        .ec-week-toggle.active { background:var(--gold); border-color:var(--gold); color:var(--paper); }
+        .ec-status {
+            font-family:var(--font-mono); font-size:7px; color:var(--muted);
+            padding:5px 14px; background:var(--cream);
+            border-bottom:1px solid var(--border);
+            display:flex; align-items:center; gap:6px;
+        }
+        .ec-table-wrap { overflow-x:auto; }
+        .ec-table {
+            width:100%; border-collapse:collapse;
+            font-family:var(--font-mono); font-size:10px;
+        }
+        .ec-table th {
+            padding:7px 10px; text-align:left;
+            font-size:7px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+            color:var(--muted); background:var(--cream);
+            border-bottom:1.5px solid var(--border);
+            white-space:nowrap;
+        }
+        .ec-table td {
+            padding:7px 10px; border-bottom:1px solid var(--border);
+            vertical-align:middle; white-space:nowrap;
+        }
+        .ec-table tr:last-child td { border-bottom:none; }
+        /* Row states */
+        .ec-row-past td { color:var(--muted); opacity:0.55; }
+        .ec-row-next td { background:var(--gold-lt) !important; }
+        .ec-row-next td:first-child {
+            border-left:3px solid var(--gold);
+            padding-left:7px;
+        }
+        .ec-row-today-header td {
+            background:var(--ink); color:var(--paper);
+            font-size:7px; font-weight:700; letter-spacing:1px;
+            padding:4px 10px;
+        }
+        /* Impact dots */
+        .ec-impact {
+            display:inline-block; width:9px; height:9px;
+            border-radius:50%; flex-shrink:0;
+            vertical-align:middle;
+        }
+        .ec-impact-high    { background:#e74c3c; }
+        .ec-impact-medium  { background:#e67e22; }
+        .ec-impact-low     { background:#f1c40f; }
+        .ec-impact-holiday { background:#95a5a6; }
+        /* Value cells */
+        .ec-val-actual   { color:#27ae60; font-weight:700; }
+        .ec-val-forecast { color:var(--ink); }
+        .ec-val-prev     { color:var(--muted); }
+        .ec-val-empty    { color:var(--border); }
+        /* CCY badge */
+        .ec-ccy {
+            font-family:var(--font-mono); font-size:8px; font-weight:700;
+            padding:2px 6px; border-radius:2px;
+            background:var(--cream); border:1px solid var(--border);
+            color:var(--ink);
+        }
+        /* State */
+        .ec-state {
+            padding:30px 16px; text-align:center;
+            font-family:var(--font-mono); font-size:9px;
+            color:var(--muted); letter-spacing:0.5px;
+        }
+        .ec-state-icon { font-size:24px; margin-bottom:8px; }
+
+        /* ── Discord panels ── */
+        .discord-panel-main {
+            border:1.5px solid var(--border); border-radius:6px;
+            overflow:hidden; background:var(--surface);
+        }
+        .discord-panel-head {
+            display:flex; align-items:center; gap:8px;
+            padding:10px 14px;
+            background:var(--ink); color:var(--paper);
+            font-family:var(--font-mono); font-size:8px; font-weight:700; letter-spacing:1.5px;
+        }
+        .discord-channel-card {
+            border:1.5px solid var(--border); border-radius:6px;
+            background:var(--surface); overflow:hidden;
+        }
+        .discord-channel-head {
+            display:flex; align-items:center; gap:8px;
+            padding:9px 14px; border-bottom:1px solid var(--border);
+            font-family:var(--font-mono); font-size:8px; font-weight:700;
+            letter-spacing:1px; color:var(--ink);
+            background:var(--cream);
+        }
+        .discord-channel-body {
+            padding:0; max-height:320px; overflow-y:auto;
+        }
+        .discord-msg {
+            padding:8px 12px; border-bottom:1px solid var(--border);
+            display:flex; flex-direction:column; gap:3px;
+        }
+        .discord-msg:last-child { border-bottom:none; }
+        .discord-msg-meta {
+            display:flex; align-items:center; gap:6px;
+            font-family:var(--font-mono); font-size:7px; color:var(--muted);
+        }
+        .discord-msg-author {
+            font-weight:700; color:var(--ink);
+        }
+        .discord-msg-content {
+            font-size:11px; color:var(--ink); line-height:1.5;
+            word-break:break-word; white-space:pre-wrap;
+        }
+        .discord-msg-img {
+            max-width:100%; max-height:160px; border-radius:4px;
+            margin-top:4px; border:1px solid var(--border);
+            object-fit:cover; cursor:pointer;
+        }
+        .discord-stub-body {
+            padding:24px 16px; text-align:center;
+            font-family:var(--font-mono); font-size:8px;
+            color:var(--muted); letter-spacing:0.5px; line-height:1.8;
+        }
+        .discord-load-more {
+            display:block; width:100%; padding:7px;
+            font-family:var(--font-mono); font-size:7px; font-weight:700; letter-spacing:1px;
+            text-transform:uppercase; background:transparent;
+            border:none; border-top:1px solid var(--border);
+            color:var(--muted); cursor:pointer; transition:all .15s;
+        }
+        .discord-load-more:hover { color:var(--ink); background:var(--cream); }
+
+        /* ── Mobile stacking ── */
+        @media (max-width:768px) {
+            .news-layout-grid {
+                grid-template-columns:1fr;
+            }
+            .news-right-col { order:3; }
+            #page-news .shell { max-width:100%; }
+        }
     </style>
 </head>
 <body>
@@ -4401,11 +4914,30 @@
             <p>SCAN · PLAN · EXECUTE</p>
         </div>
         <div class="topbar-actions">
-            <div id="dbStatusDot" onclick="openDriveModal()" title="Database status" style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:4px 8px;border-radius:3px;border:1px solid #2a2520">
-                <div id="dbDotTopbar" style="width:8px;height:8px;border-radius:50%;background:#3a3530;transition:background .4s;flex-shrink:0"></div>
-                <span id="dbLabelTopbar" style="font-family:var(--font-mono);font-size:8px;color:#5a5040;letter-spacing:1px">DB</span>
+            <!-- Sync status chip — tap to open popover -->
+            <div class="sync-chip" id="syncChip" onclick="toggleSyncPopover()" title="Server sync status">
+                <div class="sync-chip-dot" id="syncChipDot"></div>
+                <span class="sync-chip-label" id="syncChipLabel">—</span>
             </div>
-            <button id="syncBtnTop" onclick="manualSync()" style="padding:5px 9px;font-family:var(--font-mono);font-size:9px;cursor:pointer;border:1px solid #3a3530;background:transparent;color:#6a6050;border-radius:3px;transition:all .15s" title="Sync data">⟳</button>
+            <button id="syncBtnTop" onclick="manualSync()" class="sync-refresh-btn" title="Sync now">⟳</button>
+
+            <!-- Sync popover panel -->
+            <div class="sync-popover" id="syncPopover">
+                <div class="sync-popover-arrow"></div>
+                <div class="sp-row">
+                    <div class="sp-key">SERVER UPDATED</div>
+                    <div class="sp-val" id="spServerTime">—</div>
+                </div>
+                <div class="sp-row">
+                    <div class="sp-key">LAST PUSH FROM</div>
+                    <div class="sp-val" id="spLastDevice">—</div>
+                </div>
+                <div class="sp-divider"></div>
+                <div class="sp-row sp-status-row">
+                    <div class="sp-key">THIS DEVICE</div>
+                    <div class="sp-val sp-status-val" id="spDeviceStatus">—</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -4453,6 +4985,10 @@
             <button class="nav-item" id="navitem-notes" onclick="navTo('notes')">
                 <span class="ni-icon">🗒️</span>
                 <span class="ni-label">Notes</span>
+            </button>
+            <button class="nav-item" id="navitem-news" onclick="navTo('news')">
+                <span class="ni-icon">📰</span>
+                <span class="ni-label">News</span>
             </button>
             <button class="nav-item" id="navitem-settings" onclick="navTo('settings')">
                 <span class="ni-icon">⚙️</span>
@@ -4567,8 +5103,8 @@
                     <!-- Stats -->
                     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
                         <div style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:2px;color:var(--text-secondary);text-transform:uppercase;flex:1;">PERFORMANCE OVERVIEW</div>
-                        <div id="perfSyncStatus" style="font-family:var(--font-mono);font-size:8px;color:var(--text-tertiary);letter-spacing:.5px;">—</div>
                     </div>
+                    <div id="perfSyncStatus" style="display:none"></div>
                     <div class="dash-stats" id="dashStats"></div>
 
                     <!-- R-captured breakdown -->
@@ -5148,9 +5684,144 @@
                 </div>
             </div>
 
+            <!-- ══ NEWS (v3) ══ -->
+            <div class="page" id="page-news">
+                <div class="shell">
+                    <div class="sec-head">
+                        <h2>NEWS</h2>
+                        <p>Forex &amp; market news feed</p>
+                        <div class="sec-head-actions">
+                            <button class="btn-ghost btn-sm" onclick="NR.showKeyModal()" style="margin-right:6px;">&#128273; API KEY</button>
+                            <button class="btn-ghost btn-sm" id="newsRefreshBtn" onclick="NR.refresh()">&#x27F3; REFRESH</button>
+                        </div>
+                    </div>
+
+                    <!-- Search -->
+                    <div class="news-search-wrap">
+                        <input class="news-search-input" id="newsSearchInput" type="search"
+                            placeholder="Search headlines..."
+                            oninput="NR.onSearch(this.value)"
+                            aria-label="Search news headlines" />
+                        <button class="news-search-clear" id="newsSearchClear"
+                            onclick="NR.clearSearch()" aria-label="Clear search">&#x2715;</button>
+                    </div>
+
+                    <!-- Filter chips -->
+                    <div class="news-chips" id="newsChips" role="group" aria-label="Filter by instrument"></div>
+
+                    <!-- Custom asset form (hidden by default) -->
+                    <div class="news-asset-form" id="newsAssetForm">
+                        <div id="newsAssetFormSlots"></div>
+                        <div class="news-asset-form-actions">
+                            <button class="news-asset-cancel" type="button" onclick="NR.closeAssetForm()">CANCEL</button>
+                            <button class="news-asset-save" type="button" onclick="NR.saveCustomAssets()">SAVE</button>
+                        </div>
+                    </div>
+
+                    <!-- Two-column layout -->
+                    <div class="news-layout-grid">
+
+                        <!-- LEFT column: Economic Calendar + News Feed -->
+                        <div class="news-left-col">
+
+                            <!-- Economic Calendar -->
+                            <div class="ec-panel" id="ecPanel">
+                                <div class="ec-panel-head">
+                                    <div class="ec-panel-head-left">
+                                        &#128197; ECONOMIC CALENDAR
+                                    </div>
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <button class="ec-week-toggle active" id="ecTodayBtn" onclick="EC.showToday()">TODAY</button>
+                                        <button class="ec-week-toggle" id="ecWeekBtn" onclick="EC.showWeek()">THIS WEEK</button>
+                                    </div>
+                                </div>
+                                <div class="ec-status" id="ecStatus">
+                                    <span id="ecStatusText">&#8212;</span>
+                                </div>
+                                <div class="ec-table-wrap">
+                                    <div id="ecBody">
+                                        <div class="ec-state">
+                                            <div class="ec-state-icon">&#128197;</div>
+                                            Loading calendar&hellip;
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Status bar -->
+                            <div class="news-statusbar" id="newsStatusBar" aria-live="polite">
+                                <span id="newsStatusText">&#8212;</span>
+                            </div>
+
+                            <!-- Article list -->
+                            <div id="newsList" role="list"></div>
+
+                            <!-- Load more -->
+                            <button class="news-load-more" id="newsLoadMore"
+                                onclick="NR.loadMore()" style="display:none;">
+                                LOAD MORE
+                            </button>
+
+                        </div><!-- /news-left-col -->
+
+                        <!-- RIGHT column: Discord -->
+                        <div class="news-right-col">
+
+                            <!-- Discord Feed header -->
+                            <div class="discord-panel-main">
+                                <div class="discord-panel-head">
+                                    &#128172; DISCORD FEED
+                                </div>
+                                <div class="discord-stub-body" id="dcFeedStatus">
+                                    Loading&hellip;
+                                </div>
+                            </div>
+
+                            <!-- Discord Channel 1 -->
+                            <div class="discord-channel-card" id="dcCard1">
+                                <div class="discord-channel-head">
+                                    <span style="color:var(--muted);">#</span>
+                                    <span id="dcTitle1">Channel</span>
+                                </div>
+                                <div class="discord-channel-body" id="dcBody1">
+                                    <div class="discord-stub-body">Loading&hellip;</div>
+                                </div>
+                                <button class="discord-load-more" id="dcMore1" onclick="DC.loadMore(0)" style="display:none;">
+                                    LOAD MORE
+                                </button>
+                            </div>
+
+                            <!-- Discord Channel 2 -->
+                            <div class="discord-channel-card" id="dcCard2">
+                                <div class="discord-channel-head">
+                                    <span style="color:var(--muted);">#</span>
+                                    <span id="dcTitle2">Channel</span>
+                                </div>
+                                <div class="discord-channel-body" id="dcBody2">
+                                    <div class="discord-stub-body">Loading&hellip;</div>
+                                </div>
+                                <button class="discord-load-more" id="dcMore2" onclick="DC.loadMore(1)" style="display:none;">
+                                    LOAD MORE
+                                </button>
+                            </div>
+
+                        </div><!-- /news-right-col -->
+
+                    </div><!-- /news-layout-grid -->
+                </div>
+            </div>
+
             <!-- ══ SETTINGS ══ -->
             <div class="page" id="page-settings">
                 <div class="shell">
+
+                    <!-- Archive reminder banner — shown during last 3 days of quarterly window -->
+                    <div id="archiveReminderBanner" style="display:none;background:#fdf6e3;border:1.5px solid #c8a84a;border-radius:6px;padding:12px 14px;margin-bottom:14px;position:relative;">
+                        <div style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;color:#7a5c00;margin-bottom:4px;">⏰ QUARTERLY ARCHIVE DUE</div>
+                        <div id="archiveReminderText" style="font-family:var(--font-mono);font-size:8px;color:#7a5c00;line-height:1.7;">Your quarterly archive is due. Run it before the end of the month to keep storage clean.</div>
+                        <button onclick="dismissArchiveBanner()" style="position:absolute;top:10px;right:10px;background:none;border:none;font-family:var(--font-mono);font-size:10px;color:#7a5c00;cursor:pointer;padding:0;line-height:1;">✕</button>
+                    </div>
+
                     <div class="sec-head">
                         <h2>SETTINGS</h2>
                         <p>App preferences &amp; management</p>
@@ -5206,13 +5877,38 @@
                         </div>
                     </div>
 
-                    <!-- DEV: Quarterly Archive trigger — will be replaced by Phase 5 Settings UI -->
-                    <div style="background:var(--surface);border:2px dashed #c8a84a;border-radius:6px;overflow:hidden;margin-bottom:14px;">
-                        <div style="padding:10px 14px;background:#fdf6e3;border-bottom:1px dashed #c8a84a;font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:#7a5c00;">QUARTERLY ARCHIVE <span style="font-weight:400;opacity:0.6;">[DEV]</span></div>
+                    <!-- ARCHIVE MANAGEMENT — Phase 5 -->
+                    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px;">
+                        <div style="padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);">ARCHIVE MANAGEMENT</div>
                         <div style="padding:14px;">
-                            <div id="archiveLastRunDisplay" style="font-family:var(--font-mono);font-size:8px;color:var(--muted);margin-bottom:4px;line-height:1.7;">Last archive: —</div>
-                            <div id="archiveCutoffDisplay" style="font-family:var(--font-mono);font-size:8px;color:var(--muted);margin-bottom:12px;line-height:1.7;">Will archive: —</div>
-                            <button onclick="runArchive()" style="font-family:var(--font-mono);font-size:8px;font-weight:700;padding:10px 16px;border:2px solid #7a5c00;background:#7a5c00;color:#fff;border-radius:4px;cursor:pointer;width:100%;letter-spacing:1px;">⬛ RUN QUARTERLY ARCHIVE</button>
+
+                            <!-- Storage quota -->
+                            <div style="margin-bottom:14px;">
+                                <div style="font-family:var(--font-mono);font-size:8px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">STORAGE</div>
+                                <div style="background:var(--cream);border-radius:3px;height:6px;overflow:hidden;margin-bottom:5px;">
+                                    <div id="archiveStorageBar" style="height:100%;width:0%;background:var(--gold);border-radius:3px;transition:width 0.4s ease;"></div>
+                                </div>
+                                <div id="archiveStorageText" style="font-family:var(--font-mono);font-size:8px;color:var(--muted);line-height:1.7;">Loading…</div>
+                            </div>
+
+                            <!-- Last archive + cutoff -->
+                            <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:14px;">
+                                <div id="archiveLastRunDisplay" style="font-family:var(--font-mono);font-size:8px;color:var(--muted);margin-bottom:4px;line-height:1.7;">Last archive: —</div>
+                                <div id="archiveCutoffDisplay" style="font-family:var(--font-mono);font-size:8px;color:var(--muted);margin-bottom:0;line-height:1.7;">Will archive: —</div>
+                            </div>
+
+                            <!-- Archive history table -->
+                            <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:14px;">
+                                <div style="font-family:var(--font-mono);font-size:8px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">HISTORY</div>
+                                <div id="archiveHistoryTable" style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">Loading…</div>
+                            </div>
+
+                            <!-- Run button + disabled reason -->
+                            <div style="border-top:1px solid var(--border);padding-top:12px;">
+                                <div id="archiveRunReason" style="font-family:var(--font-mono);font-size:8px;color:var(--muted);margin-bottom:8px;line-height:1.7;display:none;"></div>
+                                <button id="runArchiveBtn" onclick="runArchive()" style="font-family:var(--font-mono);font-size:8px;font-weight:700;padding:10px 16px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:4px;cursor:pointer;width:100%;letter-spacing:1px;">⬛ RUN QUARTERLY ARCHIVE</button>
+                            </div>
+
                         </div>
                     </div>
 
@@ -6221,6 +6917,8 @@
             notes: [],
             coreRules: [],
             syncStatus: 'idle',
+            serverLastMod: null,      // ISO timestamp from sync_meta.last_modified
+            serverLastDevice: null,   // UUID from sync_meta.last_device
             ideaTags: [],
             wbTags: ['weekly'],
             intraTags: ['intraday'],
@@ -7303,23 +8001,32 @@
 
         function setSyncStatus(s) {
             S.syncStatus = s;
-            const dbDot = document.getElementById('dbDotTopbar'),
-                dbLabel = document.getElementById('dbLabelTopbar'),
-                syncBtn = document.getElementById('syncBtnTop');
+            const dot   = document.getElementById('syncChipDot');
+            const label = document.getElementById('syncChipLabel');
+            const btn   = document.getElementById('syncBtnTop');
+            // keep legacy IDs alive for other code that may reference them
+            const dbDot   = document.getElementById('dbDotTopbar');
+            const dbLabel = document.getElementById('dbLabelTopbar');
             if (s === 'syncing') {
-                if (dbDot) dbDot.style.background = '#c8a84a';
-                if (dbLabel) { dbLabel.textContent = 'SYNC'; dbLabel.style.color = '#c8a84a'; }
-                if (syncBtn) syncBtn.innerHTML = '<span class="spin">⟳</span>';
+                if (dot)   { dot.className   = 'sync-chip-dot syncing'; }
+                if (label) { label.className = 'sync-chip-label syncing'; label.textContent = 'SYNC'; }
+                if (btn)   btn.innerHTML = '<span class="spin">⟳</span>';
+                if (dbDot)   dbDot.style.background = '#f59e0b';
+                if (dbLabel) { dbLabel.textContent = 'SYNC'; dbLabel.style.color = '#f59e0b'; }
             } else if (s === 'error') {
-                if (dbDot) dbDot.style.background = '#ff5555';
-                if (dbLabel) { dbLabel.textContent = 'ERR'; dbLabel.style.color = '#ff5555'; }
-                if (syncBtn) { syncBtn.innerHTML = '⟳'; syncBtn.style.borderColor = '#ff5555'; syncBtn.style.color = '#ff5555'; }
+                if (dot)   { dot.className   = 'sync-chip-dot error'; }
+                if (label) { label.className = 'sync-chip-label error'; label.textContent = 'ERR'; }
+                if (btn)   { btn.innerHTML = '⟳'; btn.style.borderColor = '#ef4444'; btn.style.color = '#ef4444'; }
+                if (dbDot)   dbDot.style.background = '#ef4444';
+                if (dbLabel) { dbLabel.textContent = 'ERR'; dbLabel.style.color = '#ef4444'; }
                 const pss = document.getElementById('perfSyncStatus');
-                if (pss) { pss.textContent = 'Sync error'; pss.style.color = '#ff5555'; }
+                if (pss) { pss.textContent = 'Sync error'; pss.style.color = '#ef4444'; }
             } else if (s === 'synced') {
-                if (dbDot) dbDot.style.background = '#34a853';
-                if (dbLabel) { dbLabel.textContent = 'LIVE'; dbLabel.style.color = '#34a853'; }
-                if (syncBtn) { syncBtn.innerHTML = '⟳'; syncBtn.style.borderColor = ''; syncBtn.style.color = ''; }
+                if (dot)   { dot.className   = 'sync-chip-dot live'; }
+                if (label) { label.className = 'sync-chip-label live'; label.textContent = 'LIVE'; }
+                if (btn)   { btn.innerHTML = '⟳'; btn.style.borderColor = ''; btn.style.color = ''; }
+                if (dbDot)   dbDot.style.background = '#22c55e';
+                if (dbLabel) { dbLabel.textContent = 'LIVE'; dbLabel.style.color = '#22c55e'; }
             }
         }
 
@@ -7526,10 +8233,12 @@
             if (!_currentUser) return;
             setSyncStatus('syncing');
             try {
-                const { data: meta, error: metaErr } = await _sb.from('sync_meta').select('last_modified').eq('user_id',
+                const { data: meta, error: metaErr } = await _sb.from('sync_meta').select('last_modified,last_device').eq('user_id',
                     _currentUser.id).maybeSingle();
                 if (metaErr) throw metaErr;
                 const serverLastMod = meta ? meta.last_modified : null;
+                if (serverLastMod) S.serverLastMod = serverLastMod;
+                if (meta?.last_device) S.serverLastDevice = meta.last_device;
                 const cachedLastMod = getCachedLastMod();
                 if (!force && serverLastMod && serverLastMod === cachedLastMod && loadLocalCache()) {
                     setSyncStatus('synced');
@@ -8200,21 +8909,75 @@
         async function manualSync() { await loadAllData(true); }
 
         function updateSyncBar() {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-            const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-            const fullLabel = dateStr + ' · ' + timeStr;
-            // Top-right sync text (above Performance Overview)
-            const pss = document.getElementById('perfSyncStatus');
-            if (pss) { pss.textContent = 'Synced ' + fullLabel; pss.style.color = '#34a853'; }
-            // Topbar DB dot + label
-            const dbDot = document.getElementById('dbDotTopbar'),
-                dbLabel = document.getElementById('dbLabelTopbar');
-            if (dbDot) dbDot.style.background = '#34a853';
-            if (dbLabel) { dbLabel.textContent = 'LIVE'; dbLabel.style.color = '#34a853'; }
+            // ── Popover fields ──
+            const spServerTime   = document.getElementById('spServerTime');
+            const spLastDevice   = document.getElementById('spLastDevice');
+            const spDeviceStatus = document.getElementById('spDeviceStatus');
+
+            // 1. Server updated time
+            if (spServerTime) {
+                if (S.serverLastMod) {
+                    const d = new Date(S.serverLastMod);
+                    spServerTime.textContent = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+                        + ' · ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                } else {
+                    spServerTime.textContent = '—';
+                }
+            }
+
+            // 2. Last push device
+            if (spLastDevice) {
+                if (!S.serverLastDevice) {
+                    spLastDevice.textContent = '—';
+                } else if (S.serverLastDevice === DEVICE_ID) {
+                    spLastDevice.textContent = 'This device';
+                } else {
+                    // Show last 6 chars of UUID as a short ID for the other device
+                    const shortId = S.serverLastDevice.slice(-6).toUpperCase();
+                    spLastDevice.textContent = 'Other device ·' + shortId;
+                }
+            }
+
+            // 3. Is this device up to date?
+            if (spDeviceStatus) {
+                const cachedLastMod = getCachedLastMod();
+                const upToDate = S.serverLastMod && cachedLastMod && S.serverLastMod === cachedLastMod;
+                if (upToDate) {
+                    spDeviceStatus.textContent = '✓ Up to date';
+                    spDeviceStatus.className = 'sp-val sp-status-val up-to-date';
+                } else if (S.syncStatus === 'error') {
+                    spDeviceStatus.textContent = '✕ Sync error';
+                    spDeviceStatus.className = 'sp-val sp-status-val error';
+                } else {
+                    spDeviceStatus.textContent = '⚠ Behind server';
+                    spDeviceStatus.className = 'sp-val sp-status-val behind';
+                }
+            }
+
+            // ── Keep sync button colour green on success ──
             const syncBtn = document.getElementById('syncBtnTop');
-            if (syncBtn) { syncBtn.style.borderColor = '#34a853'; syncBtn.style.color = '#34a853'; }
+            if (syncBtn) { syncBtn.style.borderColor = '#22c55e'; syncBtn.style.color = '#22c55e'; }
         }
+
+        // ── Sync popover toggle ──
+        window.toggleSyncPopover = function() {
+            const pop = document.getElementById('syncPopover');
+            if (!pop) return;
+            pop.classList.toggle('open');
+            if (pop.classList.contains('open')) {
+                // Refresh popover content each open
+                updateSyncBar();
+                // Close on outside click
+                setTimeout(() => {
+                    document.addEventListener('click', function _close(e) {
+                        if (!pop.contains(e.target) && !document.getElementById('syncChip').contains(e.target)) {
+                            pop.classList.remove('open');
+                        }
+                        document.removeEventListener('click', _close);
+                    });
+                }, 10);
+            }
+        };
 
         function showToast(msg, type = 'ok') {
             const el = document.getElementById('toastMsg');
@@ -8237,34 +9000,45 @@
         }
 
         async function saveNoteToDb(n) {
+            if (!_currentUser) { showToast('Not logged in — note saved locally only', 'err'); return; }
             try {
                 const { error } = await _sb.from('notes').upsert(noteToDb(n), { onConflict: 'id' });
                 if (error) throw error;
                 await touchSyncMeta();
                 saveLocalCache();
-            } catch (e) { console.warn('Note save error', e); }
+            } catch (e) { console.warn('Note save error', e); showToast('Note sync error: ' + e.message, 'err'); }
         }
 
         async function deleteNoteFromDb(id) {
+            if (!_currentUser) return;
             try {
                 const { error } = await _sb.from('notes').delete().eq('id', id).eq('user_id', _currentUser.id);
                 if (error) throw error;
                 await touchSyncMeta();
                 saveLocalCache();
-            } catch (e) { console.warn('Note delete error', e); }
+            } catch (e) { console.warn('Note delete error', e); showToast('Note delete error: ' + e.message, 'err'); }
         }
 
         // ── Core Rules ──
-        const STORAGE_KEY = 'ict_core_rules';
+        const STORAGE_KEY = 'ict_core_rules'; // legacy key; user-scoped key used below
+
+        function _coreRulesKey() {
+            return _currentUser ? `ict_core_rules_${_currentUser.id}` : STORAGE_KEY;
+        }
 
         function loadRules() {
             if (S.coreRules) return S.coreRules;
-            try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; }
+            try {
+                // Try user-scoped key first, fall back to legacy key for migration
+                const scoped = localStorage.getItem(_coreRulesKey());
+                if (scoped !== null) return JSON.parse(scoped);
+                return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            } catch (e) { return []; }
         }
 
         function saveRulesData(arr) {
             S.coreRules = arr;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+            localStorage.setItem(_coreRulesKey(), JSON.stringify(arr));
         }
 
         async function saveRulesToSupa(arr) {
@@ -8274,7 +9048,7 @@
                 { onConflict: 'user_id' });
                 if (error) throw error;
                 await touchSyncMeta();
-            } catch (e) { console.warn('Core rules sync error', e); }
+            } catch (e) { console.warn('Core rules sync error', e); showToast('Core rules sync error: ' + e.message, 'err'); }
         }
 
         window.loadCoreRules = async function() {
@@ -8285,7 +9059,7 @@
                 if (error) throw error;
                 if (data) saveRulesData(data.rules || []);
                 renderCoreRules();
-            } catch (e) { console.warn('Core rules load error', e); }
+            } catch (e) { console.warn('Core rules load error', e); showToast('Core rules load error: ' + e.message, 'err'); }
         };
 
         function renderCoreRules() {
@@ -8459,6 +9233,7 @@
                 }
             }
             if (page === 'notes') renderNotes();
+            if (page === 'news') NR.init();
             if (page === 'closed') renderClosed();
         }
 
@@ -12057,21 +12832,104 @@
             });
         }
 
-        function computeModelAccuracy() {
+        // ── Canonical model accuracy helper ──
+        // Single source of truth used by renderModelAccuracy (dashboard) and
+        // computeModelPerformanceAnalysis (Section 7). Both locations must use
+        // this function so percentages are always identical. (AC-003 / AC-006)
+        //
+        // Denominator rule: only trades where biasMatch is explicitly 'YES' or
+        // 'NO' are counted. Trades with empty/null biasMatch are excluded from
+        // both numerator and denominator — they have no recorded prediction to
+        // evaluate accuracy against.
+        function _canonicalModelStats(snapMP) {
             const closed = S.trades.filter(t => t.status === 'closed' && !t.isIntraday);
+
+            // Weekly
             const weeklyClosed = S.weeklies.filter(w => w.status === 'closed' && w.weeklyReview);
-            const weeklyCorrect = weeklyClosed.filter(w => w.weeklyReview?.biasAccuracy?.result === 'Correct');
-            const weeklyAcc = weeklyClosed.length >= 3 ? (weeklyCorrect.length / weeklyClosed.length * 100) : null;
+            let wTotal = weeklyClosed.length;
+            let wCorrect = weeklyClosed.filter(w => w.weeklyReview?.biasAccuracy?.result === 'Correct').length;
 
-            const omarTrades = closed.filter(t => t.checklistModel === 'omar' && t.biasMatch);
-            const omarCorrect = omarTrades.filter(t => t.biasMatch === 'YES');
-            const omarAcc = omarTrades.length >= 3 ? (omarCorrect.length / omarTrades.length * 100) : null;
+            // Omar — only trades with an explicit YES/NO bias match
+            const omarSet = closed.filter(t => t.checklistModel === 'omar' &&
+                (t.biasMatch === 'YES' || t.biasMatch === 'NO'));
+            let oTotal = omarSet.length;
+            let oCorrect = omarSet.filter(t => t.biasMatch === 'YES').length;
+            const omarRVals = omarSet.map(t => calcR(t)).filter(r => r !== null);
+            const omarSumR = omarRVals.reduce((a, b) => a + b, 0);
 
-            const ttTrades = closed.filter(t => t.checklistModel === 'ttrades' && t.biasMatch);
-            const ttCorrect = ttTrades.filter(t => t.biasMatch === 'YES');
-            const ttAcc = ttTrades.length >= 3 ? (ttCorrect.length / ttTrades.length * 100) : null;
+            // TTrades — only trades with an explicit YES/NO bias match
+            const ttSet = closed.filter(t => t.checklistModel === 'ttrades' &&
+                (t.biasMatch === 'YES' || t.biasMatch === 'NO'));
+            let ttTotal = ttSet.length;
+            let ttCorrect = ttSet.filter(t => t.biasMatch === 'YES').length;
+            const ttRVals = ttSet.map(t => calcR(t)).filter(r => r !== null);
+            const ttSumR = ttRVals.reduce((a, b) => a + b, 0);
 
-            return { weekly: weeklyAcc, omar: omarAcc, tt: ttAcc };
+            // Omar — avg R across all Omar closed trades (for Section 7 display)
+            const omarAllRVals = closed.filter(t => t.checklistModel === 'omar')
+                .map(t => calcR(t)).filter(r => r !== null);
+            const omarAvgR = omarAllRVals.length > 0
+                ? omarAllRVals.reduce((a, b) => a + b, 0) / omarAllRVals.length : 0;
+
+            // TTrades — avg R across all TTrades closed trades
+            const ttAllRVals = closed.filter(t => t.checklistModel === 'ttrades')
+                .map(t => calcR(t)).filter(r => r !== null);
+            const ttAvgR = ttAllRVals.length > 0
+                ? ttAllRVals.reduce((a, b) => a + b, 0) / ttAllRVals.length : 0;
+
+            // Weekly avg R — weighted by trade count (Fix 5 / AC-013)
+            // performanceStats.count and .netR (= sumR) are stored at review time.
+            let wSumR = 0, wTradeCount = 0;
+            weeklyClosed.forEach(w => {
+                const ps = w.weeklyReview?.performanceStats || {};
+                wSumR       += ps.netR   || 0;
+                wTradeCount += ps.count  || 0;
+            });
+            const weeklyAvgR = wTradeCount > 0 ? wSumR / wTradeCount : 0;
+
+            // Merge with historical snapshot if present
+            if (snapMP) {
+                if (snapMP.omar && snapMP.omar.count > 0) {
+                    oTotal   += snapMP.omar.count;
+                    oCorrect += snapMP.omar.correct || 0;
+                }
+                if (snapMP.tt && snapMP.tt.count > 0) {
+                    ttTotal   += snapMP.tt.count;
+                    ttCorrect += snapMP.tt.correct || 0;
+                }
+                if (snapMP.weekly && snapMP.weekly.count > 0) {
+                    wTotal   += snapMP.weekly.count;
+                    wCorrect += snapMP.weekly.correct || 0;
+                }
+            }
+
+            return {
+                omar: {
+                    count:   oTotal,
+                    correct: oCorrect,
+                    acc:     oTotal >= 3 ? (oCorrect / oTotal * 100) : null,
+                    avgR:    omarAvgR,
+                    sumR:    omarSumR,
+                },
+                tt: {
+                    count:   ttTotal,
+                    correct: ttCorrect,
+                    acc:     ttTotal >= 3 ? (ttCorrect / ttTotal * 100) : null,
+                    avgR:    ttAvgR,
+                    sumR:    ttSumR,
+                },
+                weekly: {
+                    count:   wTotal,
+                    correct: wCorrect,
+                    acc:     wTotal >= 3 ? (wCorrect / wTotal * 100) : null,
+                    avgR:    weeklyAvgR,
+                },
+            };
+        }
+
+        function computeModelAccuracy() {
+            const stats = _canonicalModelStats(S.insightSnapshot?.modelPerf);
+            return { weekly: stats.weekly.acc, omar: stats.omar.acc, tt: stats.tt.acc };
         }
 
         function computePerformanceLeak() {
@@ -12186,26 +13044,8 @@
         function renderModelAccuracy() {
             const list = document.getElementById('modelAccuracyList');
             if (!list) return;
-            let acc = computeModelAccuracy();
-            // Merge with historical snapshot model performance
-            const snapMP = S.insightSnapshot?.modelPerf;
-            if (snapMP) {
-                ['omar','tt'].forEach(k => {
-                    if (!snapMP[k] || snapMP[k].count === 0) return;
-                    const liveCount = acc[k] !== null ? Math.round((acc[k]/100) * (S.trades.filter(t=>t.status==='closed'&&!t.isIntraday&&t.checklistModel===k).length||0)) : 0;
-                    const liveTotal = S.trades.filter(t=>t.status==='closed'&&!t.isIntraday&&t.checklistModel===k).length || 0;
-                    const totalCount = liveTotal + snapMP[k].count;
-                    const totalCorrect = liveCount + (snapMP[k].correct||0);
-                    acc[k] = totalCount >= 3 ? (totalCorrect / totalCount * 100) : null;
-                });
-                if (snapMP.weekly && snapMP.weekly.count > 0) {
-                    const liveWeeklies = S.weeklies.filter(w=>w.status==='closed'&&w.weeklyReview);
-                    const liveCorrect = liveWeeklies.filter(w=>w.weeklyReview?.biasAccuracy?.result==='Correct').length;
-                    const totalCount = liveWeeklies.length + snapMP.weekly.count;
-                    const totalCorrect = liveCorrect + (snapMP.weekly.correct||0);
-                    acc.weekly = totalCount >= 3 ? (totalCorrect / totalCount * 100) : null;
-                }
-            }
+            // Use canonical helper — snapshot merge is already included (AC-003).
+            const acc = computeModelAccuracy();
             const items = [
                 { key: 'weekly', label: 'Weekly Bias', acc: acc.weekly, note: acc.weekly === null ? 'Need 3+ closed weeklies' :
                         '' },
@@ -12278,43 +13118,71 @@
             const intraClosed = S.trades.filter(t => t.isIntraday && t.status === 'closed');
             const snapAI = S.insightSnapshot?.additionalInsights || {};
 
-            // Best session
+            // ── Best session ──
+            // Merge live counts with archived snapshot so archived trades contribute
+            // to session and pair rankings (AC-007).
             const sessions = ['London', 'NY Open', 'NY Expansion', 'Asia'];
-            let bestSession = { name: '—', wr: 0, avgR: 0, count: 0 };
+            const sessionAgg = {};
             sessions.forEach(s => {
                 const trades = closed.filter(t => t.session === s);
-                if (trades.length === 0) return;
-                const wins = trades.filter(t => t.result === 'WIN').length;
-                const wr = (wins / trades.length) * 100;
-                const rVals = trades.map(t => calcR(t)).filter(r => r !== null);
-                const avgR = rVals.length > 0 ? rVals.reduce((a, b) => a + b, 0) / rVals.length : 0;
+                const wins   = trades.filter(t => t.result === 'WIN').length;
+                const rVals  = trades.map(t => calcR(t)).filter(r => r !== null);
+                sessionAgg[s] = { count: trades.length, wins, sumR: rVals.reduce((a, b) => a + b, 0) };
+            });
+            // Merge archived snapshot session data
+            if (snapAI.bySession) {
+                Object.entries(snapAI.bySession).forEach(([s, h]) => {
+                    if (!sessionAgg[s]) sessionAgg[s] = { count: 0, wins: 0, sumR: 0 };
+                    sessionAgg[s].count += h.count || 0;
+                    sessionAgg[s].wins  += h.wins  || 0;
+                    sessionAgg[s].sumR  += h.sumR  || 0;
+                });
+            }
+            let bestSession = { name: '—', wr: 0, avgR: 0, count: 0 };
+            sessions.forEach(s => {
+                const agg = sessionAgg[s] || { count: 0 };
+                if (agg.count === 0) return;
+                const wr   = (agg.wins / agg.count) * 100;
+                const avgR = agg.count > 0 ? agg.sumR / agg.count : 0;
                 if (wr > bestSession.wr || (wr === bestSession.wr && avgR > bestSession.avgR)) {
-                    bestSession = { name: s, wr, avgR, count: trades.length };
+                    bestSession = { name: s, wr, avgR, count: agg.count };
                 }
             });
             const sesDisplay = bestSession.count > 0 ?
                 `${bestSession.name} · ${bestSession.wr.toFixed(0)}% WR · ${bestSession.avgR>=0?'+':''}${bestSession.avgR.toFixed(2)}R` :
                 '—';
 
-            // Best pair
-            const pairs = [...new Set(closed.map(t => t.pair))];
-            let bestPair = { name: '—', wr: 0, avgR: 0, count: 0 };
-            pairs.forEach(p => {
+            // ── Best pair ──
+            const pairAgg = {};
+            [...new Set(closed.map(t => t.pair))].forEach(p => {
                 const trades = closed.filter(t => t.pair === p);
-                if (trades.length < 2) return;
-                const wins = trades.filter(t => t.result === 'WIN').length;
-                const wr = (wins / trades.length) * 100;
-                const rVals = trades.map(t => calcR(t)).filter(r => r !== null);
-                const avgR = rVals.length > 0 ? rVals.reduce((a, b) => a + b, 0) / rVals.length : 0;
+                const wins   = trades.filter(t => t.result === 'WIN').length;
+                const rVals  = trades.map(t => calcR(t)).filter(r => r !== null);
+                pairAgg[p] = { count: trades.length, wins, sumR: rVals.reduce((a, b) => a + b, 0) };
+            });
+            // Merge archived snapshot pair data
+            if (snapAI.byPair) {
+                Object.entries(snapAI.byPair).forEach(([p, h]) => {
+                    if (!pairAgg[p]) pairAgg[p] = { count: 0, wins: 0, sumR: 0 };
+                    pairAgg[p].count += h.count || 0;
+                    pairAgg[p].wins  += h.wins  || 0;
+                    pairAgg[p].sumR  += h.sumR  || 0;
+                });
+            }
+            let bestPair = { name: '—', wr: 0, avgR: 0, count: 0 };
+            Object.entries(pairAgg).forEach(([p, agg]) => {
+                if (agg.count < 2) return;
+                const wr   = (agg.wins / agg.count) * 100;
+                const avgR = agg.count > 0 ? agg.sumR / agg.count : 0;
                 if (wr > bestPair.wr || (wr === bestPair.wr && avgR > bestPair.avgR)) {
-                    bestPair = { name: p, wr, avgR, count: trades.length };
+                    bestPair = { name: p, wr, avgR, count: agg.count };
                 }
             });
             const pairDisplay = bestPair.count >= 2 ?
                 `${bestPair.name} · ${bestPair.wr.toFixed(0)}% WR · ${bestPair.avgR>=0?'+':''}${bestPair.avgR.toFixed(2)}R` :
                 '—';
 
-            // Streak
+            // Streak — current-state metric; intentionally live-only (no archive merge)
             const sorted = [...closed].sort((a, b) => (a.closeTime || '').localeCompare(b.closeTime || ''));
             let streak = 0,
                 streakType = '';
@@ -12326,7 +13194,7 @@
             }
             const streakDisplay = streak !== 0 ? `${Math.abs(streak)} ${streakType}${Math.abs(streak)!==1?'S':''}` : '—';
 
-            // Bias adherence
+            // Bias adherence — live-only (archived bias match counts not in snapAI)
             const matched = closed.filter(t => t.biasMatch === 'YES');
             const matchedR = matched.map(t => calcR(t)).filter(r => r !== null);
             const unmatched = closed.filter(t => t.biasMatch === 'NO');
@@ -12934,12 +13802,12 @@
                 const d = new Date(n.updatedAt || n.createdAt);
                 const ds = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
                 const preview = n.body ? n.body.replace(/<[^>]+>/g, '').substring(0, 120) : '';
-                return `<div class="note-card" onclick="openEditNoteModal(${n.id})">
+                return `<div class="note-card" onclick="openEditNoteModal('${n.id}')">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px;">
                 <div style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--ink);flex:1">${n.title||'Untitled'}</div>
                 <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
                   <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">${ds}</span>
-                  <button onclick="event.stopPropagation();deleteNote(${n.id})" class="note-del-btn">✕</button>
+                  <button onclick="event.stopPropagation();deleteNote('${n.id}')" class="note-del-btn">✕</button>
                 </div>
               </div>
               ${preview?`<div style="font-size:12px;color:var(--muted);line-height:1.5">${preview}${n.body&&n.body.replace(/<[^>]+>/g,'').length>120?'…':''}</div>`:''}
@@ -13551,12 +14419,19 @@
             let done = 0;
             for (const entry of urlEntries) {
                 try {
-                    const signedUrl = await resolveStoragePath(entry.path);
-                    if (signedUrl) {
-                        const resp = await fetch(signedUrl);
-                        if (resp.ok) {
-                            const blob = await resp.blob();
-                            blobMap.set(entry.path, { blob, tradeId: entry.tradeId, filename: entry.filename });
+                    // Check local blob_cache first to avoid re-pulling from Supabase Storage egress
+                    const cachedDataUrl = await _ssDB.getBlob(entry.path);
+                    if (cachedDataUrl) {
+                        const blob = dataUrlToFile(cachedDataUrl, entry.filename);
+                        blobMap.set(entry.path, { blob, tradeId: entry.tradeId, filename: entry.filename });
+                    } else {
+                        const signedUrl = await resolveStoragePath(entry.path);
+                        if (signedUrl) {
+                            const resp = await fetch(signedUrl);
+                            if (resp.ok) {
+                                const blob = await resp.blob();
+                                blobMap.set(entry.path, { blob, tradeId: entry.tradeId, filename: entry.filename });
+                            }
                         }
                     }
                 } catch (e) { console.warn('Screenshot download failed for', entry.path, e); }
@@ -13825,16 +14700,138 @@
             } catch (e) { /* non-critical */ }
         }
 
+        // ── Phase 5: Storage quota ──
+        async function getStorageQuota() {
+            if (!_currentUser) return { usedMB: 0, totalMB: 1024, capped: false };
+            const userId = _currentUser.id;
+            let totalBytes = 0;
+            let capped = false;
+            try {
+                // List trade-id subfolders under userId/
+                const { data: folders } = await _sb.storage.from('screenshots').list(userId, { limit: 200 });
+                const subfolders = (folders || []).filter(f => !f.metadata); // folders have no metadata
+                const cap = 20;
+                const toScan = subfolders.slice(0, cap);
+                if (subfolders.length > cap) capped = true;
+
+                // List files in each subfolder and sum sizes
+                for (const folder of toScan) {
+                    const path = userId + '/' + folder.name;
+                    const { data: files } = await _sb.storage.from('screenshots').list(path, { limit: 500 });
+                    if (files) {
+                        for (const f of files) {
+                            if (f.metadata?.size) totalBytes += f.metadata.size;
+                        }
+                    }
+                }
+            } catch (e) { /* non-critical */ }
+            const usedMB = totalBytes / (1024 * 1024);
+            return { usedMB, totalMB: 1024, capped };
+        }
+
+        // ── Phase 5: Archive history table ──
+        async function renderArchiveHistory() {
+            const el = document.getElementById('archiveHistoryTable');
+            if (!el || !_currentUser) return;
+            try {
+                const { data } = await _sb.from('archive_log')
+                    .select('completed_at,started_at,status,stats')
+                    .eq('user_id', _currentUser.id)
+                    .order('started_at', { ascending: false })
+                    .limit(5);
+                if (!data || data.length === 0) {
+                    el.innerHTML = '<div style="color:var(--muted);font-style:italic;">No archive runs yet.</div>';
+                    return;
+                }
+                const rows = data.map(row => {
+                    const s = row.stats || {};
+                    const date = _arcFmt(row.completed_at || row.started_at);
+                    const trades = s.tradeCount != null ? s.tradeCount + ' trades' : '—';
+                    const weeklies = s.weeklyCount != null ? s.weeklyCount + ' weeklies' : '';
+                    const size = s.totalBytes ? (s.totalBytes / (1024 * 1024)).toFixed(1) + ' MB' : '—';
+                    const statusColour = row.status === 'completed' ? 'var(--bull)' : row.status === 'in_progress' ? 'var(--gold)' : 'var(--bear)';
+                    const statusLabel = row.status === 'completed' ? '✓' : row.status === 'in_progress' ? '…' : '✕';
+                    return `<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);">
+                        <span style="color:var(--ink);">${date}</span>
+                        <span style="color:var(--muted);">${trades}${weeklies ? ' · ' + weeklies : ''}</span>
+                        <span style="color:var(--muted);">${size}</span>
+                        <span style="color:${statusColour};font-weight:700;">${statusLabel}</span>
+                    </div>`;
+                }).join('');
+                el.innerHTML = rows;
+            } catch (e) {
+                el.textContent = '—';
+            }
+        }
+
+        // ── Phase 5: Quarterly reminder banner ──
+        let _archiveBannerDismissed = false;
+
+        function dismissArchiveBanner() {
+            _archiveBannerDismissed = true;
+            const el = document.getElementById('archiveReminderBanner');
+            if (el) el.style.display = 'none';
+        }
+
+        async function showArchiveReminderBanner() {
+            const el = document.getElementById('archiveReminderBanner');
+            const textEl = document.getElementById('archiveReminderText');
+            if (!el || _archiveBannerDismissed || !_currentUser) return;
+            try {
+                const { data } = await _sb.from('archive_log')
+                    .select('completed_at')
+                    .eq('user_id', _currentUser.id)
+                    .eq('status', 'completed')
+                    .order('completed_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                const now = new Date();
+                let dueYear, dueMonth; // the month at the end of which an archive is due
+
+                if (data?.completed_at) {
+                    // Archive is due 3 calendar months after the last one
+                    const last = new Date(data.completed_at);
+                    const dueDate = new Date(Date.UTC(last.getUTCFullYear(), last.getUTCMonth() + 3, 1)); // first of due month
+                    dueYear  = dueDate.getUTCFullYear();
+                    dueMonth = dueDate.getUTCMonth(); // 0-based
+                } else {
+                    // Never archived — nudge at end of current month
+                    dueYear  = now.getUTCFullYear();
+                    dueMonth = now.getUTCMonth();
+                }
+
+                // Last day of the due month
+                const lastDay = new Date(Date.UTC(dueYear, dueMonth + 1, 0));
+                const lastDayNum = lastDay.getUTCDate();
+
+                // Show if today is within the last 3 days of dueMonth/dueYear
+                const inDueMonth = now.getUTCFullYear() === dueYear && now.getUTCMonth() === dueMonth;
+                const inLastThree = now.getUTCDate() >= lastDayNum - 2;
+
+                if (inDueMonth && inLastThree) {
+                    const monthName = lastDay.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+                    if (textEl) textEl.textContent = 'Your quarterly archive is due by end of ' + monthName + '. Run it now to free up storage and keep the journal lean.';
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+            } catch (e) { /* non-critical */ }
+        }
+
         // ── Populate archive info on settings page ──
         async function populateArchiveInfo() {
             const lastRunEl = document.getElementById('archiveLastRunDisplay');
             const cutoffEl  = document.getElementById('archiveCutoffDisplay');
+            const runBtn    = document.getElementById('runArchiveBtn');
+            const reasonEl  = document.getElementById('archiveRunReason');
+
             if (cutoffEl) {
                 const cutoff = getArchiveCutoffDate();
-                const cutoffDate = new Date(cutoff);
-                cutoffDate.setUTCDate(cutoffDate.getUTCDate() - 1);
                 cutoffEl.textContent = 'Will archive: all data before ' + _arcFmt(cutoff);
             }
+
+            let lastArchiveDate = null;
             if (lastRunEl && _currentUser) {
                 try {
                     const { data } = await _sb.from('archive_log')
@@ -13848,11 +14845,52 @@
                         const s = data.stats || {};
                         lastRunEl.textContent = 'Last archive: ' + _arcFmt(data.completed_at) +
                             (s.tradeCount != null ? ' · ' + s.tradeCount + ' trades' : '');
+                        lastArchiveDate = new Date(data.completed_at);
                     } else {
                         lastRunEl.textContent = 'Last archive: Never';
                     }
                 } catch (e) { lastRunEl.textContent = 'Last archive: —'; }
             }
+
+            // Disable run button if last archive < 30 days ago
+            if (runBtn && reasonEl) {
+                if (lastArchiveDate) {
+                    const daysSince = Math.floor((Date.now() - lastArchiveDate.getTime()) / 86400000);
+                    if (daysSince < 30) {
+                        runBtn.disabled = true;
+                        runBtn.style.opacity = '0.4';
+                        runBtn.style.cursor = 'not-allowed';
+                        reasonEl.textContent = 'Last archive was ' + daysSince + ' day' + (daysSince !== 1 ? 's' : '') + ' ago — available again in ' + (30 - daysSince) + ' day' + ((30 - daysSince) !== 1 ? 's' : '') + '.';
+                        reasonEl.style.display = '';
+                    } else {
+                        runBtn.disabled = false;
+                        runBtn.style.opacity = '';
+                        runBtn.style.cursor = '';
+                        reasonEl.style.display = 'none';
+                    }
+                }
+            }
+
+            // Storage quota (async, non-blocking)
+            const storageBarEl = document.getElementById('archiveStorageBar');
+            const storageTextEl = document.getElementById('archiveStorageText');
+            if (storageBarEl && storageTextEl) {
+                getStorageQuota().then(({ usedMB, totalMB, capped }) => {
+                    const pct = Math.min((usedMB / totalMB) * 100, 100);
+                    storageBarEl.style.width = pct.toFixed(1) + '%';
+                    storageBarEl.style.background = pct > 80 ? 'var(--bear)' : pct > 60 ? 'var(--gold)' : 'var(--bull)';
+                    const usedStr = usedMB < 1 ? (usedMB * 1024).toFixed(0) + ' KB' : usedMB.toFixed(1) + ' MB';
+                    storageTextEl.textContent = usedStr + ' of ' + totalMB + ' MB used' + (capped ? ' (estimated)' : '');
+                }).catch(() => {
+                    if (storageTextEl) storageTextEl.textContent = 'Storage info unavailable';
+                });
+            }
+
+            // Archive history table
+            renderArchiveHistory();
+
+            // Reminder banner
+            showArchiveReminderBanner();
         }
 
         // ── Master orchestrator ──
@@ -14590,53 +15628,22 @@
 
         // ── Section 7: Model Performance ──
         function computeModelPerformanceAnalysis() {
-            const closed = S.trades.filter(t => t.status === 'closed' && !t.isIntraday);
-
-            // Weekly bias
-            const weeklies = S.weeklies.filter(w => w.status === 'closed' && w.weeklyReview);
-            const weeklyCorrect = weeklies.filter(w => w.weeklyReview?.biasAccuracy?.result === 'Correct');
-            const weeklyAcc = weeklies.length > 0 ? (weeklyCorrect.length / weeklies.length * 100) : 0;
-            const weeklyAvgR = weeklies.length > 0 ? weeklies.reduce((s, w) => s + (w.weeklyReview?.performanceStats?.avgR ||
-                0), 0) / weeklies.length : 0;
-
-            // Omar
-            const omarTrades = closed.filter(t => t.checklistModel === 'omar');
-            const omarCorrect = omarTrades.filter(t => t.biasMatch === 'YES');
-            const omarAcc = omarTrades.length > 0 ? (omarCorrect.length / omarTrades.length * 100) : 0;
-            const omarAvgR = omarTrades.map(t => calcR(t)).filter(r => r !== null).reduce((s, r) => s + r, 0) / (omarTrades
-                .map(t => calcR(t)).filter(r => r !== null).length || 1);
-
-            // TTrades
-            const ttTrades = closed.filter(t => t.checklistModel === 'ttrades');
-            const ttCorrect = ttTrades.filter(t => t.biasMatch === 'YES');
-            const ttAcc = ttTrades.length > 0 ? (ttCorrect.length / ttTrades.length * 100) : 0;
-            const ttAvgR = ttTrades.map(t => calcR(t)).filter(r => r !== null).reduce((s, r) => s + r, 0) / (ttTrades.map(
-                t => calcR(t)).filter(r => r !== null).length || 1);
-
+            // Use canonical helper so accuracy percentages are identical to the
+            // dashboard Model Accuracy bar. Snapshot merge is included. (AC-003 / AC-006)
+            const stats = _canonicalModelStats(S.insightSnapshot?.modelPerf);
             return {
-                weekly: { count: weeklies.length, acc: weeklyAcc, avgR: weeklyAvgR },
-                omar: { count: omarTrades.length, acc: omarAcc, avgR: omarAvgR },
-                tt: { count: ttTrades.length, acc: ttAcc, avgR: ttAvgR },
+                weekly: { count: stats.weekly.count, acc: stats.weekly.acc || 0, avgR: stats.weekly.avgR },
+                omar:   { count: stats.omar.count,   acc: stats.omar.acc   || 0, avgR: stats.omar.avgR },
+                tt:     { count: stats.tt.count,     acc: stats.tt.acc     || 0, avgR: stats.tt.avgR },
             };
         }
 
         function renderModelPerf() {
             const el = document.getElementById('insight-model-perf');
             if (!el) return;
-            let data = computeModelPerformanceAnalysis();
-            // Merge with historical snapshot
-            const snapMP = S.insightSnapshot?.modelPerf;
-            if (snapMP) {
-                ['omar','tt','weekly'].forEach(k => {
-                    if (!snapMP[k]) return;
-                    const live = data[k];
-                    const hist = snapMP[k];
-                    const count = live.count + hist.count;
-                    const correct = (live.count > 0 ? Math.round(live.acc/100*live.count) : 0) + (hist.correct||0);
-                    const sumR = (live.count > 0 ? live.avgR * live.count : 0) + (hist.sumR||0);
-                    data[k] = { count, acc: count > 0 ? correct/count*100 : 0, avgR: count > 0 ? sumR/count : 0 };
-                });
-            }
+            // computeModelPerformanceAnalysis now uses the canonical helper which
+            // already includes the snapshot merge — no second merge needed here.
+            const data = computeModelPerformanceAnalysis();
             const total = data.weekly.count + data.omar.count + data.tt.count;
             if (total === 0) {
                 el.innerHTML =
@@ -14733,8 +15740,18 @@
         }
 
         // ── Section 9: Rule Violation Analysis ──
-        function computeRuleViolationAnalysis() {
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed');
+        function computeRuleViolationAnalysis(month, year) {
+            // When month/year are provided, restrict to intraday trades in that month.
+            // When called without arguments, all closed intraday trades are used
+            // (e.g. Section 9 all-time view). (AC-010)
+            const intra = S.trades.filter(t => {
+                if (!t.isIntraday || t.status !== 'closed') return false;
+                if (month != null && year != null && t.date) {
+                    const d = new Date(t.date + 'T00:00:00');
+                    if (d.getMonth() + 1 !== month || d.getFullYear() !== year) return false;
+                }
+                return true;
+            });
             const violations = [];
 
             // Second trade attempt (multiple trades on same day)
@@ -14760,7 +15777,8 @@
                 violations.push({
                     type: 'Second Trade Attempt',
                     count: secondAttempts,
-                    impact: secondAttemptR,
+                    sumR: secondAttemptR,   // total R across all occurrences (AC-002)
+                    impact: secondAttemptR, // impact = total R lost; always consistent
                     desc: 'Trading more than once on the same day',
                 });
             }
@@ -14772,6 +15790,7 @@
                 violations.push({
                     type: 'Conflict Trades',
                     count: conflictTrades.length,
+                    sumR: totalR,   // total R (AC-002)
                     impact: totalR,
                     desc: 'Trades taken despite alignment conflict (NO TRADE kill)',
                 });
@@ -14784,6 +15803,7 @@
                 violations.push({
                     type: 'Incomplete Setup',
                     count: waitTrades.length,
+                    sumR: totalR,   // total R (AC-002)
                     impact: totalR,
                     desc: 'Trades taken despite WAIT decision from engine',
                 });
@@ -14796,16 +15816,17 @@
             const el = document.getElementById('insight-violations');
             if (!el) return;
             let data = computeRuleViolationAnalysis();
-            // Merge with historical snapshot
+            // Merge with historical snapshot.
+            // impact always = total R lost across all occurrences (AC-002).
+            // snap.violations stores { type, count, sumR } from computeSnapshotAggregates.
             const snapV = S.insightSnapshot?.violations;
             if (snapV) {
                 data = data.map(d => {
                     const h = snapV.find(v => v.type === d.type);
                     if (!h) return d;
-                    const count = d.count + h.count;
-                    const sumR = (d.sumR||d.impact*d.count||0) + (h.sumR||0);
-                    const impact = count > 0 ? sumR / count : 0;
-                    return { ...d, count, sumR, impact };
+                    const count  = d.count + h.count;
+                    const sumR   = (d.sumR || 0) + (h.sumR || 0); // both are already total R
+                    return { ...d, count, sumR, impact: sumR };    // impact = total R
                 });
             }
             if (data.length === 0) {
@@ -15040,8 +16061,8 @@
                     bestGrade = g; }
             });
 
-            // Most common violation
-            const violations = computeRuleViolationAnalysis();
+            // Most common violation — scoped to the selected month (AC-010)
+            const violations = computeRuleViolationAnalysis(month, year);
             const topVio = violations.length > 0 ? violations.reduce((a, b) => a.count > b.count ? a : b) : null;
 
             // Best session
@@ -15477,6 +16498,1305 @@
             tog.classList.toggle('open', isOpen);
             S.insightSections[key] = isOpen;
         }
+
+
+        // ══════════════════════════════════════════════════════════
+        // NEWS MODULE v3 — API-backed rebuild
+        // Architecture:
+        //   NewsProvider (interface)
+        //     ├── FinnhubProvider   GET /news?category=forex|general
+        //     └── MarketauxProvider GET /v1/news/all?symbols=...
+        //   NewsRepository  (normalise → dedupe → cache)
+        //   NewsView        (pure rendering)
+        //   NR              (controller: state, filtering, pagination)
+        // ══════════════════════════════════════════════════════════
+
+        /* ─────────────────────────────────────────────────────────
+        /* ─────────────────────────────────────────────────────────
+         * INSTRUMENTS — fixed set. Every provider maps to these.
+         * ───────────────────────────────────────────────────────── */
+        const NEWS_INSTRUMENTS_BASE = [
+            {
+                key: 'EURUSD', label: 'EUR/USD',
+                symbols:  ['EURUSD','EUR/USD','OANDA:EUR_USD','FXCM:EURUSD'],
+                keywords: ['eur','eurusd','euro','ecb','eurozone','european central bank'],
+                currencies: ['EUR','USD'],
+            },
+            {
+                key: 'GBPUSD', label: 'GBP/USD',
+                symbols:  ['GBPUSD','GBP/USD','OANDA:GBP_USD','FXCM:GBPUSD'],
+                keywords: ['gbp','gbpusd','pound','sterling','boe','bank of england','gbp/usd'],
+                currencies: ['GBP','USD'],
+            },
+            {
+                key: 'USDCHF', label: 'USD/CHF',
+                symbols:  ['USDCHF','USD/CHF','OANDA:USD_CHF','FXCM:USDCHF'],
+                keywords: ['chf','usdchf','franc','swiss franc','snb','switzerland','usd/chf'],
+                currencies: ['USD','CHF'],
+            },
+            {
+                key: 'SP500', label: 'S&P 500',
+                symbols:  ['SPX','SPY','ES','SP500','S&P500','INDEXSP:.INX','CBOE:SPX'],
+                keywords: ['s&p 500','s&p500','spx','spy','wall street','dow jones',
+                           'stock market','us equities','nasdaq','federal reserve','fed rate'],
+                currencies: ['USD'],
+            },
+        ];
+
+        /* ─────────────────────────────────────────────────────────
+         * CUSTOM ASSETS — up to 2 user-defined instruments.
+         * Persisted in localStorage. Same shape as base instruments
+         * so they plug into news matching + EC currency filtering.
+         * ───────────────────────────────────────────────────────── */
+        const CUSTOM_ASSET_SLOTS = 2;
+        const _CustomAssets = (() => {
+            const KEY = 'news_custom_instruments_v1';
+            let _list = [];
+
+            function _load() {
+                try {
+                    const raw = localStorage.getItem(KEY);
+                    _list = raw ? JSON.parse(raw) : [];
+                    if (!Array.isArray(_list)) _list = [];
+                } catch(e) { _list = []; }
+                return _list;
+            }
+
+            function _save(list) {
+                _list = list.slice(0, CUSTOM_ASSET_SLOTS);
+                try { localStorage.setItem(KEY, JSON.stringify(_list)); } catch(e) {}
+            }
+
+            function get() { return _list; }
+
+            // Build an instrument-shaped object from raw form input
+            function build(label, keywordsCsv, currenciesCsv, slotIdx) {
+                const keywords   = (keywordsCsv||'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+                const currencies = (currenciesCsv||'').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+                return {
+                    key:        'CUSTOM' + slotIdx,
+                    label:      (label||'').trim() || ('Custom ' + (slotIdx+1)),
+                    symbols:    [],
+                    keywords,
+                    currencies,
+                    custom:     true,
+                };
+            }
+
+            _load();
+            return { get, save: _save, build };
+        })();
+
+        // Combined list used everywhere instruments are needed (base + custom, in order)
+        function getAllInstruments() {
+            return [...NEWS_INSTRUMENTS_BASE, ..._CustomAssets.get()];
+        }
+
+        // Live reference kept in sync — providers/tagging code uses NEWS_INSTRUMENTS
+        let NEWS_INSTRUMENTS = getAllInstruments();
+        function _refreshInstruments() { NEWS_INSTRUMENTS = getAllInstruments(); }
+
+        // Provider symbol → instrument key table (built once at startup, refreshed on custom asset change)
+        let _NI_SYM_MAP = {};
+        function _rebuildSymMap() {
+            const m = {};
+            NEWS_INSTRUMENTS.forEach(inst => {
+                inst.symbols.forEach(s => { m[s.toUpperCase()] = inst.key; });
+                m[inst.key] = inst.key;
+            });
+            _NI_SYM_MAP = m;
+        }
+        _rebuildSymMap();
+
+        /* ─────────────────────────────────────────────────────────
+         * NORMALISED ARTICLE MODEL — every provider emits this:
+         * {
+         *   id          : string   (provider-prefixed unique id)
+         *   headline    : string
+         *   source      : string   (publisher name from API)
+         *   url         : string   (original publisher URL)
+         *   publishedAt : Date
+         *   thumbnail   : string|null
+         *   description : string|null
+         *   instruments : string[] (keys from NEWS_INSTRUMENTS)
+         *   provider    : string
+         * }
+         * ───────────────────────────────────────────────────────── */
+
+        /* ─────────────────────────────────────────────────────────
+         * PROVIDER: Finnhub
+         *   GET https://finnhub.io/api/v1/news?category=forex&token=KEY
+         *   GET https://finnhub.io/api/v1/news?category=general&token=KEY
+         * Response fields: id, category, datetime (unix s), headline,
+         *                  image, related (comma-sep symbols), source,
+         *                  summary, url
+         * Free tier: 60 req/min · No CORS restriction
+         * ───────────────────────────────────────────────────────── */
+        const FinnhubProvider = (() => {
+            const BASE = 'https://finnhub.io/api/v1';
+
+            function _tagInstruments(raw) {
+                // Primary: `related` field is comma-separated symbol string
+                const related = (raw.related || '').toUpperCase().split(',')
+                    .map(s => s.trim()).filter(Boolean);
+                const fromRelated = related.map(s => _NI_SYM_MAP[s]).filter(Boolean);
+                if (fromRelated.length) return [...new Set(fromRelated)];
+
+                // Fallback: keyword scan
+                const text = ((raw.headline || '') + ' ' + (raw.summary || '')).toLowerCase();
+                return NEWS_INSTRUMENTS
+                    .filter(i => i.keywords.some(kw => text.includes(kw)))
+                    .map(i => i.key);
+            }
+
+            function _normalize(raw) {
+                return {
+                    id:          'fh__' + raw.id,
+                    headline:    (raw.headline || '').trim(),
+                    source:      raw.source || 'Finnhub',
+                    url:         raw.url || '#',
+                    publishedAt: new Date((raw.datetime || 0) * 1000),
+                    thumbnail:   raw.image || null,
+                    description: raw.summary || null,
+                    instruments: _tagInstruments(raw),
+                    provider:    'finnhub',
+                };
+            }
+
+            async function fetch(apiKey) {
+                if (!apiKey) { console.warn('[News:Finnhub] No API key'); return []; }
+                const out = [];
+                for (const cat of ['forex', 'general']) {
+                    try {
+                        const r = await window.fetch(
+                            `${BASE}/news?category=${cat}&token=${encodeURIComponent(apiKey)}`
+                        );
+                        if (r.status === 429) { console.warn('[News:Finnhub] Rate limit:', cat); continue; }
+                        if (!r.ok)            { console.error('[News:Finnhub] HTTP', r.status, cat); continue; }
+                        const json = await r.json();
+                        if (!Array.isArray(json)) { console.error('[News:Finnhub] Bad shape:', cat); continue; }
+                        const arts = json.map(_normalize).filter(a => a.headline && a.url !== '#');
+                        console.log(`[News:Finnhub] category=${cat} → ${arts.length} articles`);
+                        out.push(...arts);
+                    } catch (e) { console.error('[News:Finnhub] Fetch error:', cat, e); }
+                }
+                return out;
+            }
+
+            return { id: 'finnhub', fetch };
+        })();
+
+        /* ─────────────────────────────────────────────────────────
+         * PROVIDER: Marketaux
+         *   GET https://api.marketaux.com/v1/news/all
+         *       ?symbols=EURUSD,GBPUSD,USDCHF,SPY
+         *       &language=en&filter_entities=true&limit=50
+         *       &api_token=KEY
+         * Response fields: uuid, title, description, url, image_url,
+         *                  published_at, source,
+         *                  entities[{symbol, name, type,...}]
+         * Free tier: 100 req/day
+         * ───────────────────────────────────────────────────────── */
+        const MarketauxProvider = (() => {
+            const BASE    = 'https://api.marketaux.com/v1';
+            const SYMBOLS = 'EURUSD,GBPUSD,USDCHF,SPY,SPX';
+
+            function _tagFromEntities(entities) {
+                if (!Array.isArray(entities)) return [];
+                return [...new Set(
+                    entities.map(e => _NI_SYM_MAP[(e.symbol || '').toUpperCase()]).filter(Boolean)
+                )];
+            }
+
+            function _normalize(raw) {
+                const fromEntities = _tagFromEntities(raw.entities);
+                const instruments  = fromEntities.length ? fromEntities : (() => {
+                    const text = ((raw.title || '') + ' ' + (raw.description || '')).toLowerCase();
+                    return NEWS_INSTRUMENTS
+                        .filter(i => i.keywords.some(kw => text.includes(kw))).map(i => i.key);
+                })();
+                return {
+                    id:          'mx__' + raw.uuid,
+                    headline:    (raw.title || '').trim(),
+                    source:      raw.source || 'Marketaux',
+                    url:         raw.url || '#',
+                    publishedAt: raw.published_at ? new Date(raw.published_at) : new Date(),
+                    thumbnail:   raw.image_url || null,
+                    description: raw.description || null,
+                    instruments,
+                    provider:    'marketaux',
+                };
+            }
+
+            async function fetch(apiKey) {
+                if (!apiKey) { console.warn('[News:Marketaux] No API key'); return []; }
+                try {
+                    const r = await window.fetch(
+                        `${BASE}/news/all?symbols=${SYMBOLS}&language=en&filter_entities=true&limit=50&api_token=${encodeURIComponent(apiKey)}`
+                    );
+                    if (r.status === 429) { console.warn('[News:Marketaux] Rate limit'); return []; }
+                    if (!r.ok) { console.error('[News:Marketaux] HTTP', r.status); return []; }
+                    const json = await r.json();
+                    if (json.error) { console.error('[News:Marketaux] API error:', json.error); return []; }
+                    const arts = (json.data || []).map(_normalize).filter(a => a.headline && a.url !== '#');
+                    console.log(`[News:Marketaux] → ${arts.length} articles`);
+                    return arts;
+                } catch (e) { console.error('[News:Marketaux] Fetch error:', e); return []; }
+            }
+
+            return { id: 'marketaux', fetch };
+        })();
+
+        /* ─────────────────────────────────────────────────────────
+         * PROVIDER: Alpha Vantage
+         *   GET https://www.alphavantage.co/query
+         *       ?function=NEWS_SENTIMENT
+         *       &tickers=FOREX:EURUSD,FOREX:GBPUSD,FOREX:USDCHF,SPY
+         *       &sort=LATEST&limit=50&apikey=KEY
+         * Response fields: feed[{title, url, time_published (YYYYMMDDTHHmmss),
+         *                        source, summary, banner_image,
+         *                        ticker_sentiment[{ticker,...}]}]
+         * Free tier: 25 req/day
+         * ───────────────────────────────────────────────────────── */
+        const AlphaVantageProvider = (() => {
+            const BASE    = 'https://www.alphavantage.co/query';
+            const TICKERS = 'FOREX:EURUSD,FOREX:GBPUSD,FOREX:USDCHF,SPY';
+
+            function _parseDate(s) {
+                // "20240115T153000"
+                if (!s || s.length < 15) return new Date();
+                return new Date(
+                    `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}T${s.slice(9,11)}:${s.slice(11,13)}:${s.slice(13,15)}Z`
+                );
+            }
+
+            function _tagFromTickers(ts) {
+                if (!Array.isArray(ts)) return [];
+                return [...new Set(
+                    ts.map(t => _NI_SYM_MAP[(t.ticker || '').replace('FOREX:','').toUpperCase()])
+                    .filter(Boolean)
+                )];
+            }
+
+            function _normalize(raw) {
+                const fromTickers = _tagFromTickers(raw.ticker_sentiment);
+                const instruments = fromTickers.length ? fromTickers : (() => {
+                    const text = ((raw.title || '') + ' ' + (raw.summary || '')).toLowerCase();
+                    return NEWS_INSTRUMENTS
+                        .filter(i => i.keywords.some(kw => text.includes(kw))).map(i => i.key);
+                })();
+                return {
+                    id:          'av__' + encodeURIComponent(raw.url || raw.title || '').slice(0, 80),
+                    headline:    (raw.title || '').trim(),
+                    source:      raw.source || 'Alpha Vantage',
+                    url:         raw.url || '#',
+                    publishedAt: _parseDate(raw.time_published),
+                    thumbnail:   raw.banner_image || null,
+                    description: raw.summary || null,
+                    instruments,
+                    provider:    'alphavantage',
+                };
+            }
+
+            async function fetch(apiKey) {
+                if (!apiKey) { console.warn('[News:AlphaVantage] No API key'); return []; }
+                try {
+                    const r = await window.fetch(
+                        `${BASE}?function=NEWS_SENTIMENT&tickers=${encodeURIComponent(TICKERS)}&sort=LATEST&limit=50&apikey=${encodeURIComponent(apiKey)}`
+                    );
+                    if (r.status === 429) { console.warn('[News:AlphaVantage] Rate limit'); return []; }
+                    if (!r.ok) { console.error('[News:AlphaVantage] HTTP', r.status); return []; }
+                    const json = await r.json();
+                    // AV returns {Information} or {Note} on soft rate limits
+                    if (json.Information || json.Note) {
+                        console.warn('[News:AlphaVantage] Soft limit:', json.Information || json.Note);
+                        return [];
+                    }
+                    const arts = (json.feed || []).map(_normalize).filter(a => a.headline && a.url !== '#');
+                    console.log(`[News:AlphaVantage] → ${arts.length} articles`);
+                    return arts;
+                } catch (e) { console.error('[News:AlphaVantage] Fetch error:', e); return []; }
+            }
+
+            return { id: 'alphavantage', fetch };
+        })();
+
+        /* ─────────────────────────────────────────────────────────
+         * NEWS REPOSITORY
+         * Owns: provider orchestration, deduplication, caching
+         * ───────────────────────────────────────────────────────── */
+        const NewsRepository = (() => {
+            const PAGE_SIZE  = 20;
+            const CACHE_TTL  = 3  * 60 * 1000;   // 3 min  freshness
+            const CACHE_HARD = 12 * 60 * 1000;   // 12 min hard expiry
+            const REFRESH_MS = 5  * 60 * 1000;   // auto-refresh interval
+            const TIMEOUT_MS = 10000;
+
+            let _articles    = [];
+            let _lastFetched = null;
+            let _statuses    = {};
+            let _keys        = { finnhub: '', marketaux: '', alphavantage: '' };
+
+            // ── API keys ─────────────────────────────────────────
+            function setKeys(k) {
+                Object.assign(_keys, k);
+                try { localStorage.setItem('news_api_keys_v3', JSON.stringify(_keys)); } catch(e) {}
+            }
+            function getKeys() { return { ..._keys }; }
+            function _loadKeys() {
+                try {
+                    const raw = localStorage.getItem('news_api_keys_v3');
+                    if (raw) Object.assign(_keys, JSON.parse(raw));
+                } catch(e) {}
+            }
+            function hasAnyKey() {
+                return Object.values(_keys).some(v => v && v.trim().length > 0);
+            }
+
+            // ── active providers ─────────────────────────────────
+            function _providers() {
+                const all = [FinnhubProvider, MarketauxProvider, AlphaVantageProvider];
+                return all.filter(p => _keys[p.id] && _keys[p.id].trim().length > 0);
+            }
+
+            // ── deduplication ────────────────────────────────────
+            function _dedupe(arts) {
+                const urls  = new Set();
+                const heads = new Set();
+                return arts.filter(a => {
+                    if (urls.has(a.url)) return false; urls.add(a.url);
+                    const hk = a.headline.slice(0, 70).toLowerCase().replace(/\W+/g, '');
+                    if (heads.has(hk)) return false; heads.add(hk);
+                    return true;
+                });
+            }
+
+            // ── cache ────────────────────────────────────────────
+            function _saveCache() {
+                try {
+                    localStorage.setItem('news_cache_v3', JSON.stringify({
+                        ts: Date.now(),
+                        articles: _articles.slice(0, 300).map(a => ({
+                            ...a, publishedAt: a.publishedAt.toISOString(),
+                        })),
+                    }));
+                } catch(e) {}
+            }
+
+            function _readCache() {
+                try {
+                    const raw = localStorage.getItem('news_cache_v3');
+                    if (!raw) return null;
+                    const { ts, articles } = JSON.parse(raw);
+                    if (Date.now() - ts > CACHE_HARD) return null;
+                    return { ts, articles: articles.map(a => ({ ...a, publishedAt: new Date(a.publishedAt) })) };
+                } catch(e) { return null; }
+            }
+
+            // ── refresh ──────────────────────────────────────────
+            async function refresh(onProgress) {
+                _loadKeys();
+                const providers = _providers();
+                if (!providers.length) {
+                    console.warn('[News] No providers with keys — nothing to fetch');
+                    return [];
+                }
+
+                _statuses = Object.fromEntries(providers.map(p => [p.id, 'loading']));
+                const all = [];
+
+                await Promise.all(providers.map(async p => {
+                    try {
+                        const arts = await Promise.race([
+                            p.fetch(_keys[p.id]),
+                            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), TIMEOUT_MS)),
+                        ]);
+                        _statuses[p.id] = arts.length ? 'ok' : 'error';
+                        all.push(...arts);
+                    } catch (e) {
+                        console.error(`[News:${p.id}] Error:`, e.message);
+                        _statuses[p.id] = 'error';
+                    }
+                    if (onProgress) onProgress(p.id, _statuses[p.id]);
+                }));
+
+                _articles    = _dedupe(all.sort((a, b) => b.publishedAt - a.publishedAt));
+                _lastFetched = Date.now();
+                _saveCache();
+                console.log(`[News] Total unique articles: ${_articles.length}`);
+                return _articles;
+            }
+
+            function loadFromCache() {
+                _loadKeys();
+                const cached = _readCache();
+                if (!cached) return null;
+                if (Date.now() - cached.ts > CACHE_TTL) return null;
+                _articles    = cached.articles;
+                _lastFetched = cached.ts;
+                return _articles;
+            }
+
+            // ── filtering (repository owns this — UI never touches raw array) ──
+            function filter({ instrumentKeys, searchQuery }) {
+                let res = _articles;
+                const keys = Array.isArray(instrumentKeys) ? instrumentKeys : (instrumentKeys ? [instrumentKeys] : []);
+                if (keys.length && !keys.includes('ALL')) {
+                    res = res.filter(a => (a.instruments || []).some(k => keys.includes(k)));
+                }
+                const q = (searchQuery || '').trim().toLowerCase();
+                if (q) {
+                    res = res.filter(a =>
+                        a.headline.toLowerCase().includes(q)
+                        || (a.description || '').toLowerCase().includes(q)
+                        || a.source.toLowerCase().includes(q)
+                    );
+                }
+                return res;
+            }
+
+            function getArticles()    { return _articles; }
+            function getLastFetched() { return _lastFetched; }
+            function getStatuses()    { return { ..._statuses }; }
+            function getConstants()   { return { PAGE_SIZE, REFRESH_MS, CACHE_TTL }; }
+
+            // Re-scan existing cached articles against current NEWS_INSTRUMENTS
+            // (picks up newly added/removed/edited custom assets without a refetch)
+            function retagAll() {
+                _articles.forEach(a => {
+                    const symTags = (a.instruments || []).filter(k => {
+                        // keep tags that still correspond to a known instrument by symbol match
+                        return NEWS_INSTRUMENTS.some(i => i.key === k);
+                    });
+                    const text = ((a.headline||'') + ' ' + (a.description||'')).toLowerCase();
+                    const kwTags = NEWS_INSTRUMENTS
+                        .filter(i => (i.keywords||[]).some(kw => kw && text.includes(kw)))
+                        .map(i => i.key);
+                    a.instruments = [...new Set([...symTags, ...kwTags])];
+                });
+                try {
+                    localStorage.setItem('news_cache_v3', JSON.stringify({ ts: _lastFetched, articles: _articles }));
+                } catch(e) {}
+            }
+
+            return {
+                setKeys, getKeys, hasAnyKey,
+                refresh, loadFromCache, filter, retagAll,
+                getArticles, getLastFetched, getStatuses, getConstants,
+            };
+        })();
+
+        /* ─────────────────────────────────────────────────────────
+         * NEWS VIEW — Pure rendering. Zero data access.
+         * ───────────────────────────────────────────────────────── */
+        const NewsView = (() => {
+            function _timeAgo(d) {
+                const m = Math.floor((Date.now() - new Date(d)) / 60000);
+                if (m < 1) return 'just now';
+                if (m < 60) return m + 'm ago';
+                const h = Math.floor(m / 60);
+                return h < 24 ? h + 'h ago' : Math.floor(h/24) + 'd ago';
+            }
+            function _esc(s) {
+                return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                               .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+
+            function renderChips(activeKeys) {
+                const wrap = document.getElementById('newsChips');
+                if (!wrap) return;
+                const active = Array.isArray(activeKeys) ? activeKeys : [activeKeys];
+                const isAll  = active.includes('ALL') || active.length === 0;
+
+                const allChip = `<button class="news-chip news-chip-all${isAll?' active':''}"
+                    onclick="NR.toggleFilter('ALL')" aria-pressed="${isAll}">
+                    <span class="news-chip-box"></span>All</button>`;
+
+                const instChips = NEWS_INSTRUMENTS.map(i => {
+                    const isActive = !isAll && active.includes(i.key);
+                    const customCls = i.custom ? ' news-chip-custom' : '';
+                    return `<button class="news-chip${customCls}${isActive?' active':''}"
+                        onclick="NR.toggleFilter('${i.key}')" aria-pressed="${isActive}">
+                        <span class="news-chip-box"></span>${_esc(i.label)}</button>`;
+                }).join('');
+
+                const addBtn = `<button class="news-chip-add" onclick="NR.openAssetForm()" title="Add custom asset">+ ADD ASSET</button>`;
+
+                wrap.innerHTML = allChip + instChips + addBtn;
+            }
+
+            function renderSkeletons(n) {
+                const wrap = document.getElementById('newsList');
+                if (!wrap) return;
+                wrap.innerHTML = '<div class="news-list">' +
+                    Array.from({length:n}).map(() =>
+                        `<div class="news-card" style="pointer-events:none;" aria-hidden="true">
+                            <div class="news-thumb-placeholder" style="opacity:.35;"></div>
+                            <div class="news-card-body">
+                                <div style="display:flex;gap:7px;">
+                                    <div class="news-skel" style="width:68px;height:14px;"></div>
+                                    <div class="news-skel" style="width:42px;height:11px;margin-top:2px;"></div>
+                                </div>
+                                <div class="news-skel" style="width:96%;height:14px;margin-top:5px;"></div>
+                                <div class="news-skel" style="width:77%;height:14px;margin-top:4px;"></div>
+                                <div class="news-skel" style="width:89%;height:11px;margin-top:5px;"></div>
+                                <div class="news-skel" style="width:63%;height:11px;margin-top:3px;"></div>
+                            </div>
+                        </div>`
+                    ).join('') + '</div>';
+            }
+
+            function renderStateCard(icon, title, body, extra) {
+                const wrap = document.getElementById('newsList');
+                if (!wrap) return;
+                wrap.innerHTML = `<div class="news-state-card" role="status">
+                    <div class="news-state-icon">${icon}</div>
+                    <div class="news-state-title">${_esc(title)}</div>
+                    <div class="news-state-body">${_esc(body)}</div>
+                    ${extra||''}
+                </div>`;
+            }
+
+            function renderKeyPrompt() {
+                renderStateCard(
+                    '&#128273;', 'API key required',
+                    'This news feed uses financial news APIs for clean, ad-free structured data.',
+                    `<div style="margin-top:14px;">
+                        <button class="btn-ghost btn-sm" onclick="NR.showKeyModal()"
+                            style="margin:0 auto;">ADD API KEY</button>
+                     </div>`
+                );
+            }
+
+            function renderArticles(articles) {
+                const wrap = document.getElementById('newsList');
+                if (!wrap || !articles.length) return;
+                wrap.innerHTML = '<div class="news-list" role="list">' + articles.map(a => {
+                    const tags = (a.instruments||[]).map(k => {
+                        const inst = NEWS_INSTRUMENTS.find(i => i.key===k);
+                        return inst ? `<span class="news-asset-tag">${_esc(inst.label)}</span>` : '';
+                    }).join('');
+                    const thumb = a.thumbnail
+                        ? `<img class="news-thumb" src="${_esc(a.thumbnail)}" alt="" loading="lazy"
+                               onerror="this.parentElement.querySelector('.news-thumb-placeholder').style.display='flex';this.remove();" />
+                           <div class="news-thumb-placeholder" style="display:none;">&#128240;</div>`
+                        : `<div class="news-thumb-placeholder" aria-hidden="true">&#128240;</div>`;
+                    return `<a class="news-card" href="${_esc(a.url)}"
+                                target="_blank" rel="noopener noreferrer"
+                                role="listitem" aria-label="${_esc(a.headline)}">
+                        <div style="flex-shrink:0;position:relative;">${thumb}</div>
+                        <div class="news-card-body">
+                            <div class="news-card-meta">
+                                <span class="news-src-badge">${_esc(a.source)}</span>
+                                <span class="news-card-time">${_timeAgo(a.publishedAt)}</span>
+                                ${tags}
+                            </div>
+                            <div class="news-card-title">${_esc(a.headline)}</div>
+                            ${a.description ? `<div class="news-card-desc">${_esc(a.description)}</div>` : ''}
+                        </div>
+                    </a>`;
+                }).join('') + '</div>';
+            }
+
+            function updateStatus(html) {
+                const el = document.getElementById('newsStatusText');
+                if (el) el.innerHTML = html;
+            }
+
+            function setRefreshState(loading) {
+                const btn = document.getElementById('newsRefreshBtn');
+                if (!btn) return;
+                btn.disabled = loading;
+                btn.innerHTML = loading
+                    ? '<span class="nspin">&#x27F3;</span> FETCHING\u2026'
+                    : '&#x27F3; REFRESH';
+            }
+
+            function setLoadMoreVisible(v) {
+                const b = document.getElementById('newsLoadMore');
+                if (b) b.style.display = v ? 'block' : 'none';
+            }
+
+            function setSearchClearVisible(v) {
+                const b = document.getElementById('newsSearchClear');
+                if (b) b.classList.toggle('visible', v);
+            }
+
+            function openKeyModal(keys) {
+                const existing = document.getElementById('newsKeyModal');
+                if (existing) existing.remove();
+                const fh = _esc(keys.finnhub      || '');
+                const mx = _esc(keys.marketaux    || '');
+                const av = _esc(keys.alphavantage || '');
+                const modal = document.createElement('div');
+                modal.id = 'newsKeyModal';
+                modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(14,12,10,.55);padding:16px;';
+                modal.innerHTML = `
+                <div style="background:var(--paper);border:2px solid var(--ink);border-radius:8px;padding:24px;max-width:440px;width:100%;box-sizing:border-box;">
+                    <div style="font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:4px;">NEWS API KEYS</div>
+                    <div style="font-size:12px;color:var(--muted);margin-bottom:18px;line-height:1.6;">
+                        Keys are stored <strong>on this device only</strong> and sent only to the chosen API. Add at least one.
+                    </div>
+                    <div style="margin-bottom:14px;">
+                        <label style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:5px;">
+                            FINNHUB &mdash; <a href="https://finnhub.io" target="_blank" rel="noopener" style="color:var(--gold);">finnhub.io</a>
+                            &nbsp;<span style="font-weight:400;">Free &middot; 60 req/min &middot; forex + general news</span>
+                        </label>
+                        <input id="nkFinnhub" type="password" autocomplete="off" value="${fh}"
+                            placeholder="e.g. d1abc23def456..."
+                            style="width:100%;box-sizing:border-box;font-family:var(--font-mono);font-size:11px;padding:8px 12px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
+                    </div>
+                    <div style="margin-bottom:14px;">
+                        <label style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:5px;">
+                            MARKETAUX &mdash; <a href="https://marketaux.com" target="_blank" rel="noopener" style="color:var(--gold);">marketaux.com</a>
+                            &nbsp;<span style="font-weight:400;">Free &middot; 100 req/day &middot; symbol-tagged articles</span>
+                        </label>
+                        <input id="nkMarketaux" type="password" autocomplete="off" value="${mx}"
+                            placeholder="e.g. your_token..."
+                            style="width:100%;box-sizing:border-box;font-family:var(--font-mono);font-size:11px;padding:8px 12px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
+                    </div>
+                    <div style="margin-bottom:20px;">
+                        <label style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:5px;">
+                            ALPHA VANTAGE &mdash; <a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noopener" style="color:var(--gold);">alphavantage.co</a>
+                            &nbsp;<span style="font-weight:400;">Free &middot; 25 req/day &middot; news &amp; sentiment</span>
+                        </label>
+                        <input id="nkAlphaVantage" type="password" autocomplete="off" value="${av}"
+                            placeholder="e.g. ABCDEF123456..."
+                            style="width:100%;box-sizing:border-box;font-family:var(--font-mono);font-size:11px;padding:8px 12px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
+                    </div>
+                    <div style="display:flex;gap:10px;justify-content:flex-end;">
+                        <button onclick="NR.closeKeyModal()"
+                            style="font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1px;padding:8px 16px;border:1.5px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;">
+                            CANCEL
+                        </button>
+                        <button onclick="NR.saveKeys()"
+                            style="font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1px;padding:8px 16px;border:1.5px solid var(--ink);border-radius:4px;background:var(--ink);color:var(--paper);cursor:pointer;">
+                            SAVE &amp; FETCH
+                        </button>
+                    </div>
+                </div>`;
+                document.body.appendChild(modal);
+            }
+
+            function closeKeyModal() {
+                const m = document.getElementById('newsKeyModal');
+                if (m) m.remove();
+            }
+
+            return {
+                renderChips, renderSkeletons, renderStateCard,
+                renderKeyPrompt, renderArticles,
+                updateStatus, setRefreshState,
+                setLoadMoreVisible, setSearchClearVisible,
+                openKeyModal, closeKeyModal,
+            };
+        })();
+
+        /* ─────────────────────────────────────────────────────────
+         * NR — News controller
+         * All public methods are called directly from HTML onclick.
+         * ───────────────────────────────────────────────────────── */
+        const NR = (() => {
+            const { PAGE_SIZE, REFRESH_MS, CACHE_TTL } = NewsRepository.getConstants();
+
+            let _st = {
+                loading: false,
+                filter:  ['ALL'],
+                query:   '',
+                page:    1,
+                timer:   null,
+                ready:   false,
+            };
+
+            function _buildStatus() {
+                if (_st.loading) return '<span class="nspin">&#x27F3;</span> Fetching news\u2026';
+                const all      = NewsRepository.getArticles();
+                const filtered = NewsRepository.filter({ instrumentKeys: _st.filter, searchQuery: _st.query });
+                const lf       = NewsRepository.getLastFetched();
+                const statuses = NewsRepository.getStatuses();
+                const ok  = Object.values(statuses).filter(v => v === 'ok').length;
+                const err = Object.values(statuses).filter(v => v === 'error').length;
+                const parts = [];
+                if (lf) { const m = Math.floor((Date.now()-lf)/60000); parts.push('Updated ' + (m<1?'just now':m+'m ago')); }
+                if (ok)  parts.push(ok + ' provider' + (ok>1?'s':'') + ' active');
+                if (err) parts.push('<span style="color:#c0392b;">' + err + ' failed</span>');
+                if (all.length) parts.push(filtered.length + ' article' + (filtered.length!==1?'s':''));
+                return parts.join(' &middot;') || '&mdash;';
+            }
+
+            function _renderPage() {
+                const all      = NewsRepository.getArticles();
+                const filtered = NewsRepository.filter({ instrumentKeys: _st.filter, searchQuery: _st.query });
+                const slice    = filtered.slice(0, _st.page * PAGE_SIZE);
+
+                if (!all.length && !_st.loading) {
+                    if (!NewsRepository.hasAnyKey()) { NewsView.renderKeyPrompt(); }
+                    else { NewsView.renderStateCard('&#128225;', 'No articles loaded', 'Tap \u27F3 REFRESH to fetch the latest news.'); }
+                } else if (!filtered.length && !_st.loading) {
+                    if (_st.query.trim()) {
+                        NewsView.renderStateCard('&#128269;', 'No results', 'No headlines match "' + _st.query.trim() + '".');
+                    } else if (!_st.filter.includes('ALL')) {
+                        NewsView.renderStateCard('&#128240;', 'No articles for this instrument', 'Try selecting All or a different instrument.');
+                    } else {
+                        NewsView.renderStateCard('&#128240;', 'No articles', 'Tap \u27F3 REFRESH to load news.');
+                    }
+                } else {
+                    NewsView.renderArticles(slice);
+                }
+
+                NewsView.setLoadMoreVisible(filtered.length > slice.length);
+                NewsView.updateStatus(_buildStatus());
+            }
+
+            function setFilter(keys) {
+                _st.filter = Array.isArray(keys) ? keys : [keys];
+                if (!_st.filter.length) _st.filter = ['ALL'];
+                _st.page = 1;
+                NewsView.renderChips(_st.filter);
+                _renderPage();
+                EC.setFilter(_st.filter);
+            }
+
+            function toggleFilter(key) {
+                if (key === 'ALL') {
+                    _st.filter = ['ALL'];
+                } else {
+                    let cur = _st.filter.filter(k => k !== 'ALL');
+                    if (cur.includes(key)) {
+                        cur = cur.filter(k => k !== key);
+                    } else {
+                        cur = [...cur, key];
+                    }
+                    _st.filter = cur.length ? cur : ['ALL'];
+                }
+                setFilter(_st.filter);
+            }
+
+            function onSearch(val)  { _st.query = val; _st.page = 1; NewsView.setSearchClearVisible(val.length>0); _renderPage(); }
+            function clearSearch()  { const i = document.getElementById('newsSearchInput'); if (i) i.value=''; onSearch(''); }
+            function loadMore()     { _st.page += 1; _renderPage(); }
+
+            // ── Custom asset form ──
+            function openAssetForm() {
+                const form  = document.getElementById('newsAssetForm');
+                const slots = document.getElementById('newsAssetFormSlots');
+                if (!form || !slots) return;
+                const existing = _CustomAssets.get();
+                let html = '';
+                for (let i = 0; i < CUSTOM_ASSET_SLOTS; i++) {
+                    const a = existing[i] || {};
+                    html += `<div>
+                        <div class="news-asset-slot-label">Custom Asset ${i+1}${existing[i] ? `<button type="button" class="news-asset-remove" onclick="NR.removeCustomAsset(${i})" title="Remove">&#x2715;</button>` : ''}</div>
+                        <div class="news-asset-form-row">
+                            <div class="news-asset-form-field">
+                                <label>Label</label>
+                                <input type="text" id="caLabel${i}" placeholder="e.g. XAU/USD" value="${(a.label||'').replace(/"/g,'&quot;')}" />
+                            </div>
+                            <div class="news-asset-form-field">
+                                <label>Keywords (comma-sep)</label>
+                                <input type="text" id="caKeywords${i}" placeholder="e.g. gold, xauusd, xau/usd" value="${(a.keywords||[]).join(', ').replace(/"/g,'&quot;')}" />
+                            </div>
+                            <div class="news-asset-form-field">
+                                <label>Currencies (comma-sep)</label>
+                                <input type="text" id="caCurrencies${i}" placeholder="e.g. XAU, USD" value="${(a.currencies||[]).join(', ').replace(/"/g,'&quot;')}" />
+                            </div>
+                        </div>
+                    </div>`;
+                }
+                slots.innerHTML = html;
+                form.classList.add('open');
+            }
+
+            function closeAssetForm() {
+                document.getElementById('newsAssetForm')?.classList.remove('open');
+            }
+
+            function saveCustomAssets() {
+                const list = [];
+                for (let i = 0; i < CUSTOM_ASSET_SLOTS; i++) {
+                    const label = document.getElementById('caLabel'+i)?.value.trim();
+                    const kw    = document.getElementById('caKeywords'+i)?.value.trim();
+                    const ccy   = document.getElementById('caCurrencies'+i)?.value.trim();
+                    if (!label && !kw && !ccy) continue; // empty slot, skip
+                    list.push(_CustomAssets.build(label, kw, ccy, i));
+                }
+                _CustomAssets.save(list);
+                _refreshInstruments();
+                _rebuildSymMap();
+                EC.refreshCustomAssets();
+                closeAssetForm();
+                NewsView.renderChips(_st.filter);
+                _renderPage();
+                // Re-tag existing cached articles so custom keywords apply retroactively
+                NewsRepository.retagAll();
+                _renderPage();
+            }
+
+            function removeCustomAsset(idx) {
+                const list = _CustomAssets.get().slice();
+                list.splice(idx, 1);
+                _CustomAssets.save(list);
+                _refreshInstruments();
+                _rebuildSymMap();
+                EC.refreshCustomAssets();
+                // remove from active filter if selected
+                const removedKey = 'CUSTOM' + idx;
+                _st.filter = _st.filter.filter(k => k !== removedKey);
+                if (!_st.filter.length) _st.filter = ['ALL'];
+                NewsRepository.retagAll();
+                openAssetForm(); // re-render form with updated slots
+                NewsView.renderChips(_st.filter);
+                _renderPage();
+            }
+
+            async function refresh() {
+                if (_st.loading) return;
+                if (!NewsRepository.hasAnyKey()) { NewsView.renderKeyPrompt(); return; }
+                if (!navigator.onLine) {
+                    NewsView.renderStateCard('&#128245;', 'No internet connection', 'Check your connection and tap \u27F3 REFRESH.');
+                    return;
+                }
+                _st.loading = true; _st.page = 1;
+                NewsView.setRefreshState(true);
+                if (!NewsRepository.getArticles().length) NewsView.renderSkeletons(8);
+                NewsView.updateStatus('<span class="nspin">&#x27F3;</span> Fetching news\u2026');
+                try {
+                    await NewsRepository.refresh(() => NewsView.updateStatus(_buildStatus()));
+                } catch(e) { console.error('[News] Refresh error:', e); }
+                _st.loading = false;
+                NewsView.setRefreshState(false);
+                _renderPage();
+            }
+
+            function showKeyModal()  { NewsView.openKeyModal(NewsRepository.getKeys()); }
+            function closeKeyModal() { NewsView.closeKeyModal(); }
+            function saveKeys() {
+                const fh = (document.getElementById('nkFinnhub')?.value      || '').trim();
+                const mx = (document.getElementById('nkMarketaux')?.value    || '').trim();
+                const av = (document.getElementById('nkAlphaVantage')?.value || '').trim();
+                NewsRepository.setKeys({ finnhub: fh, marketaux: mx, alphavantage: av });
+                NewsView.closeKeyModal();
+                refresh();
+            }
+
+            function init() {
+                NewsView.renderChips(_st.filter);
+                EC.init();
+                EC.setFilter(_st.filter);
+                DC.init();
+                if (_st.ready) { _renderPage(); _startTimer(); return; }
+                _st.ready = true;
+
+                const cached = NewsRepository.loadFromCache(); // also loads keys
+                if (!NewsRepository.hasAnyKey()) {
+                    NewsView.renderKeyPrompt();
+                    NewsView.updateStatus('Add an API key to get started');
+                    return;
+                }
+
+                if (cached) _renderPage();
+                const age = NewsRepository.getLastFetched()
+                    ? Date.now() - NewsRepository.getLastFetched() : Infinity;
+                if (age > CACHE_TTL) refresh();
+                _startTimer();
+            }
+
+            function _startTimer() {
+                if (_st.timer) clearInterval(_st.timer);
+                _st.timer = setInterval(() => { if (S.currentPage === 'news') refresh(); }, REFRESH_MS);
+            }
+
+            return {
+                init, refresh, setFilter, toggleFilter, onSearch, clearSearch, loadMore,
+                showKeyModal, closeKeyModal, saveKeys,
+                openAssetForm, closeAssetForm, saveCustomAssets, removeCustomAsset,
+            };
+        })();
+
+        // ── END NEWS MODULE v3 ──
+
+        // ══════════════════════════════════════════════════════════
+        // ECONOMIC CALENDAR MODULE (EC)
+        // Data: Cloudflare Worker → Forex Factory JSON
+        // ══════════════════════════════════════════════════════════
+        const EC = (() => {
+            const CF_WORKER  = 'https://trade-journal.manly-kama840.workers.dev';
+            const CACHE_MS   = 30 * 60 * 1000;
+            const FLAG = { USD:'🇺🇸',EUR:'🇪🇺',GBP:'🇬🇧',JPY:'🇯🇵',CHF:'🇨🇭',
+                           AUD:'🇦🇺',CAD:'🇨🇦',NZD:'🇳🇿',CNY:'🇨🇳',XAU:'🥇',XAG:'🥈',
+                           WTI:'🛢️',OIL:'🛢️' };
+
+            let _events      = [];
+            let _lastFetched = null;
+            let _lastFailAt  = null;
+            const FAIL_COOLDOWN_MS = 90 * 1000; // don't retry FF for 90s after a failure
+            let _filter      = ['ALL'];
+            let _showWeek    = false;
+            let _fetching    = false;
+
+            // Union of currency codes for all currently selected instrument keys.
+            // null = no filtering (show all currencies) — used for ALL.
+            function _activeCurrencies() {
+                if (!_filter.length || _filter.includes('ALL')) return null;
+                const set = new Set();
+                _filter.forEach(key => {
+                    const inst = NEWS_INSTRUMENTS.find(i => i.key === key);
+                    if (inst && Array.isArray(inst.currencies)) {
+                        inst.currencies.forEach(c => set.add(c));
+                    }
+                });
+                return set.size ? [...set] : null;
+            }
+
+            function _impactClass(imp) {
+                const i = (imp||'').toLowerCase();
+                if (i === 'high')    return 'ec-impact ec-impact-high';
+                if (i === 'medium')  return 'ec-impact ec-impact-medium';
+                if (i === 'low')     return 'ec-impact ec-impact-low';
+                return 'ec-impact ec-impact-holiday';
+            }
+
+            function _val(v, cls) {
+                if (!v && v !== 0) return `<span class="ec-val-empty">—</span>`;
+                return `<span class="${cls}">${_esc(String(v))}</span>`;
+            }
+
+            function _esc(s) {
+                return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+
+            function _fmt(s) {
+                return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            }
+
+            function _timeStr(d) {
+                return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+            }
+
+            function _dateStr(d) {
+                return d.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' });
+            }
+
+            function _isToday(d) {
+                const now = new Date();
+                return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth() && d.getDate()===now.getDate();
+            }
+
+            function _isFuture(d) { return d > new Date(); }
+
+            function _filtered() {
+                const ccys = _activeCurrencies();
+                return _events.filter(e => {
+                    if (ccys && !ccys.includes((e.country||'').toUpperCase())) return false;
+                    return true;
+                });
+            }
+
+            function _render() {
+                const body = document.getElementById('ecBody');
+                if (!body) return;
+
+                const now      = new Date();
+                const events   = _filtered();
+                const todayEvs = events.filter(e => _isToday(e._date));
+                const display  = _showWeek ? events : todayEvs;
+
+                if (!display.length) {
+                    body.innerHTML = `<div class="ec-state">
+                        <div class="ec-state-icon">&#128197;</div>
+                        ${_showWeek ? 'No events this week' : 'No events today'} for selected filter
+                    </div>`;
+                    return;
+                }
+
+                // Find next upcoming event index
+                let nextIdx = -1;
+                for (let i = 0; i < display.length; i++) {
+                    if (_isFuture(display[i]._date)) { nextIdx = i; break; }
+                }
+
+                let html = `<table class="ec-table">
+                    <thead><tr>
+                        <th>Time</th><th>CCY</th><th>Impact</th><th>Event</th>
+                        <th>Actual</th><th>Forecast</th><th>Previous</th>
+                    </tr></thead><tbody>`;
+
+                let lastDay = '';
+                display.forEach((e, idx) => {
+                    const isPast = !_isFuture(e._date);
+                    const isNext = idx === nextIdx;
+                    const dayKey = _dateStr(e._date);
+                    const rowCls = isNext ? 'ec-row-next' : (isPast ? 'ec-row-past' : '');
+                    const flag   = FLAG[(e.country||'').toUpperCase()] || '🌐';
+
+                    // Day separator row (week view only)
+                    if (_showWeek && dayKey !== lastDay) {
+                        lastDay = dayKey;
+                        html += `<tr class="ec-row-today-header">
+                            <td colspan="7">${_esc(dayKey)}${_isToday(e._date) ? ' — TODAY' : ''}</td>
+                        </tr>`;
+                    }
+
+                    html += `<tr class="${rowCls}">
+                        <td style="font-family:var(--font-mono);font-size:9px;">${_esc(_timeStr(e._date))}</td>
+                        <td><span class="ec-ccy">${flag} ${_esc((e.country||'').toUpperCase())}</span></td>
+                        <td style="text-align:center;"><span class="${_impactClass(e.impact)}" title="${_esc(e.impact)}"></span></td>
+                        <td style="white-space:normal;min-width:130px;font-size:10px;">${_fmt(e.title||e.name||'')}</td>
+                        <td>${_val(e.actual,   'ec-val-actual')}</td>
+                        <td>${_val(e.forecast, 'ec-val-forecast')}</td>
+                        <td>${_val(e.previous, 'ec-val-prev')}</td>
+                    </tr>`;
+                });
+
+                html += '</tbody></table>';
+                body.innerHTML = html;
+            }
+
+            function _updateStatus() {
+                const el = document.getElementById('ecStatusText');
+                if (!el) return;
+                if (_fetching) { el.innerHTML = '<span class="nspin">&#x27F3;</span> Fetching calendar&hellip;'; return; }
+                if (!_lastFetched) { el.textContent = '—'; return; }
+                const m   = Math.floor((Date.now() - _lastFetched) / 60000);
+                const ago = m < 1 ? 'just now' : m + 'm ago';
+                const tot = _filtered().length;
+                el.textContent = `Updated ${ago} · ${tot} event${tot!==1?'s':''} · Impact: 🔴 High 🟠 Medium 🟡 Low`;
+            }
+
+            async function _fetch() {
+                if (_fetching) return;
+                // Use cache if fresh
+                if (_lastFetched && Date.now() - _lastFetched < CACHE_MS) { _render(); _updateStatus(); return; }
+                // Cooldown after a failure — avoid retry-storms that trigger FF's rate limit
+                if (_lastFailAt && Date.now() - _lastFailAt < FAIL_COOLDOWN_MS) { _render(); _updateStatus(); return; }
+                _fetching = true;
+                _updateStatus();
+                try {
+                    const r = await fetch(`${CF_WORKER}/ff-calendar`);
+                    if (r.status === 429) {
+                        const errBody = await r.json().catch(()=>({}));
+                        throw new Error(errBody.error || 'Forex Factory rate-limited this request. Try again shortly.');
+                    }
+                    if (!r.ok) {
+                        const errBody = await r.json().catch(()=>({}));
+                        throw new Error(errBody.error || ('HTTP ' + r.status));
+                    }
+                    const raw = await r.json();
+                    if (!Array.isArray(raw) || !raw.length) {
+                        throw new Error('Calendar returned no events — worker may be rate-limited. Try refreshing in a few minutes.');
+                    }
+                    // Normalise: parse date strings to Date objects.
+                    // Some FF date strings can fail to parse depending on the
+                    // browser/WebView's Date parser leniency — guard against
+                    // Invalid Date silently nuking every comparison downstream.
+                    let invalidCount = 0;
+                    _events = raw.map(e => {
+                        let d = new Date(e.date);
+                        if (isNaN(d.getTime())) {
+                            // Fallback: try replacing space with 'T' / normalising common FF variants
+                            const alt = (e.date || '').replace(' ', 'T');
+                            d = new Date(alt);
+                        }
+                        if (isNaN(d.getTime())) invalidCount++;
+                        return { ...e, _date: d };
+                    }).filter(e => !isNaN(e._date.getTime()))
+                      .sort((a,b) => a._date - b._date);
+
+                    if (invalidCount > 0) {
+                        console.warn(`[EC] ${invalidCount} event(s) had unparseable dates and were dropped.`);
+                    }
+                    if (!_events.length) {
+                        throw new Error('Calendar data arrived but all event dates failed to parse. Check console for details.');
+                    }
+                    _lastFetched = Date.now();
+                    console.info('[EC] Loaded', _events.length, 'events. Sample:', _events[0]);
+                    console.info('[EC] Today is', new Date().toString());
+                } catch(err) {
+                    console.error('[EC] Fetch error:', err);
+                    _lastFailAt = Date.now();
+                    const body = document.getElementById('ecBody');
+                    if (body && !_events.length) {
+                        body.innerHTML = `<div class="ec-state">
+                            <div class="ec-state-icon">&#9888;</div>
+                            ${_esc(err.message || 'Failed to load calendar.')}
+                        </div>`;
+                    }
+                } finally {
+                    _fetching = false;
+                    _render();
+                    _updateStatus();
+                }
+            }
+
+            function init()          { _fetch(); }
+            function setFilter(keys) { _filter = Array.isArray(keys) ? keys : [keys]; if (!_filter.length) _filter = ['ALL']; _render(); _updateStatus(); }
+            function refreshCustomAssets() { _render(); _updateStatus(); }
+            function showToday()     {
+                _showWeek = false;
+                document.getElementById('ecTodayBtn')?.classList.add('active');
+                document.getElementById('ecWeekBtn')?.classList.remove('active');
+                _render();
+            }
+            function showWeek()      {
+                _showWeek = true;
+                document.getElementById('ecWeekBtn')?.classList.add('active');
+                document.getElementById('ecTodayBtn')?.classList.remove('active');
+                _render();
+            }
+
+            return { init, setFilter, showToday, showWeek, refreshCustomAssets };
+        })();
+
+        // ══════════════════════════════════════════════════════════
+        // DISCORD MODULE (DC)
+        // Two channels via Cloudflare Worker proxy
+        // ══════════════════════════════════════════════════════════
+        const DC = (() => {
+            const CF_WORKER  = 'https://trade-journal.manly-kama840.workers.dev';
+            const CHANNELS   = [
+                { id: '1386659520000036956', label: 'trading-signals' },
+                { id: '854287081453912064',  label: 'market-analysis' },
+            ];
+            const PAGE_SIZE  = 25;
+            const CACHE_MS   = 2 * 60 * 1000;
+
+            let _state = CHANNELS.map(() => ({
+                messages:    [],
+                lastFetched: null,
+                before:      null,
+                fetching:    false,
+                hasMore:     false,
+            }));
+
+            function _esc(s) {
+                return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+
+            function _timeAgo(ts) {
+                const m = Math.floor((Date.now() - new Date(ts)) / 60000);
+                if (m < 1) return 'just now';
+                if (m < 60) return m + 'm ago';
+                const h = Math.floor(m/60);
+                return h < 24 ? h + 'h ago' : Math.floor(h/24) + 'd ago';
+            }
+
+            function _avatarUrl(author) {
+                if (!author?.avatar) return null;
+                return `https://cdn.discordapp.com/avatars/${author.id}/${author.avatar}.png?size=32`;
+            }
+
+            function _renderMessages(idx) {
+                const st    = _state[idx];
+                const bodyEl = document.getElementById(`dcBody${idx+1}`);
+                const moreEl = document.getElementById(`dcMore${idx+1}`);
+                if (!bodyEl) return;
+
+                if (!st.messages.length) {
+                    bodyEl.innerHTML = `<div class="discord-stub-body">No messages yet.</div>`;
+                    if (moreEl) moreEl.style.display = 'none';
+                    return;
+                }
+
+                const html = st.messages.map(m => {
+                    const av     = _avatarUrl(m.author);
+                    const avHtml = av
+                        ? `<img src="${_esc(av)}" style="width:18px;height:18px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'" />`
+                        : `<span style="width:18px;height:18px;border-radius:50%;background:var(--border);display:inline-block;flex-shrink:0;"></span>`;
+
+                    // Attachments (images)
+                    const imgs = (m.attachments||[])
+                        .filter(a => (a.content_type||'').startsWith('image/'))
+                        .map(a => `<img class="discord-msg-img" src="${_esc(a.url)}" alt="${_esc(a.filename)}" loading="lazy" />`)
+                        .join('');
+
+                    // Reply reference
+                    const reply = m.referenced_message
+                        ? `<div style="padding:3px 8px;border-left:2px solid var(--border);margin-bottom:3px;font-size:10px;color:var(--muted);">
+                               ↩ <strong>${_esc(m.referenced_message.author?.username||'')}</strong>: ${_esc((m.referenced_message.content||'').slice(0,80))}
+                           </div>`
+                        : '';
+
+                    return `<div class="discord-msg">
+                        <div class="discord-msg-meta">
+                            ${avHtml}
+                            <span class="discord-msg-author">${_esc(m.author?.global_name || m.author?.username || 'Unknown')}</span>
+                            <span>${_timeAgo(m.timestamp)}</span>
+                        </div>
+                        ${reply}
+                        ${m.content ? `<div class="discord-msg-content">${_esc(m.content)}</div>` : ''}
+                        ${imgs}
+                    </div>`;
+                }).join('');
+
+                bodyEl.innerHTML = html;
+                if (moreEl) moreEl.style.display = st.hasMore ? 'block' : 'none';
+            }
+
+            function _setStatus(msg) {
+                const el = document.getElementById('dcFeedStatus');
+                if (el) el.innerHTML = msg;
+            }
+
+            async function _fetchChannel(idx, before = null) {
+                const st  = _state[idx];
+                const ch  = CHANNELS[idx];
+                if (st.fetching) return;
+                st.fetching = true;
+
+                // Update title
+                const titleEl = document.getElementById(`dcTitle${idx+1}`);
+                if (titleEl) titleEl.textContent = ch.label;
+
+                const bodyEl = document.getElementById(`dcBody${idx+1}`);
+                if (!st.messages.length && bodyEl) {
+                    bodyEl.innerHTML = `<div class="discord-stub-body"><span class="nspin">&#x27F3;</span> Loading&hellip;</div>`;
+                }
+
+                try {
+                    let url = `${CF_WORKER}/discord/${ch.id}?limit=${PAGE_SIZE}`;
+                    if (before) url += `&before=${before}`;
+                    const r = await fetch(url);
+                    if (!r.ok) {
+                        const err = await r.json().catch(()=>({error:'Unknown error'}));
+                        throw new Error(err.error || 'HTTP ' + r.status);
+                    }
+                    const msgs = await r.json();
+                    if (before) {
+                        st.messages = [...st.messages, ...msgs];
+                    } else {
+                        st.messages = msgs;
+                    }
+                    st.lastFetched = Date.now();
+                    st.hasMore     = msgs.length === PAGE_SIZE;
+                    if (msgs.length) st.before = msgs[msgs.length-1].id;
+                } catch(err) {
+                    console.error(`[DC] Channel ${idx} error:`, err);
+                    if (!st.messages.length && bodyEl) {
+                        bodyEl.innerHTML = `<div class="discord-stub-body">&#9888; ${_esc(err.message)}</div>`;
+                    }
+                } finally {
+                    st.fetching = false;
+                    _renderMessages(idx);
+                }
+            }
+
+            async function init() {
+                _setStatus('&#128172; Live feed from Discord');
+                // Fetch both channels in parallel
+                await Promise.all([_fetchChannel(0), _fetchChannel(1)]);
+                // Auto-refresh every 2 min when on news page
+                setInterval(() => {
+                    if (S.currentPage === 'news') {
+                        _fetchChannel(0);
+                        _fetchChannel(1);
+                    }
+                }, 2 * 60 * 1000);
+            }
+
+            function loadMore(idx) { _fetchChannel(idx, _state[idx].before); }
+
+            return { init, loadMore };
+        })();
 
         // ── INIT ──
         document.getElementById('ideaDate').value = new Date().toISOString().split('T')[0];
