@@ -107,6 +107,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="My Journal" />
+    <!-- TradingView widget API — loaded once, used by Economic Calendar -->
+    <script id="tvjs" type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js">
@@ -17322,33 +17324,39 @@
         // ── END NEWS MODULE v3 ──
 
         // EC module — TradingView Economic Calendar
-        // TV widget is loaded via official script embed pattern.
-        // We use an iframe pointing to TV's widget page directly — this is
-        // what TV's own script does internally, and works from any origin.
+        // Uses tv.js TradingView.widget() API — the correct SPA approach.
+        // tv.js is loaded once in <head>, widget created on demand via container_id.
         const EC = {
             init: () => {
                 const container = document.getElementById('tvEcContainer');
                 if (!container || container.dataset.loaded) return;
                 container.dataset.loaded = '1';
-                // Use TV's official widget page URL directly as an iframe src.
-                // This is identical to what TV's embed script does internally,
-                // but avoids the script-injection SPA problem entirely.
-                const params = [
-                    'colorTheme=light',
-                    'isTransparent=true',
-                    'locale=en',
-                    'importanceFilter=-1,0,1,2',
-                    'countryFilter=us,eu,gb,ch,jp,au,ca,nz,cn',
-                    'width=100%25',
-                    'height=500',
-                ].join('&');
-                const iframe = document.createElement('iframe');
-                iframe.src = `https://www.tradingview-widget.com/embed-widget/economic-calendar/?${params}`;
-                iframe.style.cssText = 'width:100%;height:500px;border:none;display:block;';
-                iframe.setAttribute('allowtransparency', 'true');
-                iframe.setAttribute('frameborder', '0');
+                if (typeof TradingView === 'undefined' || !TradingView.widget) {
+                    container.innerHTML = '<div style="padding:20px;font-family:monospace;font-size:11px;color:#888;">Loading calendar…</div>';
+                    // TV.js not ready yet — retry after script loads
+                    const s = document.getElementById('tvjs');
+                    if (s) {
+                        s.addEventListener('load', () => EC._create(container));
+                    }
+                    return;
+                }
+                EC._create(container);
+            },
+            _create: (container) => {
                 container.innerHTML = '';
-                container.appendChild(iframe);
+                new TradingView.widget({
+                    "container_id": "tvEcContainer",
+                    "colorTheme": "light",
+                    "isTransparent": true,
+                    "locale": "en",
+                    "width": "100%",
+                    "height": 500,
+                    "importanceFilter": "-1,0,1,2",
+                    "countryFilter": "us,eu,gb,ch,jp,au,ca,nz,cn",
+                    "utm_source": "",
+                    "utm_medium": "widget",
+                    "utm_campaign": "economic-calendar"
+                });
             },
             setFilter: () => {},
             refreshCustomAssets: () => {}
