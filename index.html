@@ -14000,7 +14000,10 @@
                 t.tpPrice ? `Take Profit: ${t.tpPrice}` : null,
                 t.lotSize ? `Lot Size: ${t.lotSize}` : null,
             ].filter(Boolean).join('\n') : '';
-            let out = `TRADE SETUP — ${t.pair.toUpperCase()}\n${t.tradeType||'—'} · ${t.date}\n${div}`;
+            // Direction for the plan/idea header: derive from biasSet (reliably user-set via bias cards)
+            // rather than t.tradeType, which has no UI control at the idea stage and defaults to 'BUY'.
+            const planDir = t.biasSet === 'BULLISH' ? 'BUY' : t.biasSet === 'BEARISH' ? 'SELL' : (t.tradeType || '—');
+            let out = `TRADE SETUP — ${t.pair.toUpperCase()}\n${planDir} · ${t.date}\n${div}`;
             if (planMeta) out += `\n${planMeta}`;
             if (parentPriceLine) out += `\n\n${parentPriceLine}`;
             out += `${ideaLine}${updateLine}${notesLines}`;
@@ -14034,7 +14037,7 @@
             const files = allSS.filter(ss => ss && (ss._displayUrl || ss.dataUrl) && (ss._displayUrl || ss.dataUrl)
                 .startsWith('data:')).map((ss, i) => dataUrlToFile(ss._displayUrl || ss.dataUrl, (ss.name ||
                 `screenshot_${i+1}`)));
-            const shareTitle = `${t.pair.toUpperCase()} — ${t.tradeType||'Setup'}`;
+            const shareTitle = `${t.pair.toUpperCase()} — ${planDir !== '—' ? planDir : 'Setup'}`;
             if (navigator.share && files.length && navigator.canShare && navigator.canShare({ files })) {
                 navigator.share({ title: shareTitle, text: out, files }).catch(() => {
                     navigator.share({ title: shareTitle, text: out }).catch(() => {});
