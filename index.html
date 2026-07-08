@@ -11200,7 +11200,7 @@
                 date,
                 pair,
                 session: document.getElementById('ideaSession').value,
-                tradeType: S.tradeType || 'BUY',
+                tradeType: bias === 'BULLISH' ? 'BUY' : bias === 'BEARISH' ? 'SELL' : (S.tradeType || 'BUY'),
                 score: null,
                 grade: null,
                 biasSet: bias,
