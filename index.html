@@ -12217,6 +12217,7 @@
 
             t.status = 'closed';
             t.result = result;
+            t.tradeType = effectiveTradeType;
             t.biasPlayed = S.cmData.biasPlayed;
             t.biasMatch = (t.biasSet === S.cmData.biasPlayed) ? 'YES' : 'NO';
             t.tp1r  = _tp1r;
@@ -12243,6 +12244,7 @@
                 if (parent) {
                     parent.status = 'closed';
                     parent.result = result;
+                    parent.tradeType = effectiveTradeType;
                     parent.biasPlayed = S.cmData.biasPlayed;
                     parent.biasMatch = (parent.biasSet === S.cmData.biasPlayed) ? 'YES' : 'NO';
                     parent.tp1r = _tp1r;
@@ -12461,6 +12463,7 @@
               <td><span class="pill pill-${bsc}">${t.biasSet||'—'}</span></td>
               <td style="font-size:10px;color:var(--muted);max-width:120px;white-space:normal">${t.followupNotes||t.closeNotes||t.ideaNotes||'—'} ${hasFollowup?'<span style="color:var(--gold)">★</span>':''}</td>
               <td style="white-space:nowrap" onclick="event.stopPropagation()">
+                <button class="btn-ghost" style="font-size:8px;padding:5px 10px;" onclick="shareClosedTrade('${t.id}')">📤 SHARE</button>
                 <button class="edit-btn" onclick="openEditClosedModal('${t.id}')">✏ EDIT</button>
                 <button class="del-btn" onclick="deleteTrade('${t.id}')">DEL</button>
               </td>
@@ -14028,9 +14031,92 @@
                 ...(t.screenshots || []), ...(t.eodScreenshots || []), ...(t.followupScreenshots || []),
                 ...intra.flatMap(it => [...(it.screenshots || []), ...(it.eodScreenshots || [])])
             ];
-            const files = allSS.filter(ss => ss && ss.dataUrl).map((ss, i) => dataUrlToFile(ss.dataUrl, (ss.name ||
+            const files = allSS.filter(ss => ss && (ss._displayUrl || ss.dataUrl) && (ss._displayUrl || ss.dataUrl)
+                .startsWith('data:')).map((ss, i) => dataUrlToFile(ss._displayUrl || ss.dataUrl, (ss.name ||
                 `screenshot_${i+1}`)));
             const shareTitle = `${t.pair.toUpperCase()} — ${t.tradeType||'Setup'}`;
+            if (navigator.share && files.length && navigator.canShare && navigator.canShare({ files })) {
+                navigator.share({ title: shareTitle, text: out, files }).catch(() => {
+                    navigator.share({ title: shareTitle, text: out }).catch(() => {});
+                });
+            } else if (navigator.share) {
+                navigator.share({ title: shareTitle, text: out }).catch(() => {});
+            } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(out).then(() => showToast('✓ Copied to clipboard'));
+            }
+        }
+
+        async function shareClosedTrade(id) {
+            const t = S.trades.find(t => idEq(t.id, id));
+            if (!t) return;
+            const intras = S.trades.filter(it => it.isIntraday && idEq(it.weeklyLinkId, t.id));
+            await Promise.all([loadTradeScreenshots(t.id), ...intras.map(it => loadTradeScreenshots(it.id))]);
+            const div = '────────────────────────────';
+            const _tGrade = deriveDisplayGrade(t);
+            const _tScore = deriveDisplayScore(t);
+            const r = calcR(t);
+            const rStr = r !== null ? (r >= 0 ? '+' : '') + r.toFixed(2) + 'R' : '—';
+            const gradeLine = (_tGrade && _tGrade !== 'N/A') ?
+                `Grade: ${_tGrade}${_tScore != null ? ' (' + _tScore.toFixed(1) + '/100)' : ''}   ` : '';
+            const biasLine = t.biasSet ? `Bias: ${t.biasSet==='BULLISH'?'▲ ':t.biasSet==='BEARISH'?'▼ ':''}${t.biasSet}   ` : '';
+            const playedLine = t.biasPlayed ? `Played: ${t.biasPlayed}${t.biasMatch?' ('+t.biasMatch+')':''}` : '';
+
+            let out = `${t.pair.toUpperCase()} · ${t.date}\n${div}`;
+            out += `\n${gradeLine}Result: ${t.result||'—'}  ${rStr}`;
+            if (biasLine || playedLine) out += `\n${biasLine}${playedLine}`;
+            out += `\n${div}\n📋 PLAN — PRE-MARKET IDEA`;
+            const planFields = [
+                t.session ? `Session: ${t.session}` : null,
+                t.tradeType ? `Direction: ${t.tradeType}` : null,
+                t.entryPrice ? `Entry: ${t.entryPrice}` : null,
+                t.closePrice ? `Close Price: ${t.closePrice}` : null,
+                t.slPrice ? `Stop Loss: ${t.slPrice}` : null,
+                t.tpPrice ? `TP Target: ${t.tpPrice}` : null,
+                (t.tp1r && t.tp1r !== 'N/A') ? `TP 1R: ${t.tp1r}` : null,
+                (t.tp15r && t.tp15r !== 'N/A') ? `TP 1.5R: ${t.tp15r}` : null,
+            ].filter(Boolean).join('\n');
+            if (planFields) out += `\n${planFields}`;
+            if (t.ideaNotes) out += `\n\nIdea:\n${stripHtml(t.ideaNotes)}`;
+            if (t.updateNotes) out += `\n\nUpdate:\n${stripHtml(t.updateNotes)}`;
+
+            intras.forEach((it, i) => {
+                const iLabel = intras.length > 1 ? `EXECUTION ${i+1}` : 'EXECUTION';
+                const _itGrade = deriveDisplayGrade(it);
+                const _itScore = deriveDisplayScore(it);
+                const iGradeLine = (_itGrade && _itGrade !== 'N/A') ?
+                    `Grade: ${_itGrade}${_itScore != null ? ' (' + _itScore.toFixed(1) + '/100)' : ''}${it.intraDecision ? '   Decision: ' + it.intraDecision : ''}` :
+                    (it.intraDecision ? `Decision: ${it.intraDecision}` : '');
+                const iFields = [
+                    it.session ? `Session: ${it.session}` : null,
+                    it.tradeType ? `Direction: ${it.tradeType}` : null,
+                    it.entryPrice ? `Entry: ${it.entryPrice}` : null,
+                    it.slPrice ? `Stop Loss: ${it.slPrice}` : null,
+                    it.tpPrice ? `TP Target: ${it.tpPrice}` : null,
+                    it.lotSize ? `Lot Size: ${it.lotSize}` : null,
+                    t.closePrice ? `Close: ${t.closePrice}` : null,
+                ].filter(Boolean).join('\n');
+                out += `\n\n${div}\n⚡ ${iLabel} — INTRADAY SETUP`;
+                if (iGradeLine) out += `\n${iGradeLine}`;
+                if (iFields) out += `\n${iFields}`;
+                if (it.ideaNotes) out += `\n\nExecution Notes:\n${stripHtml(it.ideaNotes)}`;
+                if (it.status === 'closed' && it.intraScores) {
+                    const s = it.intraScores;
+                    out += `\n\n📊 POST-TRADE REVIEW — HIDDEN ANALYTICS\nContext: ${Math.round(s.contextScore)}   Setup: ${Math.round(s.setupScore)}   Execution: ${Math.round(s.execScore)}\nFinal: ${s.finalScore.toFixed(1)} (${s.grade})`;
+                    if (s.explanation) out += `\n${s.explanation}`;
+                }
+            });
+
+            if (t.closeNotes) out += `\n\n${div}\nPOST-TRADE NOTES\n${stripHtml(t.closeNotes)}`;
+            out += `\n${div}`;
+
+            const allSS = [
+                ...(t.screenshots || []), ...(t.eodScreenshots || []), ...(t.followupScreenshots || []),
+                ...intras.flatMap(it => [...(it.screenshots || []), ...(it.eodScreenshots || [])])
+            ];
+            const files = allSS.filter(ss => ss && (ss._displayUrl || ss.dataUrl) && (ss._displayUrl || ss.dataUrl)
+                .startsWith('data:')).map((ss, i) => dataUrlToFile(ss._displayUrl || ss.dataUrl, (ss.name ||
+                `screenshot_${i+1}`)));
+            const shareTitle = `${t.pair.toUpperCase()} — ${t.result||'Closed'}`;
             if (navigator.share && files.length && navigator.canShare && navigator.canShare({ files })) {
                 navigator.share({ title: shareTitle, text: out, files }).catch(() => {
                     navigator.share({ title: shareTitle, text: out }).catch(() => {});
