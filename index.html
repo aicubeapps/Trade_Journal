@@ -5182,7 +5182,7 @@
                             </div>
                             <div class="field"><label>Tags</label>
                                 <div class="tag-input-wrap" id="ideaTagWrap" onclick="document.getElementById('ideaTagInput').focus()">
-                                    <input class="tag-input" id="ideaTagInput" placeholder="#weekly, #eurusd, press Enter…" onkeydown="handleTagKey(event,'idea')">
+                                    <input class="tag-input" id="ideaTagInput" placeholder="#weekly, #eurusd, press Enter…" onkeydown="handleTagKey(event,'idea')" onblur="harvestTags('idea')">
                                 </div>
                                 <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:3px">Press Enter or comma to add · Backspace to remove last</div>
                             </div>
@@ -5362,7 +5362,7 @@
                                 <div class="field"><label>Tags</label>
                                     <div class="tag-input-wrap" id="intraTagWrap" onclick="document.getElementById('intraTagInput').focus()">
                                         <span class="tag tag-intraday">#intraday</span>
-                                        <input class="tag-input" id="intraTagInput" placeholder="add tag, press Enter…" onkeydown="handleTagKey(event,'intra')">
+                                        <input class="tag-input" id="intraTagInput" placeholder="add tag, press Enter…" onkeydown="handleTagKey(event,'intra')" onblur="harvestTags('intra')">
                                     </div>
                                     <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:3px">Press Enter or comma to add · Backspace to remove</div>
                                 </div>
@@ -6127,7 +6127,7 @@
                 <div class="field"><label>Tags</label>
                     <div class="tag-input-wrap" id="wbTagWrap" onclick="document.getElementById('wbTagInput').focus()">
                         <span class="tag tag-weekly">#weekly</span>
-                        <input class="tag-input" id="wbTagInput" placeholder="add tags, press Enter…" onkeydown="handleTagKey(event,'wb')">
+                        <input class="tag-input" id="wbTagInput" placeholder="add tags, press Enter…" onkeydown="handleTagKey(event,'wb')" onblur="harvestTags('wb')">
                     </div>
                 </div>
                 <div class="field"><label>Chart Screenshot (Weekly / Daily)</label>
@@ -6267,7 +6267,7 @@
             <div style="flex-shrink:0;border-top:1.5px solid var(--cream);padding:12px 14px 0;background:var(--paper);">
                 <div class="mono-label">TAGS</div>
                 <div class="tag-input-wrap" id="closeTagWrap" onclick="document.getElementById('closeTagInput').focus()">
-                    <input class="tag-input" id="closeTagInput" placeholder="#lesson, #avoid-setup, press Enter…" onkeydown="handleTagKey(event,'closed')">
+                    <input class="tag-input" id="closeTagInput" placeholder="#lesson, #avoid-setup, press Enter…" onkeydown="handleTagKey(event,'closed')" onblur="harvestTags('closed')">
                 </div>
             </div>
             <div style="flex-shrink:0;border-top:1.5px solid var(--cream);padding:12px 14px;background:var(--paper);">
@@ -9340,7 +9340,7 @@
             const arr = arrMap[ctx];
             const wrap = wrapMap[ctx];
             if (!arr) return;
-            if (event.key === 'Enter' || event.key === ',') {
+            if (event.key === 'Enter' || event.key === ',' || event.keyCode === 13 || event.which === 13) {
                 event.preventDefault();
                 const val = inp.value.replace(/[#,]/g, '').trim().toLowerCase().replace(/\s+/g, '-');
                 if (val && !S[arr].includes(val)) {
