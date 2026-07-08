@@ -7824,16 +7824,13 @@
                 const key = s => 'ict_cache_' + s + '_' + userId;
                 try { ['trades', 'weeklies', 'notes', 'lastmod'].forEach(k => localStorage.removeItem(key(k))); } catch (e) {}
             }
-            document.getElementById('authScreen').style.display = 'flex';
+            location.reload();
         }
 
         function onLoggedIn(user) {
             _currentUser = user;
-            document.getElementById('authScreen').style.display = 'none';
-            const authPassEl = document.getElementById('authPass');
-            const authPassSEl = document.getElementById('authPassS');
-            if (authPassEl) authPassEl.value = '';
-            if (authPassSEl) authPassSEl.value = '';
+            const authScreenEl = document.getElementById('authScreen');
+            if (authScreenEl) authScreenEl.remove();
             const emailEl = document.getElementById('sbUserEmail');
             if (emailEl) emailEl.textContent = user.email;
             document.querySelector('.topbar-brand p').textContent = user.email;
@@ -7922,7 +7919,7 @@
         _sb.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_IN' && session?.user) onLoggedIn(session.user);
             if (event === 'SIGNED_OUT') { _currentUser = null;
-                document.getElementById('authScreen').style.display = 'flex'; }
+                if (!document.getElementById('authScreen')) location.reload(); }
         });
 
         function setSyncStatus(s) {
@@ -10165,7 +10162,7 @@
                     `<div style="margin-top:10px;border-top:1px solid #d0d4f0;padding-top:10px">
                 <div class="mono-label-blue">NOTES TIMELINE</div>
                 ${[...w.updates].reverse().map(u => `<div style="margin-bottom:8px;padding:8px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da">
-                  <div class="mono-ts">${new Date(u.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+                  <div class="mono-ts">${formatTsWithNY(u.at)}</div>
                   <div style="font-size:12px;line-height:1.6;white-space:pre-wrap">${rteDisplay(u.text)||''}</div>
                   ${(u.screenshots||[]).length>0?`<div id="wb-uss-${w.id}-${u.at.replace(/[^0-9]/g,'')}" class="wb-ss-lazy"><span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="toggleWbUpdateScreenshots('${w.id}','${u.at}')">📷 ${(u.screenshots||[]).length} screenshot${(u.screenshots||[]).length>1?'s':''} — tap to load</span></div>`:''}
                 </div>`).join('')}
@@ -12103,7 +12100,7 @@
               <div class="otc-body">
                 ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
                 ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:var(--font-mono);font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(t.updateNotes)}</div>`:''}
-                ${(t.tradeNotes&&t.tradeNotes.length>0)?`<div id="trade-notes-${t.id}" style="margin-bottom:10px;border-top:1px solid var(--cream);padding-top:8px"><div class="mono-label-blue">NOTES TIMELINE</div>${[...t.tradeNotes].reverse().map(n=>`<div style="margin-bottom:6px;padding:7px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da"><div class="mono-ts">${new Date(n.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:12px;line-height:1.6">${rteDisplay(n.text)||''}</div>${(n.screenshots&&n.screenshots.length>0)?`<span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);cursor:pointer;text-decoration:underline" onclick="toggleNoteScreenshots(this,n)">📷 ${n.screenshots.length} screenshot${n.screenshots.length>1?'s':''} — tap to load</span><div class="note-ss-lazy"></div>`:''}</div>`).join('')}</div>`:''}
+                ${(t.tradeNotes&&t.tradeNotes.length>0)?`<div id="trade-notes-${t.id}" style="margin-bottom:10px;border-top:1px solid var(--cream);padding-top:8px"><div class="mono-label-blue">NOTES TIMELINE</div>${[...t.tradeNotes].reverse().map(n=>`<div style="margin-bottom:6px;padding:7px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da"><div class="mono-ts">${formatTsWithNY(n.at)}</div><div style="font-size:12px;line-height:1.6">${rteDisplay(n.text)||''}</div>${(n.screenshots&&n.screenshots.length>0)?`<span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);cursor:pointer;text-decoration:underline" onclick="toggleNoteScreenshots(this,n)">📷 ${n.screenshots.length} screenshot${n.screenshots.length>1?'s':''} — tap to load</span><div class="note-ss-lazy"></div>`:''}</div>`).join('')}</div>`:''}
                 <div class="otc-prices" style="grid-template-columns:repeat(2,1fr)">
                   <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${t.entryPrice||''}" onchange="patchOpen(${t.id},'entryPrice',this.value)"></div>
                   <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
@@ -12133,7 +12130,7 @@
                       <div class="intra-sub-body" id="intra-body-${it.id}">
                         ${it.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(it.ideaNotes)}</div>`:''}
                         ${it.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:8px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:var(--font-mono);font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(it.updateNotes)}</div>`:''}
-                        ${(it.tradeNotes&&it.tradeNotes.length>0)?`<div style="margin-bottom:8px;border-top:1px solid #c5cae9;padding-top:6px"><div class="mono-label-blue">NOTES TIMELINE</div>${[...it.tradeNotes].reverse().map(n=>`<div style="margin-bottom:5px;padding:6px 8px;background:#f0f2ff;border-radius:4px;border-left:3px solid #9fa8da"><div class="mono-ts">${new Date(n.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:12px;line-height:1.5">${rteDisplay(n.text)||''}</div></div>`).join('')}</div>`:''}
+                        ${(it.tradeNotes&&it.tradeNotes.length>0)?`<div style="margin-bottom:8px;border-top:1px solid #c5cae9;padding-top:6px"><div class="mono-label-blue">NOTES TIMELINE</div>${[...it.tradeNotes].reverse().map(n=>`<div style="margin-bottom:5px;padding:6px 8px;background:#f0f2ff;border-radius:4px;border-left:3px solid #9fa8da"><div class="mono-ts">${formatTsWithNY(n.at)}</div><div style="font-size:12px;line-height:1.5">${rteDisplay(n.text)||''}</div></div>`).join('')}</div>`:''}
                         <div class="intra-sub-prices">
                           <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${it.entryPrice||''}" onchange="patchOpen(${it.id},'entryPrice',this.value)"></div>
                           <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${it.slPrice||''}" onchange="patchOpen(${it.id},'slPrice',this.value)"></div>
@@ -12643,7 +12640,7 @@
             function timelineHtml(notes) {
                 if (!notes || !notes.length) return '';
                 return `<div style="margin-bottom:10px">${[...notes].reverse().map(n => `<div style="margin-bottom:5px;padding:6px 10px;background:#f0f2ff;border-radius:4px;border-left:3px solid #9fa8da">
-              <div class="mono-ts">${new Date(n.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+              <div class="mono-ts">${formatTsWithNY(n.at)}</div>
               <div style="font-size:12px;line-height:1.5">${rteDisplay(n.text)||''}</div>
             </div>`).join('')}</div>`;
             }
@@ -12740,7 +12737,7 @@
             ${(t.reviewNotes&&t.reviewNotes.length)?`
               <div style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1.5px;color:#283593;text-transform:uppercase;margin-bottom:4px;margin-top:8px">REVIEW NOTES</div>
               ${t.reviewNotes.map(n=>`<div style="margin-bottom:6px;padding:7px 10px;background:#f0f2ff;border-radius:4px;border-left:3px solid #9fa8da">
-                <div class="mono-ts">${new Date(n.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+                <div class="mono-ts">${formatTsWithNY(n.at)}</div>
                 <div style="font-size:12px;line-height:1.5">${rteDisplay(n.text)}</div>
               </div>`).join('')}`:''}
             ${ssBlock(t.reviewScreenshots||[])}
@@ -14252,6 +14249,15 @@
             if (!html) return '';
             return html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
                 .replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+        }
+
+        // Formats a note/update timestamp with NY time appended, time-only.
+        // e.g. "08 Jul 17:07 / 07:37"
+        function formatTsWithNY(iso) {
+            const d = new Date(iso);
+            const main = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+            const ny = d.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
+            return `${main} / ${ny}`;
         }
 
         // ── SETTINGS ──
