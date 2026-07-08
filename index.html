@@ -5407,6 +5407,9 @@
                         <select class="filter-sel" id="filterGrade" onchange="renderClosed()">
                             <option value="">All grades</option><option value="A+ Environment">A+</option><option value="A Environment">A</option><option value="B Environment">B</option><option value="C Environment">C</option><option value="Bullish Expansion Day">Bull Expansion</option><option value="Bearish Expansion Day">Bear Expansion</option><option value="Bullish Continuation Day">Bull Continuation</option><option value="Bearish Continuation Day">Bear Continuation</option>
                         </select>
+                        <select class="filter-sel" id="filterCloseTag" onchange="renderClosed()">
+                            <option value="">All categories</option>
+                        </select>
                     </div>
                     <div class="ct-wrap">
                         <table class="ct-table">
@@ -6261,6 +6264,12 @@
                 <button class="modal-close" onclick="document.getElementById('tradeHistoryModal').classList.remove('open')">✕</button>
             </div>
             <div id="thBody" style="overflow-y:auto;flex:1;padding:14px 14px 0;"></div>
+            <div style="flex-shrink:0;border-top:1.5px solid var(--cream);padding:12px 14px 0;background:var(--paper);">
+                <div class="mono-label">TAGS</div>
+                <div class="tag-input-wrap" id="closeTagWrap" onclick="document.getElementById('closeTagInput').focus()">
+                    <input class="tag-input" id="closeTagInput" placeholder="#lesson, #avoid-setup, press Enter…" onkeydown="handleTagKey(event,'closed')">
+                </div>
+            </div>
             <div style="flex-shrink:0;border-top:1.5px solid var(--cream);padding:12px 14px;background:var(--paper);">
                 <div class="mono-label">ADD NOTE</div>
                 <div class="rte-wrap" style="margin-bottom:8px;">
@@ -6553,14 +6562,14 @@
                 <button class="auth-tab" id="atSignup" onclick="authTab('signup')">CREATE ACCOUNT</button>
             </div>
             <div id="afLogin">
-                <div class="auth-field"><label>Email</label><input type="email" id="authEmail" placeholder="you@email.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
-                <div class="auth-field"><label>Password</label><input type="password" id="authPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+                <div class="auth-field"><label>Email</label><input type="email" id="authEmail" autocomplete="username" placeholder="you@email.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
+                <div class="auth-field"><label>Password</label><input type="password" id="authPass" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
                 <button class="auth-btn" onclick="doLogin()">SIGN IN →</button>
                 <button class="auth-btn-ghost" onclick="doReset()">FORGOT PASSWORD?</button>
             </div>
             <div id="afSignup" style="display:none">
-                <div class="auth-field"><label>Email</label><input type="email" id="authEmailS" placeholder="you@email.com"></div>
-                <div class="auth-field"><label>Password (min 6 chars)</label><input type="password" id="authPassS" placeholder="••••••••"></div>
+                <div class="auth-field"><label>Email</label><input type="email" id="authEmailS" autocomplete="username" placeholder="you@email.com"></div>
+                <div class="auth-field"><label>Password (min 6 chars)</label><input type="password" id="authPassS" autocomplete="new-password" placeholder="••••••••"></div>
                 <button class="auth-btn" onclick="doSignup()">CREATE ACCOUNT →</button>
             </div>
             <div class="auth-loading" id="authLoading" style="display:none">Connecting…</div>
@@ -7821,6 +7830,10 @@
         function onLoggedIn(user) {
             _currentUser = user;
             document.getElementById('authScreen').style.display = 'none';
+            const authPassEl = document.getElementById('authPass');
+            const authPassSEl = document.getElementById('authPassS');
+            if (authPassEl) authPassEl.value = '';
+            if (authPassSEl) authPassSEl.value = '';
             const emailEl = document.getElementById('sbUserEmail');
             if (emailEl) emailEl.textContent = user.email;
             document.querySelector('.topbar-brand p').textContent = user.email;
@@ -7945,7 +7958,7 @@
 
         // ── TRADE <-> DB mapping ──
         const LIGHT_TRADE_COLS =
-            'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,tags,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,intra_alignment,intra_decision,intra_kill,intra_ex_data,intra_scores,review_notes,review_screenshots';
+            'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,tags,close_tags,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,intra_alignment,intra_decision,intra_kill,intra_ex_data,intra_scores,review_notes,review_screenshots';
 
         // Strip transient _displayUrl before any DB write — only the raw storage
         // path (dataUrl) should be persisted. _displayUrl is a 7-day signed URL
@@ -7989,6 +8002,7 @@
                 open_time: t.openTime,
                 close_time: t.closeTime || null,
                 tags: t.tags || [],
+                close_tags: t.closeTags || [],
                 trade_notes: t.tradeNotes || [],
                 checklist_answers: t.checklistAnswers || {},
                 checklist_kills: t.checklistKills || {},
@@ -8048,7 +8062,7 @@
                 openTime: r.open_time,
                 closeTime: r.close_time,
                 tags: r.tags || [],
-                tradeNotes: r.trade_notes || [],
+                closeTags: r.close_tags || [],
                 screenshots: r.screenshots || [],
                 eodScreenshots: r.eod_screenshots || [],
                 followupScreenshots: r.followup_screenshots || [],
@@ -9319,12 +9333,13 @@
                     ' <span onclick="removeTag(' + i + ',\'' + ctx + '\')" style="font-size:10px;margin-left:2px;cursor:pointer">✕</span>';
                 wrap.insertBefore(span, inp);
             });
+            renderTagSuggestions(ctx);
         }
 
         function handleTagKey(event, ctx) {
             const inp = event.target;
-            const arrMap = { idea: 'ideaTags', wb: 'wbTags', intra: 'intraTags' };
-            const wrapMap = { idea: 'ideaTagWrap', wb: 'wbTagWrap', intra: 'intraTagWrap' };
+            const arrMap = { idea: 'ideaTags', wb: 'wbTags', intra: 'intraTags', closed: 'closeTags' };
+            const wrapMap = { idea: 'ideaTagWrap', wb: 'wbTagWrap', intra: 'intraTagWrap', closed: 'closeTagWrap' };
             const arr = arrMap[ctx];
             const wrap = wrapMap[ctx];
             if (!arr) return;
@@ -9334,27 +9349,30 @@
                 if (val && !S[arr].includes(val)) {
                     S[arr].push(val);
                     renderTagsInWrap(wrap, S[arr], ctx);
+                    if (ctx === 'closed') _syncCloseTags();
                 }
                 inp.value = '';
             } else if (event.key === 'Backspace' && inp.value === '' && S[arr].length > 0) {
                 S[arr].pop();
                 renderTagsInWrap(wrap, S[arr], ctx);
+                if (ctx === 'closed') _syncCloseTags();
             }
         }
 
         function removeTag(i, ctx) {
-            const arrMap = { idea: 'ideaTags', wb: 'wbTags', intra: 'intraTags' };
-            const wrapMap = { idea: 'ideaTagWrap', wb: 'wbTagWrap', intra: 'intraTagWrap' };
+            const arrMap = { idea: 'ideaTags', wb: 'wbTags', intra: 'intraTags', closed: 'closeTags' };
+            const wrapMap = { idea: 'ideaTagWrap', wb: 'wbTagWrap', intra: 'intraTagWrap', closed: 'closeTagWrap' };
             const arr = arrMap[ctx];
             const wrap = wrapMap[ctx];
             if (!arr) return;
             S[arr].splice(i, 1);
             renderTagsInWrap(wrap, S[arr], ctx);
+            if (ctx === 'closed') _syncCloseTags();
         }
 
         function harvestTags(ctx) {
-            const arrMap = { idea: 'ideaTags', wb: 'wbTags', intra: 'intraTags' };
-            const wrapMap = { idea: 'ideaTagWrap', wb: 'wbTagWrap', intra: 'intraTagWrap' };
+            const arrMap = { idea: 'ideaTags', wb: 'wbTags', intra: 'intraTags', closed: 'closeTags' };
+            const wrapMap = { idea: 'ideaTagWrap', wb: 'wbTagWrap', intra: 'intraTagWrap', closed: 'closeTagWrap' };
             const arr = arrMap[ctx];
             const wrap = wrapMap[ctx];
             if (!arr) return;
@@ -9364,7 +9382,81 @@
                 if (val && !S[arr].includes(val)) S[arr].push(val);
                 inp.value = '';
                 renderTagsInWrap(wrap, S[arr], ctx);
+                if (ctx === 'closed') _syncCloseTags();
             }
+        }
+
+        // Adds a quick-pick suggested tag directly (no typing) for any tag context.
+        function addTagFromSuggestion(val, ctx) {
+            const arrMap = { idea: 'ideaTags', wb: 'wbTags', intra: 'intraTags', closed: 'closeTags' };
+            const wrapMap = { idea: 'ideaTagWrap', wb: 'wbTagWrap', intra: 'intraTagWrap', closed: 'closeTagWrap' };
+            const arr = arrMap[ctx];
+            const wrap = wrapMap[ctx];
+            if (!arr || !val || S[arr].includes(val)) return;
+            S[arr].push(val);
+            renderTagsInWrap(wrap, S[arr], ctx);
+            renderTagSuggestions(ctx);
+            if (ctx === 'closed') _syncCloseTags();
+        }
+
+        // Persists the currently-open closed trade's tags immediately, matching
+        // the immediate-save behavior of the other widgets in the Closed Trade modal.
+        function _syncCloseTags() {
+            const t = S.trades.find(t => idEq(t.id, S.closeTagsEditId));
+            if (!t) return;
+            t.closeTags = [...S.closeTags];
+            saveTrade(t);
+            renderTagSuggestions('closed');
+        }
+
+        // Returns the 5 most-recently-used tags for a given context's pool,
+        // scoped so each context builds its own reusable tag bank rather than
+        // mixing daily/weekly/intraday/closed tags together.
+        function getRecentTagsForContext(ctx) {
+            let pool = [];
+            if (ctx === 'idea') {
+                // Daily Bias trades, plus their linked intraday executions
+                const ideaTrades = S.trades.filter(t => !t.isIntraday);
+                const linkedIntra = S.trades.filter(t => t.isIntraday && ideaTrades.some(it => idEq(it.id, t.weeklyLinkId)));
+                pool = [...ideaTrades, ...linkedIntra].flatMap(t => t.tags || []);
+            } else if (ctx === 'wb') {
+                pool = (S.weeklies || []).flatMap(w => w.tags || []);
+            } else if (ctx === 'intra') {
+                pool = S.trades.filter(t => t.isIntraday).flatMap(t => t.tags || []);
+            } else if (ctx === 'closed') {
+                pool = S.trades.filter(t => t.status === 'closed').flatMap(t => t.closeTags || []);
+            }
+            // De-dupe, keep most-recently-added order (last occurrence wins position)
+            const seen = [];
+            for (const tag of pool) {
+                const idx = seen.indexOf(tag);
+                if (idx !== -1) seen.splice(idx, 1);
+                seen.push(tag);
+            }
+            return seen.reverse().slice(0, 5);
+        }
+
+        // Renders the quick-pick tag chips inline, to the left of the tag input,
+        // in the same wrap element as the existing tag pills.
+        function renderTagSuggestions(ctx) {
+            const wrapMap = { idea: 'ideaTagWrap', wb: 'wbTagWrap', intra: 'intraTagWrap', closed: 'closeTagWrap' };
+            const arrMap = { idea: 'ideaTags', wb: 'wbTags', intra: 'intraTags', closed: 'closeTags' };
+            const wrap = document.getElementById(wrapMap[ctx]);
+            if (!wrap) return;
+            wrap.querySelectorAll('.tag-suggestion').forEach(el => el.remove());
+            const inp = wrap.querySelector('.tag-input');
+            const current = S[arrMap[ctx]] || [];
+            const suggestions = getRecentTagsForContext(ctx).filter(tag => !current.includes(tag));
+            suggestions.forEach(tag => {
+                const span = document.createElement('span');
+                span.className = 'tag tag-suggestion tag-clickable';
+                span.style.opacity = '0.55';
+                span.style.cursor = 'pointer';
+                span.title = 'Add tag';
+                span.textContent = '#' + tag;
+                span.onclick = () => addTagFromSuggestion(tag, ctx);
+                wrap.insertBefore(span, inp);
+            });
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -12428,11 +12520,22 @@
             const search = (document.getElementById('closedSearch')?.value || '').toLowerCase();
             const fr = document.getElementById('filterResult')?.value || '';
             const fg = document.getElementById('filterGrade')?.value || '';
-            const closed = S.trades.filter(t => t.status === 'closed' && !t.isIntraday).filter(t => {
+            const ft = document.getElementById('filterCloseTag')?.value || '';
+            const closedAll = S.trades.filter(t => t.status === 'closed' && !t.isIntraday);
+            const tagSel = document.getElementById('filterCloseTag');
+            if (tagSel) {
+                const allCloseTags = [...new Set(closedAll.flatMap(t => t.closeTags || []))].sort();
+                const currentVal = tagSel.value;
+                tagSel.innerHTML = '<option value="">All categories</option>' +
+                    allCloseTags.map(tag => `<option value="${tag}">#${tag}</option>`).join('');
+                tagSel.value = allCloseTags.includes(currentVal) ? currentVal : '';
+            }
+            const closed = closedAll.filter(t => {
                 const ms = !search || t.pair.toLowerCase().includes(search) || (t.ideaNotes || '').toLowerCase()
                     .includes(search) || (t.closeNotes || '').toLowerCase().includes(search) || (t
                     .followupNotes || '').toLowerCase().includes(search);
-                return ms && (!fr || t.result === fr) && (!fg || deriveDisplayGrade(t) === fg);
+                return ms && (!fr || t.result === fr) && (!fg || deriveDisplayGrade(t) === fg) &&
+                    (!ft || (t.closeTags || []).includes(ft));
             });
             const tbody = document.getElementById('closedBody'),
                 empty = document.getElementById('closedEmpty');
@@ -12461,7 +12564,7 @@
               <td><span class="pill pill-${t.tp1r==='YES'?'yes':'no'}">${t.tp1r||'—'}</span></td>
               <td><span class="pill pill-${t.tp15r==='YES'?'yes':'no'}">${t.tp15r||'—'}</span></td>
               <td><span class="pill pill-${bsc}">${t.biasSet||'—'}</span></td>
-              <td style="font-size:10px;color:var(--muted);max-width:120px;white-space:normal">${t.followupNotes||t.closeNotes||t.ideaNotes||'—'} ${hasFollowup?'<span style="color:var(--gold)">★</span>':''}</td>
+              <td style="font-size:10px;color:var(--muted);max-width:120px;white-space:normal">${(t.closeTags&&t.closeTags.length)?t.closeTags.map(tag=>`<span class="tag tag-custom" style="font-size:8px;padding:1px 5px;margin:0 3px 3px 0;display:inline-block">#${tag}</span>`).join(''):''}${t.followupNotes||t.closeNotes||t.ideaNotes||'—'} ${hasFollowup?'<span style="color:var(--gold)">★</span>':''}</td>
               <td style="white-space:nowrap" onclick="event.stopPropagation()">
                 <button class="btn-ghost" style="font-size:8px;padding:5px 10px;" onclick="shareClosedTrade('${t.id}')">📤 SHARE</button>
                 <button class="edit-btn" onclick="openEditClosedModal('${t.id}')">✏ EDIT</button>
@@ -12507,6 +12610,8 @@
             await Promise.all([loadTradeScreenshots(t.id), ...intras.map(it => loadTradeScreenshots(it.id))]);
             _thId = id;
             _thNewSS = [];
+            S.closeTagsEditId = id;
+            S.closeTags = [...(t.closeTags || [])];
             document.getElementById('thNoteInput').innerHTML = '';
             document.getElementById('thSsPreview').innerHTML = '';
             document.getElementById('thTitle').textContent = t.pair + ' · ' + t.date;
@@ -12641,6 +12746,7 @@
             ${ssBlock(t.reviewScreenshots||[])}
             <div style="height:8px"></div>
           `;
+            renderTagsInWrap('closeTagWrap', S.closeTags, 'closed');
             document.getElementById('tradeHistoryModal').classList.add('open');
         }
 
@@ -14659,7 +14765,7 @@
                     'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,' +
                     'bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,' +
                     'followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,' +
-                    'tags,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,' +
+                    'tags,close_tags,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,' +
                     'intra_alignment,intra_decision,intra_kill,intra_ex_data,intra_scores,review_notes,review_screenshots'
                 ).eq('user_id', _currentUser.id).order('created_at', { ascending: false }),
                 _sb.from('weeklies').select('*').eq('user_id', _currentUser.id).order('created_at', { ascending: false }),
