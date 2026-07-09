@@ -1912,6 +1912,21 @@
             border: 1.5px solid #ce93d8;
             white-space: nowrap;
         }
+        .badge-scalp {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-family: var(--font-mono);
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: .5px;
+            background: #fff3e0;
+            color: #e65100;
+            border: 1.5px solid #ffb74d;
+            white-space: nowrap;
+        }
         @keyframes combinedPulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
@@ -12112,7 +12127,8 @@
 
         function renderOpen() {
             const showPaper = document.getElementById('openShowPaper')?.checked !== false;
-            const open = S.trades.filter(t => t.status === 'open' && !t.isIntraday && (showPaper || !t.isPaper));
+            const open = S.trades.filter(t => t.status === 'open' && (showPaper || !t.isPaper) &&
+                (!t.isIntraday || (t.isIntraday && !t.weeklyLinkId)));
             const c = document.getElementById('openContainer');
             if (!c) return;
             updateOpenBadge();
@@ -12201,7 +12217,7 @@
                 return `<div class="otc" style="border-color:${borderColor}">
               <div class="otc-head" style="background:${headBg};border-bottom-color:${borderColor}">
                 <div style="flex:1;min-width:0;">
-                  <div class="otc-pair" style="color:${pairColor}">${t.pair} ${t.isIntraday?'<span style="font-size:9px;background:#283593;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle">INTRA</span>':''} ${t.isPaper?'<span class="badge-paper">📝 PAPER</span>':''}</div>
+                  <div class="otc-pair" style="color:${pairColor}">${t.pair} ${t.isIntraday?'<span style="font-size:9px;background:#283593;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle">INTRA</span>':''} ${t.isIntraday&&!t.weeklyLinkId?'<span class="badge-scalp">⚡ SCALP</span>':''} ${t.isPaper?'<span class="badge-paper">📝 PAPER</span>':''}</div>
                   <div class="otc-meta"><span>${t.date}</span><span class="time-badge">${new Date(t.openTime).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span></div>
                   <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${tagHtml}</div>
                 </div>
@@ -12635,8 +12651,8 @@
             const fg = document.getElementById('filterGrade')?.value || '';
             const ft = document.getElementById('filterCloseTag')?.value || '';
             const showPaper = document.getElementById('closedShowPaper')?.checked !== false;
-            const closedAll = S.trades.filter(t => t.status === 'closed' && !t.isIntraday && (showPaper || !t
-                .isPaper));
+            const closedAll = S.trades.filter(t => t.status === 'closed' && (showPaper || !t.isPaper) &&
+                (!t.isIntraday || (t.isIntraday && !t.weeklyLinkId)));
             const tagSel = document.getElementById('filterCloseTag');
             if (tagSel) {
                 const allCloseTags = [...new Set(closedAll.flatMap(t => t.closeTags || []))].sort();
@@ -12670,7 +12686,7 @@
                 0);
                 return `<tr style="cursor:pointer" onclick="openTradeHistory('${t.id}')">
               <td style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">${t.date}</td>
-              <td style="font-family:var(--font-mono);font-weight:700">${t.pair}${t.isPaper?' <span class="badge-paper">📝</span>':''}</td>
+              <td style="font-family:var(--font-mono);font-weight:700">${t.pair}${t.isIntraday&&!t.weeklyLinkId?' <span class="badge-scalp">⚡</span>':''}${t.isPaper?' <span class="badge-paper">📝</span>':''}</td>
               <td><span class="pill pill-${gc}">${displayGrade}</span></td>
               <td><span class="pill pill-${rc}">${t.result||'—'}</span></td>
               <td style="font-family:var(--font-mono);font-weight:700;color:${rColor}">${rDisplay}</td>
@@ -12828,6 +12844,7 @@
               <span class="pill pill-${rc}">${t.result||'—'}</span>
               <span style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:${rColor}">${rDisplay}</span>
               ${t.isPaper?'<span class="badge-paper">📝 PAPER TRADE</span>':''}
+              ${t.isIntraday&&!t.weeklyLinkId?'<span class="badge-scalp">⚡ SCALP TRADE</span>':''}
               ${t.biasSet?`<span style="font-family:var(--font-mono);font-size:9px;padding:3px 8px;border-radius:3px;background:var(--cream);color:${biasColor};border:1px solid ${biasColor}">${biasArrow}${t.biasSet}</span>`:''}
               ${t.biasPlayed?`<span style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">Played: ${t.biasPlayed} <b style="color:${t.biasMatch==='YES'?'var(--bull)':'var(--bear)'}">(${t.biasMatch})</b></span>`:''}
             </div>
