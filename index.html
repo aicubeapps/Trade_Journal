@@ -8762,7 +8762,8 @@
 
                 // Only count trades newer than archivedThrough to avoid double-counting
                 const closed = S.trades.filter(t => {
-                    if (t.status !== 'closed' || t.isIntraday) return false;
+                    if (t.status !== 'closed') return false;
+                    if (t.isIntraday && t.weeklyLinkId) return false;
                     if (archivedThrough && t.closeTime && t.closeTime <= archivedThrough) return false;
                     return true;
                 });
@@ -8837,7 +8838,8 @@
 
             // Live trades (those not yet archived)
             const closed = S.trades.filter(t => {
-                if (t.status !== 'closed' || t.isIntraday) return false;
+                if (t.status !== 'closed') return false;
+                if (t.isIntraday && t.weeklyLinkId) return false;
                 if (archivedThrough && t.closeTime && t.closeTime <= archivedThrough) return false;
                 if (!combined && t.isPaper) return false;
                 return true;
@@ -8867,7 +8869,7 @@
                     totalBiasMatch: liveBM, totalBiasTotal: liveBT, sumR: liveSumR,
                     wins2r: liveWins2r, wins15r: liveWins15r, wins1r: liveWins1r,
                     be: liveBe, loss05: liveLoss05, loss1: liveLoss1, totalR: liveTotalR,
-                    openCount: S.trades.filter(t => t.status === 'open' && !t.isIntraday && (combined || !t.isPaper)).length,
+                    openCount: S.trades.filter(t => t.status === 'open' && (!t.isIntraday || !t.weeklyLinkId) && (combined || !t.isPaper)).length,
                 };
             }
 
@@ -8894,7 +8896,7 @@
                 loss05:         archived.loss05         + liveLoss05,
                 loss1:          archived.loss1          + liveLoss1,
                 totalR:         archived.totalR         + liveTotalR,
-                openCount: S.trades.filter(t => t.status === 'open' && !t.isIntraday && (combined || !t.isPaper)).length,
+                openCount: S.trades.filter(t => t.status === 'open' && (!t.isIntraday || !t.weeklyLinkId) && (combined || !t.isPaper)).length,
             };
         }
 
@@ -11923,7 +11925,7 @@
         // ════════════════════════════════════════════════════════════════════
 
         function updateOpenBadge() {
-            const n = S.trades.filter(t => t.status === 'open' && !t.isIntraday).length;
+            const n = S.trades.filter(t => t.status === 'open' && (!t.isIntraday || !t.weeklyLinkId)).length;
             const b = document.getElementById('openBadge');
             b.textContent = n;
             b.style.display = n > 0 ? '' : 'none';
@@ -12953,7 +12955,9 @@
         // ════════════════════════════════════════════════════════════════════
 
         function computeProcessAverages() {
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores);
+            const combined = S.insightsMode === 'combined';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined ||
+                !t.isPaper));
             if (intra.length === 0) return null;
             const ctx = intra.reduce((s, t) => s + (t.intraScores?.contextScore || 0), 0) / intra.length;
             const setup = intra.reduce((s, t) => s + (t.intraScores?.setupScore || 0), 0) / intra.length;
@@ -12963,7 +12967,9 @@
 
         function computeGradePerformance() {
             // Include daily bias (non-intraday) graded by checklist engine
-            const swingClosed = S.trades.filter(t => !t.isIntraday && t.status === 'closed' && t.grade);
+            const combined = S.insightsMode === 'combined';
+            const swingClosed = S.trades.filter(t => !t.isIntraday && t.status === 'closed' && t.grade && (combined ||
+                !t.isPaper));
             const grades = ['A+', 'A', 'B', 'Invalid'];
             return grades.map(g => {
                 const trades = swingClosed.filter(t => {
@@ -12998,7 +13004,8 @@
         // both numerator and denominator — they have no recorded prediction to
         // evaluate accuracy against.
         function _canonicalModelStats(snapMP) {
-            const closed = S.trades.filter(t => t.status === 'closed' && !t.isIntraday);
+            const combined = S.insightsMode === 'combined';
+            const closed = S.trades.filter(t => t.status === 'closed' && !t.isIntraday && (combined || !t.isPaper));
 
             // Weekly
             const weeklyClosed = S.weeklies.filter(w => w.status === 'closed' && w.weeklyReview);
@@ -13412,7 +13419,7 @@
             // figures even after archival removes old trades from S.trades.
             const totals = getDashboardTotals();
             const combinedMode = S.insightsMode === 'combined';
-            const open = S.trades.filter(t => t.status === 'open' && !t.isIntraday && (combinedMode || !t.isPaper));
+            const open = S.trades.filter(t => t.status === 'open' && (!t.isIntraday || !t.weeklyLinkId) && (combinedMode || !t.isPaper));
 
             const wins    = totals.totalWins;
             const losses  = totals.totalLosses;
@@ -15456,12 +15463,15 @@
 
         // ── Section 1: Opportunity Quality Analysis ──
         function computeOpportunityQualityAnalysis() {
-            const closed = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores);
+            const combined = S.insightsMode === 'combined';
+            const closed = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (
+                combined || !t.isPaper));
             const grades = ['A+', 'A', 'B', 'Invalid'];
             return grades.map(g => {
                 const trades = closed.filter(t => t.intraScores?.grade === g);
                 const count = trades.length;
-                if (count === 0) return { grade: g, count, wr: 0, avgR: 0, expectancy: 0 };
+                if (count === 0) return { grade: g, count, wr: 0, avgR: 0, expectancy: 0, wins: 0, losses: 0,
+                    sumR: 0, sumWinR: 0, sumLossR: 0 };
                 const wins = trades.filter(t => t.result === 'WIN').length;
                 const losses = trades.filter(t => t.result === 'LOSS').length;
                 const wr = count > 0 ? (wins / count * 100) : 0;
@@ -15474,7 +15484,9 @@
                 const winPct = count > 0 ? wins / count : 0;
                 const lossPct = count > 0 ? losses / count : 0;
                 const expectancy = (winPct * avgWin) + (lossPct * avgLoss);
-                return { grade: g, count, wr, avgR, expectancy, avgWin, avgLoss };
+                return { grade: g, count, wr, avgR, expectancy, avgWin, avgLoss, wins, losses,
+                    sumR: rVals.reduce((a, b) => a + b, 0), sumWinR: winR.reduce((a, b) => a + b, 0),
+                    sumLossR: lossR.reduce((a, b) => a + b, 0) };
             });
         }
 
@@ -15515,12 +15527,14 @@
 
         // ── Section 2: Alignment Analysis ──
         function computeAlignmentAnalysis() {
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed');
+            const combined = S.insightsMode === 'combined';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && (combined || !t.isPaper));
             const groups = ['Strong', 'Moderate', 'Conflict'];
             return groups.map(g => {
                 const trades = intra.filter(t => t.intraAlignment === g);
                 const count = trades.length;
-                if (count === 0) return { alignment: g, count, wr: 0, avgR: 0, expectancy: 0 };
+                if (count === 0) return { alignment: g, count, wr: 0, avgR: 0, expectancy: 0, wins: 0, losses: 0,
+                    sumR: 0, sumWinR: 0, sumLossR: 0 };
                 const wins = trades.filter(t => t.result === 'WIN').length;
                 const losses = trades.filter(t => t.result === 'LOSS').length;
                 const wr = count > 0 ? (wins / count * 100) : 0;
@@ -15533,7 +15547,9 @@
                 const winPct = count > 0 ? wins / count : 0;
                 const lossPct = count > 0 ? losses / count : 0;
                 const expectancy = (winPct * avgWin) + (lossPct * avgLoss);
-                return { alignment: g, count, wr, avgR, expectancy };
+                return { alignment: g, count, wr, avgR, expectancy, wins, losses,
+                    sumR: rVals.reduce((a, b) => a + b, 0), sumWinR: winR.reduce((a, b) => a + b, 0),
+                    sumLossR: lossR.reduce((a, b) => a + b, 0) };
             });
         }
 
@@ -15585,7 +15601,9 @@
 
         // ── Section 3: Context Analysis ──
         function computeContextAnalysis() {
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores);
+            const combined = S.insightsMode === 'combined';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined ||
+                !t.isPaper));
             const ranges = [
                 { min: 90, max: 100, label: '90–100' },
                 { min: 80, max: 89, label: '80–89' },
@@ -15598,7 +15616,8 @@
                     return s >= r.min && s <= r.max;
                 });
                 const count = trades.length;
-                if (count === 0) return { range: r.label, count, wr: 0, avgR: 0, expectancy: 0 };
+                if (count === 0) return { range: r.label, count, wr: 0, avgR: 0, expectancy: 0, wins: 0, losses: 0,
+                    sumR: 0, sumWinR: 0, sumLossR: 0 };
                 const wins = trades.filter(t => t.result === 'WIN').length;
                 const losses = trades.filter(t => t.result === 'LOSS').length;
                 const wr = count > 0 ? (wins / count * 100) : 0;
@@ -15611,7 +15630,9 @@
                 const winPct = count > 0 ? wins / count : 0;
                 const lossPct = count > 0 ? losses / count : 0;
                 const expectancy = (winPct * avgWin) + (lossPct * avgLoss);
-                return { range: r.label, count, wr, avgR, expectancy };
+                return { range: r.label, count, wr, avgR, expectancy, wins, losses,
+                    sumR: rVals.reduce((a, b) => a + b, 0), sumWinR: winR.reduce((a, b) => a + b, 0),
+                    sumLossR: lossR.reduce((a, b) => a + b, 0) };
             });
         }
 
@@ -15660,7 +15681,9 @@
 
         // ── Section 4: Setup Analysis ──
         function computeSetupAnalysis() {
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores);
+            const combined = S.insightsMode === 'combined';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined ||
+                !t.isPaper));
             const ranges = [
                 { min: 90, max: 100, label: '90–100' },
                 { min: 80, max: 89, label: '80–89' },
@@ -15673,7 +15696,8 @@
                     return s >= r.min && s <= r.max;
                 });
                 const count = trades.length;
-                if (count === 0) return { range: r.label, count, wr: 0, avgR: 0, expectancy: 0 };
+                if (count === 0) return { range: r.label, count, wr: 0, avgR: 0, expectancy: 0, wins: 0, losses: 0,
+                    sumR: 0, sumWinR: 0, sumLossR: 0 };
                 const wins = trades.filter(t => t.result === 'WIN').length;
                 const losses = trades.filter(t => t.result === 'LOSS').length;
                 const wr = count > 0 ? (wins / count * 100) : 0;
@@ -15686,7 +15710,9 @@
                 const winPct = count > 0 ? wins / count : 0;
                 const lossPct = count > 0 ? losses / count : 0;
                 const expectancy = (winPct * avgWin) + (lossPct * avgLoss);
-                return { range: r.label, count, wr, avgR, expectancy };
+                return { range: r.label, count, wr, avgR, expectancy, wins, losses,
+                    sumR: rVals.reduce((a, b) => a + b, 0), sumWinR: winR.reduce((a, b) => a + b, 0),
+                    sumLossR: lossR.reduce((a, b) => a + b, 0) };
             });
         }
 
@@ -15732,7 +15758,9 @@
 
         // ── Section 5: Execution Analysis ──
         function computeExecutionAnalysis() {
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores);
+            const combined = S.insightsMode === 'combined';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined ||
+                !t.isPaper));
             const ranges = [
                 { min: 90, max: 100, label: '90–100' },
                 { min: 80, max: 89, label: '80–89' },
@@ -15745,7 +15773,8 @@
                     return s >= r.min && s <= r.max;
                 });
                 const count = trades.length;
-                if (count === 0) return { range: r.label, count, wr: 0, avgR: 0, expectancy: 0 };
+                if (count === 0) return { range: r.label, count, wr: 0, avgR: 0, expectancy: 0, wins: 0, losses: 0,
+                    sumR: 0, sumWinR: 0, sumLossR: 0 };
                 const wins = trades.filter(t => t.result === 'WIN').length;
                 const losses = trades.filter(t => t.result === 'LOSS').length;
                 const wr = count > 0 ? (wins / count * 100) : 0;
@@ -15758,7 +15787,9 @@
                 const winPct = count > 0 ? wins / count : 0;
                 const lossPct = count > 0 ? losses / count : 0;
                 const expectancy = (winPct * avgWin) + (lossPct * avgLoss);
-                return { range: r.label, count, wr, avgR, expectancy };
+                return { range: r.label, count, wr, avgR, expectancy, wins, losses,
+                    sumR: rVals.reduce((a, b) => a + b, 0), sumWinR: winR.reduce((a, b) => a + b, 0),
+                    sumLossR: lossR.reduce((a, b) => a + b, 0) };
             });
         }
 
@@ -15803,7 +15834,9 @@
 
         // ── Section 6: Setup Component Analysis ──
         function computeSetupComponentAnalysis() {
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraExData);
+            const combined = S.insightsMode === 'combined';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraExData && (combined ||
+                !t.isPaper));
             const components = [
                 { id: 'lq', label: 'Liquidity Event', present: (t) => t.intraExData?.lq === true },
                 { id: 'disp', label: 'Displacement (Strong)', present: (t) => t.intraExData?.disp === 'Strong' },
@@ -15814,7 +15847,8 @@
             return components.map(c => {
                 const trades = intra.filter(t => c.present(t));
                 const count = trades.length;
-                if (count === 0) return { label: c.label, count, wr: 0, avgR: 0, expectancy: 0 };
+                if (count === 0) return { key: c.id, label: c.label, count, wr: 0, avgR: 0, expectancy: 0,
+                    wins: 0, losses: 0, sumR: 0, sumWinR: 0, sumLossR: 0 };
                 const wins = trades.filter(t => t.result === 'WIN').length;
                 const losses = trades.filter(t => t.result === 'LOSS').length;
                 const wr = count > 0 ? (wins / count * 100) : 0;
@@ -15827,7 +15861,9 @@
                 const winPct = count > 0 ? wins / count : 0;
                 const lossPct = count > 0 ? losses / count : 0;
                 const expectancy = (winPct * avgWin) + (lossPct * avgLoss);
-                return { label: c.label, count, wr, avgR, expectancy };
+                return { key: c.id, label: c.label, count, wr, avgR, expectancy, wins, losses,
+                    sumR: rVals.reduce((a, b) => a + b, 0), sumWinR: winR.reduce((a, b) => a + b, 0),
+                    sumLossR: lossR.reduce((a, b) => a + b, 0) };
             });
         }
 
