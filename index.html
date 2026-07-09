@@ -1897,6 +1897,25 @@
             color: var(--muted);
             border-color: var(--border);
         }
+        .badge-paper {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-family: var(--font-mono);
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: .5px;
+            background: #f3e5f5;
+            color: #7b1fa2;
+            border: 1.5px solid #ce93d8;
+            white-space: nowrap;
+        }
+        @keyframes combinedPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
         .tag-clickable {
             cursor: pointer;
             transition: opacity .15s;
@@ -4933,9 +4952,10 @@
                 <div class="shell">
                     <div id="installBannerWrap"></div>
 
-                    <div class="sec-head">
+                    <div class="sec-head" style="position:relative;">
                         <h2>DASHBOARD</h2>
                         <p>Process improvement system</p>
+                        <span id="combinedBanner" style="display:none;position:absolute;top:0;right:0;font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;padding:4px 9px;border-radius:10px;background:#f3e5f5;color:#7b1fa2;border:1.5px solid #ce93d8;animation:combinedPulse 1.4s ease-in-out infinite;">⚠ COMBINED VIEW</span>
                     </div>
 
                     <!-- Forex Heatmap Widget -->
@@ -5024,6 +5044,11 @@
                             <span class="qt-icon">🔬</span>
                             <div><div class="qt-label">DEEPER INSIGHTS</div><div class="qt-sub">Why did it happen?</div></div>
                         </button>
+                    </div>
+
+                    <div class="seg-btns" id="insightsModeBtns" style="max-width:220px;margin-bottom:12px;">
+                        <button class="seg-btn sel-bull" onclick="setInsightsMode('live',this)">LIVE</button>
+                        <button class="seg-btn" onclick="setInsightsMode('combined',this)">COMBINED</button>
                     </div>
 
                     <!-- Stats -->
@@ -5180,6 +5205,12 @@
                                     <div class="auto-field" id="ideaDirAuto">—</div>
                                 </div>
                             </div>
+                            <div class="field"><label>Trade Mode</label>
+                                <div class="seg-btns" id="ideaPaperBtns">
+                                    <button class="seg-btn sel-bull" onclick="setIdeaPaper(false,this)">LIVE</button>
+                                    <button class="seg-btn" onclick="setIdeaPaper(true,this)">📝 PAPER</button>
+                                </div>
+                            </div>
                             <div class="field"><label>Tags</label>
                                 <div class="tag-input-wrap" id="ideaTagWrap" onclick="document.getElementById('ideaTagInput').focus()">
                                     <input class="tag-input" id="ideaTagInput" placeholder="#weekly, #eurusd, press Enter…" onkeydown="handleTagKey(event,'idea')" onblur="harvestTags('idea')">
@@ -5218,6 +5249,9 @@
                         <h2>OPEN TRADES</h2>
                         <p>Ideas pending or in-progress</p>
                     </div>
+                    <label style="display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:9px;color:var(--muted);margin:0 0 10px;cursor:pointer;">
+                        <input type="checkbox" id="openShowPaper" checked onchange="renderOpen()"> Show Paper trades
+                    </label>
                     <div id="openContainer">
                         <div class="empty-state">No open trades yet.</div>
                     </div>
@@ -5359,6 +5393,12 @@
                                         <button class="seg-btn" onclick="setIntraType('SELL',this)">▼ SELL / SHORT</button>
                                     </div>
                                 </div>
+                                <div class="field"><label>Trade Mode</label>
+                                    <div class="seg-btns" id="intraPaperBtns">
+                                        <button class="seg-btn sel-bull" onclick="setIntraPaper(false,this)">LIVE</button>
+                                        <button class="seg-btn" onclick="setIntraPaper(true,this)">📝 PAPER</button>
+                                    </div>
+                                </div>
                                 <div class="field"><label>Tags</label>
                                     <div class="tag-input-wrap" id="intraTagWrap" onclick="document.getElementById('intraTagInput').focus()">
                                         <span class="tag tag-intraday">#intraday</span>
@@ -5410,6 +5450,9 @@
                         <select class="filter-sel" id="filterCloseTag" onchange="renderClosed()">
                             <option value="">All categories</option>
                         </select>
+                        <label style="display:flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:9px;color:var(--muted);cursor:pointer;">
+                            <input type="checkbox" id="closedShowPaper" checked onchange="renderClosed()"> Show Paper
+                        </label>
                     </div>
                     <div class="ct-wrap">
                         <table class="ct-table">
@@ -5428,9 +5471,14 @@
             <!-- ══ DEEPER INSIGHTS ══ -->
             <div class="page" id="page-insights">
                 <div class="shell">
-                    <div class="sec-head">
+                    <div class="sec-head" style="position:relative;">
                         <h2>🔬 DEEPER INSIGHTS</h2>
                         <p>Why did it happen? — Process analytics built from your trade data</p>
+                        <span id="combinedBannerPage" style="display:none;position:absolute;top:0;right:0;font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;padding:4px 9px;border-radius:10px;background:#f3e5f5;color:#7b1fa2;border:1.5px solid #ce93d8;animation:combinedPulse 1.4s ease-in-out infinite;">⚠ COMBINED VIEW</span>
+                    </div>
+                    <div class="seg-btns" id="insightsModeBtnsPage" style="max-width:220px;margin-bottom:14px;">
+                        <button class="seg-btn sel-bull" onclick="setInsightsMode('live',this)">LIVE</button>
+                        <button class="seg-btn" onclick="setInsightsMode('combined',this)">COMBINED</button>
                     </div>
 
                     <!-- Section 1: Opportunity Quality Analysis -->
@@ -6816,6 +6864,7 @@
         // STATE — EXTENDED
         // ════════════════════════════════════════════════════════════════════
         const S = {
+            insightsMode: 'live',
             answers: {},
             kills: {},
             killOpen: false,
@@ -7955,7 +8004,7 @@
 
         // ── TRADE <-> DB mapping ──
         const LIGHT_TRADE_COLS =
-            'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,tags,close_tags,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,intra_alignment,intra_decision,intra_kill,intra_ex_data,intra_scores,review_notes,review_screenshots';
+            'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,tags,close_tags,is_paper,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,intra_alignment,intra_decision,intra_kill,intra_ex_data,intra_scores,review_notes,review_screenshots';
 
         // Strip transient _displayUrl before any DB write — only the raw storage
         // path (dataUrl) should be persisted. _displayUrl is a 7-day signed URL
@@ -8000,6 +8049,7 @@
                 close_time: t.closeTime || null,
                 tags: t.tags || [],
                 close_tags: t.closeTags || [],
+                is_paper: !!t.isPaper,
                 trade_notes: t.tradeNotes || [],
                 checklist_answers: t.checklistAnswers || {},
                 checklist_kills: t.checklistKills || {},
@@ -8060,6 +8110,7 @@
                 closeTime: r.close_time,
                 tags: r.tags || [],
                 closeTags: r.close_tags || [],
+                isPaper: !!r.is_paper,
                 screenshots: r.screenshots || [],
                 eodScreenshots: r.eod_screenshots || [],
                 followupScreenshots: r.followup_screenshots || [],
@@ -8767,11 +8818,13 @@
         function getDashboardTotals() {
             const cs = S.cumulativeStats;
             const archivedThrough = cs?.archivedThrough || null;
+            const combined = S.insightsMode === 'combined';
 
             // Live trades (those not yet archived)
             const closed = S.trades.filter(t => {
                 if (t.status !== 'closed' || t.isIntraday) return false;
                 if (archivedThrough && t.closeTime && t.closeTime <= archivedThrough) return false;
+                if (!combined && t.isPaper) return false;
                 return true;
             });
 
@@ -8799,7 +8852,7 @@
                     totalBiasMatch: liveBM, totalBiasTotal: liveBT, sumR: liveSumR,
                     wins2r: liveWins2r, wins15r: liveWins15r, wins1r: liveWins1r,
                     be: liveBe, loss05: liveLoss05, loss1: liveLoss1, totalR: liveTotalR,
-                    openCount: S.trades.filter(t => t.status === 'open' && !t.isIntraday).length,
+                    openCount: S.trades.filter(t => t.status === 'open' && !t.isIntraday && (combined || !t.isPaper)).length,
                 };
             }
 
@@ -8826,7 +8879,7 @@
                 loss05:         archived.loss05         + liveLoss05,
                 loss1:          archived.loss1          + liveLoss1,
                 totalR:         archived.totalR         + liveTotalR,
-                openCount: S.trades.filter(t => t.status === 'open' && !t.isIntraday).length,
+                openCount: S.trades.filter(t => t.status === 'open' && !t.isIntraday && (combined || !t.isPaper)).length,
             };
         }
 
@@ -10416,6 +10469,12 @@
                 if (b.textContent.trim().includes('BUY') && S.intraType === 'BUY') b.classList.add('sel-bull');
                 if (b.textContent.trim().includes('SELL') && S.intraType === 'SELL') b.classList.add('sel-bear');
             });
+            S.intraPaper = !!t.isPaper;
+            document.getElementById('intraPaperBtns').querySelectorAll('.seg-btn').forEach(b => {
+                b.className = b.className.replace(/sel-\w+/g, '').trim();
+                if (b.textContent.trim().includes('LIVE') && !S.intraPaper) b.classList.add('sel-bull');
+                if (b.textContent.trim().includes('PAPER') && S.intraPaper) b.classList.add('sel-bear');
+            });
             S.intraTags = [...(t.tags || ['intraday'])];
             const wrap = document.getElementById('intraTagWrap');
             if (wrap) { wrap.querySelectorAll('.tag.rm').forEach(el => el.remove());
@@ -10678,6 +10737,7 @@
             S.intraSS = [];
             _pendingUploadTradeId = crypto.randomUUID();
             S.intraType = 'BUY';
+            S.intraPaper = false;
             S.intraTags = ['intraday'];
             S.intradayEditId = null;
             S.intradayMode = '';
@@ -10696,6 +10756,8 @@
             if (wrap) { wrap.querySelectorAll('.tag.rm').forEach(el => el.remove());
                 renderTagsInWrap('intraTagWrap', S.intraTags, 'intra'); }
             document.getElementById('intraTypeBtns').querySelectorAll('.seg-btn').forEach((b, i) => { b.className = b
+                    .className.replace(/sel-\w+/g, '').trim(); if (i === 0) b.classList.add('sel-bull'); });
+            document.getElementById('intraPaperBtns').querySelectorAll('.seg-btn').forEach((b, i) => { b.className = b
                     .className.replace(/sel-\w+/g, '').trim(); if (i === 0) b.classList.add('sel-bull'); });
             document.getElementById('intraFormTitle').textContent = 'NEW INTRADAY SETUP';
             const banner = document.getElementById('intraAlignmentBanner');
@@ -10755,6 +10817,7 @@
                     checklistKills: {},
                     tags: [...S.intraTags],
                     wbEntryId: null,
+                    isPaper: !!S.intraPaper,
                     intraAlignment: S.intraAlignment,
                     intraDecision: S.intraDecision,
                     intraKill: S.intraKill,
@@ -10775,6 +10838,11 @@
             trade.tpPrice = parseFloat(document.getElementById('intraTP').value) || null;
             trade.lotSize = parseFloat(document.getElementById('intraLot').value) || null;
             trade.tags = [...S.intraTags];
+            trade.isPaper = !!S.intraPaper;
+            if (trade.isPaper && weeklyLinkId) {
+                const parent = S.trades.find(x => idEq(x.id, weeklyLinkId));
+                if (parent && !parent.isPaper) { parent.isPaper = true; saveTrade(parent); }
+            }
             // Only append newly-uploaded screenshots when editing an existing trade.
             // For new trades the screenshots were already set in the object literal above (line 9031),
             // so appending again here would double them.
@@ -10893,11 +10961,43 @@
             if (ts) ts.textContent = n > 0 ? n + ' setup' + (n > 1 ? 's' : '') + ' open' : 'Log day-trade entry';
         }
 
+        function setInsightsMode(mode, el) {
+            S.insightsMode = mode;
+            ['insightsModeBtns', 'insightsModeBtnsPage'].forEach(id => {
+                const wrap = document.getElementById(id);
+                if (!wrap) return;
+                wrap.querySelectorAll('.seg-btn').forEach(b => {
+                    b.className = b.className.replace(/sel-\w+/g, '').trim();
+                    if (b.textContent.trim() === 'LIVE' && mode === 'live') b.classList.add('sel-bull');
+                    if (b.textContent.trim() === 'COMBINED' && mode === 'combined') b.classList.add('sel-bear');
+                });
+            });
+            const banner = document.getElementById('combinedBanner');
+            if (banner) banner.style.display = mode === 'combined' ? 'inline-block' : 'none';
+            const bannerPage = document.getElementById('combinedBannerPage');
+            if (bannerPage) bannerPage.style.display = mode === 'combined' ? 'inline-block' : 'none';
+            renderDashboard();
+        }
+
         function setIntraType(type, el) {
             S.intraType = type;
             document.getElementById('intraTypeBtns').querySelectorAll('.seg-btn').forEach(b => b.className = b.className
                 .replace(/sel-\w+/g, '').trim());
             el.classList.add(type === 'BUY' ? 'sel-bull' : 'sel-bear');
+        }
+
+        function setIntraPaper(isPaper, el) {
+            S.intraPaper = isPaper;
+            document.getElementById('intraPaperBtns').querySelectorAll('.seg-btn').forEach(b => b.className = b
+                .className.replace(/sel-\w+/g, '').trim());
+            el.classList.add(isPaper ? 'sel-bear' : 'sel-bull');
+        }
+
+        function setIdeaPaper(isPaper, el) {
+            S.ideaPaper = isPaper;
+            document.getElementById('ideaPaperBtns').querySelectorAll('.seg-btn').forEach(b => b.className = b
+                .className.replace(/sel-\w+/g, '').trim());
+            el.classList.add(isPaper ? 'sel-bear' : 'sel-bull');
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -11213,6 +11313,10 @@
             const vd = document.getElementById('ideaVerdict');
             if (vd) vd.style.display = 'none';
             setTradeType('BUY');
+            S.ideaPaper = false;
+            const ideaPaperBtns = document.getElementById('ideaPaperBtns');
+            if (ideaPaperBtns) ideaPaperBtns.querySelectorAll('.seg-btn').forEach((b, i) => { b.className = b.className
+                    .replace(/sel-\w+/g, '').trim(); if (i === 0) b.classList.add('sel-bull'); });
             updateScoreStrip();
             renderBiasCards();
             renderEntrySection();
@@ -11318,6 +11422,7 @@
                 checklistModel: S.ideaModel,
                 tags: [...S.ideaTags],
                 wbEntryId: wbEntryId,
+                isPaper: !!S.ideaPaper,
                 intraAlignment: null,
                 intraDecision: null,
                 intraKill: false,
@@ -11343,6 +11448,10 @@
             const vd = document.getElementById('ideaVerdict');
             if (vd) vd.style.display = 'none';
             setTradeType('BUY');
+            S.ideaPaper = false;
+            const ideaPaperBtns2 = document.getElementById('ideaPaperBtns');
+            if (ideaPaperBtns2) ideaPaperBtns2.querySelectorAll('.seg-btn').forEach((b, i) => { b.className = b
+                    .className.replace(/sel-\w+/g, '').trim(); if (i === 0) b.classList.add('sel-bull'); });
             const wbSel2 = document.getElementById('wbEntryDropdown');
             if (wbSel2) wbSel2.value = '';
             updateOpenBadge();
@@ -11372,6 +11481,12 @@
                     if (b.textContent.trim().includes('BUY') && S.intraType === 'BUY') b.classList.add('sel-bull');
                     if (b.textContent.trim().includes('SELL') && S.intraType === 'SELL') b.classList.add(
                     'sel-bear');
+                });
+                S.intraPaper = !!t.isPaper;
+                document.getElementById('intraPaperBtns').querySelectorAll('.seg-btn').forEach(b => {
+                    b.className = b.className.replace(/sel-\w+/g, '').trim();
+                    if (b.textContent.trim().includes('LIVE') && !S.intraPaper) b.classList.add('sel-bull');
+                    if (b.textContent.trim().includes('PAPER') && S.intraPaper) b.classList.add('sel-bear');
                 });
                 S.intraTags = [...(t.tags || ['intraday'])];
                 const wrap = document.getElementById('intraTagWrap');
@@ -11996,7 +12111,8 @@
 
 
         function renderOpen() {
-            const open = S.trades.filter(t => t.status === 'open' && !t.isIntraday);
+            const showPaper = document.getElementById('openShowPaper')?.checked !== false;
+            const open = S.trades.filter(t => t.status === 'open' && !t.isIntraday && (showPaper || !t.isPaper));
             const c = document.getElementById('openContainer');
             if (!c) return;
             updateOpenBadge();
@@ -12085,7 +12201,7 @@
                 return `<div class="otc" style="border-color:${borderColor}">
               <div class="otc-head" style="background:${headBg};border-bottom-color:${borderColor}">
                 <div style="flex:1;min-width:0;">
-                  <div class="otc-pair" style="color:${pairColor}">${t.pair} ${t.isIntraday?'<span style="font-size:9px;background:#283593;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle">INTRA</span>':''}</div>
+                  <div class="otc-pair" style="color:${pairColor}">${t.pair} ${t.isIntraday?'<span style="font-size:9px;background:#283593;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle">INTRA</span>':''} ${t.isPaper?'<span class="badge-paper">📝 PAPER</span>':''}</div>
                   <div class="otc-meta"><span>${t.date}</span><span class="time-badge">${new Date(t.openTime).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span></div>
                   <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${tagHtml}</div>
                 </div>
@@ -12518,7 +12634,9 @@
             const fr = document.getElementById('filterResult')?.value || '';
             const fg = document.getElementById('filterGrade')?.value || '';
             const ft = document.getElementById('filterCloseTag')?.value || '';
-            const closedAll = S.trades.filter(t => t.status === 'closed' && !t.isIntraday);
+            const showPaper = document.getElementById('closedShowPaper')?.checked !== false;
+            const closedAll = S.trades.filter(t => t.status === 'closed' && !t.isIntraday && (showPaper || !t
+                .isPaper));
             const tagSel = document.getElementById('filterCloseTag');
             if (tagSel) {
                 const allCloseTags = [...new Set(closedAll.flatMap(t => t.closeTags || []))].sort();
@@ -12552,7 +12670,7 @@
                 0);
                 return `<tr style="cursor:pointer" onclick="openTradeHistory('${t.id}')">
               <td style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">${t.date}</td>
-              <td style="font-family:var(--font-mono);font-weight:700">${t.pair}</td>
+              <td style="font-family:var(--font-mono);font-weight:700">${t.pair}${t.isPaper?' <span class="badge-paper">📝</span>':''}</td>
               <td><span class="pill pill-${gc}">${displayGrade}</span></td>
               <td><span class="pill pill-${rc}">${t.result||'—'}</span></td>
               <td style="font-family:var(--font-mono);font-weight:700;color:${rColor}">${rDisplay}</td>
@@ -12709,6 +12827,7 @@
               <span class="pill pill-${gc}">${deriveDisplayGrade(t)}${deriveDisplayScore(t)!==null?' · '+deriveDisplayScore(t).toFixed(1)+'/100':''}</span>
               <span class="pill pill-${rc}">${t.result||'—'}</span>
               <span style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:${rColor}">${rDisplay}</span>
+              ${t.isPaper?'<span class="badge-paper">📝 PAPER TRADE</span>':''}
               ${t.biasSet?`<span style="font-family:var(--font-mono);font-size:9px;padding:3px 8px;border-radius:3px;background:var(--cream);color:${biasColor};border:1px solid ${biasColor}">${biasArrow}${t.biasSet}</span>`:''}
               ${t.biasPlayed?`<span style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">Played: ${t.biasPlayed} <b style="color:${t.biasMatch==='YES'?'var(--bull)':'var(--bear)'}">(${t.biasMatch})</b></span>`:''}
             </div>
@@ -12723,6 +12842,7 @@
               <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:2px;color:#1b5e20;text-transform:uppercase;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border);">⚡ EXECUTION${intras.length>1?' '+(intraIdx+1):''} — INTRADAY SETUP</div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px;">
                 <span class="pill pill-${deriveDisplayGradeClass(intraItem)}">${deriveDisplayGrade(intraItem)}${deriveDisplayScore(intraItem)!==null?' · '+deriveDisplayScore(intraItem).toFixed(1)+'/100':''}</span>
+                ${intraItem.isPaper?'<span class="badge-paper">📝 PAPER</span>':''}
                 ${intraItem.biasSet?`<span style="font-family:var(--font-mono);font-size:9px;padding:2px 8px;border-radius:3px;background:var(--cream);color:${intraItem.biasSet==='BULLISH'?'var(--bull)':intraItem.biasSet==='BEARISH'?'var(--bear)':'var(--muted)'}">${intraItem.biasSet==='BULLISH'?'▲ ':intraItem.biasSet==='BEARISH'?'▼ ':''}${intraItem.biasSet}</span>`:''}
                 ${intraItem.intraDecision?`<span class="pill ${intraItem.intraDecision==='EXECUTE'?'pill-execute':intraItem.intraDecision==='WAIT'?'pill-wait':'pill-notrade'}">${intraItem.intraDecision}</span>`:''}
               </div>
@@ -13095,7 +13215,9 @@
             const list = document.getElementById('opportunityDistList');
             const totalEl = document.getElementById('odTotalTrades');
             if (!list) return;
-            const closed = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores);
+            const combined = S.insightsMode === 'combined';
+            const closed = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined ||
+                !t.isPaper));
             const total = closed.length;
             if (totalEl) totalEl.textContent = total + ' trade' + (total !== 1 ? 's' : '');
             const grades = ['A+', 'A', 'B', 'Invalid'];
@@ -13133,8 +13255,10 @@
         function renderAdditionalInsights() {
             const grid = document.getElementById('additionalInsightsGrid');
             if (!grid) return;
-            const closed = S.trades.filter(t => t.status === 'closed' && !t.isIntraday);
-            const intraClosed = S.trades.filter(t => t.isIntraday && t.status === 'closed');
+            const combined = S.insightsMode === 'combined';
+            const closed = S.trades.filter(t => t.status === 'closed' && !t.isIntraday && (combined || !t.isPaper));
+            const intraClosed = S.trades.filter(t => t.isIntraday && t.status === 'closed' && (combined || !t
+                .isPaper));
             const snapAI = S.insightSnapshot?.additionalInsights || {};
 
             // ── Best session ──
@@ -13270,7 +13394,8 @@
             // Use getDashboardTotals() so stat boxes always show all-time cumulative
             // figures even after archival removes old trades from S.trades.
             const totals = getDashboardTotals();
-            const open = S.trades.filter(t => t.status === 'open' && !t.isIntraday);
+            const combinedMode = S.insightsMode === 'combined';
+            const open = S.trades.filter(t => t.status === 'open' && !t.isIntraday && (combinedMode || !t.isPaper));
 
             const wins    = totals.totalWins;
             const losses  = totals.totalLosses;
@@ -14771,7 +14896,7 @@
                     'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,' +
                     'bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,' +
                     'followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,' +
-                    'tags,close_tags,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,' +
+                    'tags,close_tags,is_paper,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,' +
                     'intra_alignment,intra_decision,intra_kill,intra_ex_data,intra_scores,review_notes,review_screenshots'
                 ).eq('user_id', _currentUser.id).order('created_at', { ascending: false }),
                 _sb.from('weeklies').select('*').eq('user_id', _currentUser.id).order('created_at', { ascending: false }),
