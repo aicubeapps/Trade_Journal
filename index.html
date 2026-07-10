@@ -1312,7 +1312,7 @@
             font-weight: 700;
             letter-spacing: 2px;
             text-transform: uppercase;
-            color: #8a8070;
+            color: rgba(255, 255, 255, .9);
         }
         .wb-dash-header .wb-dash-badge {
             font-family: var(--font-mono);
@@ -1320,8 +1320,8 @@
             font-weight: 700;
             padding: 3px 10px;
             border-radius: 20px;
-            background: rgba(255, 255, 255, .08);
-            color: #8a8070;
+            background: rgba(255, 255, 255, .12);
+            color: rgba(255, 255, 255, .9);
             letter-spacing: 1px;
         }
 
@@ -6352,6 +6352,21 @@
         </div>
     </div>
 
+    <!-- ══ CHECKLIST VIEWER MODAL (read-only) ══ -->
+    <div class="modal-overlay" id="checklistViewModal">
+        <div class="modal" style="max-height:92vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
+            <div class="modal-head" style="flex-shrink:0;">
+                <h3 id="checklistViewTitle" style="font-size:13px">CHECKLIST</h3>
+                <button class="modal-close" onclick="document.getElementById('checklistViewModal').classList.remove('open')">✕</button>
+            </div>
+            <div id="checklistViewBody" style="overflow-y:auto;flex:1;padding:14px;"></div>
+            <div class="modal-footer" style="flex-shrink:0;padding:8px 14px;">
+                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);flex:1;">🔒 Read-only — frozen record from when this trade was graded</span>
+                <button class="btn-ghost" onclick="document.getElementById('checklistViewModal').classList.remove('open')">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ══ WEEKLY REVIEW MODAL ══ -->
     <div class="modal-overlay" id="weeklyReviewModal">
         <div class="modal" style="max-width:720px;max-height:96vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
@@ -10238,14 +10253,14 @@
                 </div>`).join('')}
               </div>` : '';
 
-                const linkedIntra = S.trades.filter(t => t.isIntraday && idEq(t.weeklyLinkId, w.id));
-                const intraHtml = linkedIntra.length > 0 ?
+                const linkedDaily = S.trades.filter(d => !d.isIntraday && idEq(d.wbEntryId, w.id));
+                const intraHtml = linkedDaily.length > 0 ?
                     `<div class="wb-intraday-list">
-                <div class="wb-intraday-label">⚡ LINKED INTRADAY IDEAS (${linkedIntra.length})</div>
-                ${linkedIntra.map(t => `<div class="wb-intraday-item" onclick="navTo('open')">
-                  <div class="wb-intraday-pair">${t.pair}</div>
-                  <div style="flex:1;font-size:11px;color:var(--muted)">${t.date} · ${t.session||''}</div>
-                  <span class="pill pill-${t.result==='WIN'?'win':t.result==='LOSS'?'loss':t.status==='open'?'open':'skip'}">${t.status==='open'?'OPEN':t.result||'—'}</span>
+                <div class="wb-intraday-label">📋 LINKED DAILY BIAS (${linkedDaily.length})</div>
+                ${linkedDaily.map(d => `<div class="wb-intraday-item" onclick="${d.status==='closed'?`openTradeHistory('${d.id}')`:`openChecklistEdit('${d.id}')`}">
+                  <div class="wb-intraday-pair">${d.pair}</div>
+                  <div style="flex:1;font-size:11px;color:var(--muted)">${d.date} · ${d.session||''}</div>
+                  <span class="pill pill-${d.result==='WIN'?'win':d.result==='LOSS'?'loss':d.status==='open'?'open':'skip'}">${d.status==='open'?'OPEN':d.result||'—'}</span>
                 </div>`).join('')}
               </div>` : '';
 
@@ -11476,6 +11491,39 @@
             setTimeout(() => { navTo('home'); }, 600);
         }
 
+        // Read-only checklist viewer -- shows the frozen Q&A record for a closed
+        // Daily Bias trade without any save action, protecting historical grading
+        // data from being silently altered after the trade was closed.
+        function openChecklistView(id) {
+            const t = S.trades.find(t => idEq(t.id, id));
+            if (!t || t.isIntraday) return;
+            const model = t.checklistModel || 'omar';
+            const cards = model === 'ttrades' ? BIAS_CARDS_TTRADES : BIAS_CARDS_OMAR;
+            const answers = t.checklistAnswers || {};
+            const kills = t.checklistKills || {};
+            let html = '';
+            cards.forEach(card => {
+                html += `<div style="margin-bottom:16px;">
+              <div class="mono-label" style="margin-bottom:8px;">${card.num ? card.num + '. ' : ''}${card.title}</div>
+              ${card.questions.map(q => {
+                    const ans = answers[q.id];
+                    return `<div style="margin-bottom:8px;padding:8px 10px;background:var(--cream);border-radius:4px;">
+                  <div style="font-size:11px;color:var(--muted);margin-bottom:3px;">${q.label}</div>
+                  <div style="font-size:13px;font-weight:600;color:${ans?'var(--ink)':'var(--muted)'};">${ans?ans.label:'— Not answered —'}</div>
+                </div>`;
+                }).join('')}
+              ${(card.kills||[]).length ? card.kills.map(k => {
+                    const checked = !!kills[k.id];
+                    return `<div style="font-size:11px;color:${checked?'var(--bear)':'var(--muted)'};margin-bottom:4px;">${checked?'☒':'☐'} ${k.text}</div>`;
+                }).join('') : ''}
+            </div>`;
+            });
+            document.getElementById('checklistViewTitle').textContent =
+                `${t.pair} · ${t.date} — Checklist (${model === 'ttrades' ? 'TTrades' : 'Omar'})`;
+            document.getElementById('checklistViewBody').innerHTML = html || '<div class="empty-state">No checklist data recorded for this trade.</div>';
+            document.getElementById('checklistViewModal').classList.add('open');
+        }
+
         function openChecklistEdit(id) {
             const t = S.trades.find(t => idEq(t.id, id));
             if (!t) return;
@@ -12232,7 +12280,7 @@
                 </div>
               </div>
               <div class="otc-body">
-                ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
+                ${t.ideaNotes?`<div class="rte-body" style="min-height:auto;font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
                 ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:var(--font-mono);font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(t.updateNotes)}</div>`:''}
                 ${(t.tradeNotes&&t.tradeNotes.length>0)?`<div id="trade-notes-${t.id}" style="margin-bottom:10px;border-top:1px solid var(--cream);padding-top:8px"><div class="mono-label-blue">NOTES TIMELINE</div>${[...t.tradeNotes].reverse().map(n=>`<div style="margin-bottom:6px;padding:7px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da"><div class="mono-ts">${formatTsWithNY(n.at)}</div><div style="font-size:12px;line-height:1.6">${rteDisplay(n.text)||''}</div>${(n.screenshots&&n.screenshots.length>0)?`<span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);cursor:pointer;text-decoration:underline" onclick="toggleNoteScreenshots(this,n)">📷 ${n.screenshots.length} screenshot${n.screenshots.length>1?'s':''} — tap to load</span><div class="note-ss-lazy"></div>`:''}</div>`).join('')}</div>`:''}
                 <div class="otc-prices" style="grid-template-columns:repeat(2,1fr)">
@@ -12262,7 +12310,7 @@
                         <span class="intra-sub-toggle" id="intra-tog-${it.id}">▼ EXPAND</span>
                       </div>
                       <div class="intra-sub-body" id="intra-body-${it.id}">
-                        ${it.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(it.ideaNotes)}</div>`:''}
+                        ${it.ideaNotes?`<div class="rte-body" style="min-height:auto;font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(it.ideaNotes)}</div>`:''}
                         ${it.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:8px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:var(--font-mono);font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(it.updateNotes)}</div>`:''}
                         ${(it.tradeNotes&&it.tradeNotes.length>0)?`<div style="margin-bottom:8px;border-top:1px solid #c5cae9;padding-top:6px"><div class="mono-label-blue">NOTES TIMELINE</div>${[...it.tradeNotes].reverse().map(n=>`<div style="margin-bottom:5px;padding:6px 8px;background:#f0f2ff;border-radius:4px;border-left:3px solid #9fa8da"><div class="mono-ts">${formatTsWithNY(n.at)}</div><div style="font-size:12px;line-height:1.5">${rteDisplay(n.text)||''}</div></div>`).join('')}</div>`:''}
                         <div class="intra-sub-prices">
@@ -12764,7 +12812,7 @@
                 if (!html) return '';
                 return `<div style="margin-bottom:10px">
               <div style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1.5px;color:${color};text-transform:uppercase;margin-bottom:4px">${label}</div>
-              <div style="font-size:12px;line-height:1.6;padding:8px 10px;background:var(--cream);border-radius:4px;border-left:3px solid ${color}">${rteDisplay(html)}</div>
+              <div class="rte-body" style="min-height:auto;font-size:12px;line-height:1.6;padding:8px 10px;background:var(--cream);border-radius:4px;border-left:3px solid ${color}">${rteDisplay(html)}</div>
             </div>`;
             }
 
@@ -12847,8 +12895,10 @@
               <span style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:${rColor}">${rDisplay}</span>
               ${t.isPaper?'<span class="badge-paper">📝 PAPER TRADE</span>':''}
               ${t.isIntraday&&!t.weeklyLinkId?'<span class="badge-scalp">⚡ SCALP TRADE</span>':''}
+              ${!t.isIntraday?`<span class="otc-intel-model-badge ${(t.checklistModel||'omar')==='ttrades'?'otc-intel-model-tt':'otc-intel-model-omar'}">${(t.checklistModel||'omar')==='ttrades'?'TTrades':'Omar'}</span>`:''}
               ${t.biasSet?`<span style="font-family:var(--font-mono);font-size:9px;padding:3px 8px;border-radius:3px;background:var(--cream);color:${biasColor};border:1px solid ${biasColor}">${biasArrow}${t.biasSet}</span>`:''}
               ${t.biasPlayed?`<span style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">Played: ${t.biasPlayed} <b style="color:${t.biasMatch==='YES'?'var(--bull)':'var(--bear)'}">(${t.biasMatch})</b></span>`:''}
+              ${!t.isIntraday?`<span style="font-family:var(--font-mono);font-size:9px;color:#3949ab;text-decoration:underline;cursor:pointer;margin-left:auto;" onclick="openChecklistView('${t.id}')">📋 View Checklist</span>`:''}
             </div>
             ${scorePanelHtml}
             <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:2px;color:var(--ink);text-transform:uppercase;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border);">📋 PLAN — PRE-MARKET IDEA</div>
