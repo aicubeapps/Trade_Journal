@@ -5934,12 +5934,8 @@
                     <div class="field"><label>Close Price</label><input type="number" step="any" id="cmClose" placeholder="0.00000" oninput="updateCmAutoResult()"></div>
                     <div class="field"><label>Stop Loss</label><input type="number" step="any" id="cmSL" placeholder="0.00000" oninput="updateCmAutoResult()"></div>
                 </div>
-                <div class="field"><label>Bias Played Out</label>
-                    <div class="seg-btns" id="cmBiasBtns">
-                        <button class="seg-btn" onclick="cmSeg(this,'biasPlayed','BULLISH','sel-bull')">▲ BULL</button>
-                        <button class="seg-btn" onclick="cmSeg(this,'biasPlayed','BEARISH','sel-bear')">▼ BEAR</button>
-                        <button class="seg-btn" onclick="cmSeg(this,'biasPlayed','NEUTRAL','sel-skip')">— NEUT</button>
-                    </div>
+                <div class="field"><label>Bias Played Out <span style="font-size:7px;color:var(--muted);font-weight:400;">(auto, from trade direction)</span></label>
+                    <div id="cmBiasPlayedAuto" style="font-family:var(--font-mono);font-size:13px;font-weight:700;padding:6px 8px;background:var(--cream);border-radius:4px;">—</div>
                 </div>
                 <div class="field-row">
                     <div class="field"><label>TP 1R Hit</label>
@@ -6492,17 +6488,10 @@
                     Loading trades for this week…
                 </div>
                 <div style="margin-top:8px;">
-                    <div class="field"><label>Bias alignment with actual trades</label>
-                        <select id="wrBiasAlignment" onchange="computeProcessAdherenceDisplay()">
-                            <option value="">— Select —</option>
-                            <option value="Yes">Yes — traded the bias</option>
-                            <option value="Mostly">Mostly — mostly traded the bias</option>
-                            <option value="No">No — traded against the bias</option>
-                        </select>
-                    </div>
+                    <div class="mono-label">Bias alignment with actual trades <span style="font-size:7px;color:var(--muted);font-weight:400;">(auto-computed from trades taken)</span></div>
                 </div>
                 <div id="wrProcessAdherenceDisplay" style="padding:6px 10px;background:var(--cream);border-radius:4px;font-size:12px;line-height:1.6;margin-top:4px;min-height:32px;">
-                    Select bias alignment above.
+                    Select dominant directional outcome above.
                 </div>
                 <hr class="review-divider">
                 <div class="review-section-title gold">8. WEEKLY LESSONS</div>
@@ -9784,6 +9773,23 @@
                 explanation: 'The environment quality validation is within a reasonable margin.' };
         }
 
+        // Auto-computes bias alignment ('Yes'/'Mostly'/'No'/null) by comparing each
+        // pair-scoped trade's biasPlayed against the week's realized dominant direction.
+        function computeAutoAlignment(weekTrades, dominantOutcome) {
+            const dirMap = {
+                'Strong Bullish': 'BULLISH', 'Mild Bullish': 'BULLISH',
+                'Strong Bearish': 'BEARISH', 'Mild Bearish': 'BEARISH',
+            };
+            const dominantDir = dirMap[dominantOutcome] || null;
+            const closed = weekTrades.filter(t => t.status === 'closed' && !t.isIntraday && t.biasPlayed);
+            if (!dominantDir) return { alignment: null, reason: 'no-direction', count: closed.length };
+            if (closed.length === 0) return { alignment: null, reason: 'no-trades', count: 0 };
+            const aligned = closed.filter(t => t.biasPlayed === dominantDir).length;
+            const pct = aligned / closed.length;
+            const alignment = pct >= 0.7 ? 'Yes' : pct <= 0.3 ? 'No' : 'Mostly';
+            return { alignment, reason: 'computed', count: closed.length, aligned, pct };
+        }
+
         function computeProcessAdherence(alignment) {
             if (!alignment) return { score: '—', label: 'Select bias alignment above.' };
             const map = {
@@ -9870,10 +9876,10 @@
             </div>
           `;
 
-            S.wrData.predictedEnv = envLabel;
+            S.wrData.predictedEnv = result?.envData?.env || '';
             S.wrData.predictedDOL = dolLabel;
             S.wrData.predictedPhase = phaseLabel;
-            S.wrData.predictedEnvQuality = envLabel;
+            S.wrData.predictedEnvQuality = result?.envData?.env || '';
 
             document.getElementById('wrPredictedDOL').textContent = dolDisplay || '—';
             document.getElementById('wrPredictedPhase').textContent = phaseDisplay || '—';
@@ -9890,7 +9896,6 @@
                 ['wrLiquidityReached',  r?.liquidityReached    || ''],
                 ['wrPhaseEvolved',      r?.phaseEvolved        || ''],
                 ['wrOpportunityQuality',r?.opportunityQuality  || ''],
-                ['wrBiasAlignment',     r?.biasAlignment       || ''],
                 ['wrLessonWorked',      r?.lessons?.worked     || ''],
                 ['wrLessonFailed',      r?.lessons?.failed     || ''],
                 ['wrLessonSurprised',   r?.lessons?.surprised  || ''],
@@ -9947,7 +9952,7 @@
             setTimeout(() => {
                 // Skip live trade recalc for closed weeklies — stats already displayed from saved review
                 if (isClosed) return;
-                const weekTrades = getWeekTrades(w.date);
+                const weekTrades = getWeekTrades(w.date).filter(t => t.pair === w.pair);
                 const stats = computePerformanceStats(weekTrades);
                 const winRateDisplay = stats.count > 0 ? stats.winRate.toFixed(1) + '%' : '—';
                 const netRDisplay = stats.count > 0 ? (stats.netR >= 0 ? '+' : '') + stats.netR.toFixed(2) + 'R' :
@@ -10039,14 +10044,33 @@
         }
 
         function computeProcessAdherenceDisplay() {
-            const alignment = document.getElementById('wrBiasAlignment').value;
-            const result = computeProcessAdherence(alignment);
+            const w = S.weeklies.find(w => idEq(w.id, S.wrEditId));
+            const dominantOutcome = document.getElementById('wrDominantOutcome').value;
+            const weekTrades = w ? getWeekTrades(w.date).filter(t => t.pair === w.pair) : [];
+            const auto = computeAutoAlignment(weekTrades, dominantOutcome);
+            S.wrData.autoAlignment = auto.alignment;
+
+            if (auto.reason === 'no-direction') {
+                document.getElementById('wrProcessAdherenceDisplay').innerHTML =
+                    `<span style="font-size:11px;color:var(--muted);">— No clear direction that week — alignment isn't a meaningful comparison.</span>`;
+                S.wrData.processAdherence = { score: '—', label: 'No clear direction that week.' };
+                updateReviewDashboard();
+                return;
+            }
+            if (auto.reason === 'no-trades') {
+                document.getElementById('wrProcessAdherenceDisplay').innerHTML =
+                    `<span style="font-size:11px;color:var(--muted);">— No trades taken this week for this pair.</span>`;
+                S.wrData.processAdherence = { score: '—', label: 'No trades taken.' };
+                updateReviewDashboard();
+                return;
+            }
+            const result = computeProcessAdherence(auto.alignment);
             const badgeClass = result.score === 'Excellent' ? 'excellent' : result.score === 'Good' ? 'good' : result.score ===
                 'Fair' ? 'fair' : result.score === 'Poor' ? 'poor' : '';
             document.getElementById('wrProcessAdherenceDisplay').innerHTML = `
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
               <span class="review-auto-badge ${badgeClass}">${result.score}</span>
-              <span style="font-size:11px;color:var(--muted);">${result.label}</span>
+              <span style="font-size:11px;color:var(--muted);">${result.label} (${auto.aligned}/${auto.count} trades aligned)</span>
             </div>
           `;
             S.wrData.processAdherence = result;
@@ -10093,14 +10117,13 @@
             const liquidityReached = document.getElementById('wrLiquidityReached').value;
             const phaseEvolved = document.getElementById('wrPhaseEvolved').value;
             const opportunityQuality = document.getElementById('wrOpportunityQuality').value;
-            const biasAlignment = document.getElementById('wrBiasAlignment').value;
+            const biasAlignment = S.wrData.autoAlignment || '';
             const lessonWorked = document.getElementById('wrLessonWorked').value;
             const lessonFailed = document.getElementById('wrLessonFailed').value;
             const lessonSurprised = document.getElementById('wrLessonSurprised').value;
             const lessonFocus = document.getElementById('wrLessonFocus').value;
 
-            if (!actualEnv || !dominantOutcome || !structureOutcome || !liquidityReached || !phaseEvolved || !opportunityQuality ||
-                !biasAlignment) {
+            if (!actualEnv || !dominantOutcome || !structureOutcome || !liquidityReached || !phaseEvolved || !opportunityQuality) {
                 alert('Please complete all required dropdowns before saving the review.');
                 return;
             }
@@ -10157,7 +10180,7 @@
                 }
                 // Re-enable fields so they are usable next time modal opens for a new review
                 ['wrActualEnv','wrDominantOutcome','wrStructureOutcome','wrLiquidityReached',
-                 'wrPhaseEvolved','wrOpportunityQuality','wrBiasAlignment','wrLessonWorked',
+                 'wrPhaseEvolved','wrOpportunityQuality','wrLessonWorked',
                  'wrLessonFailed','wrLessonSurprised','wrLessonFocus'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) { el.disabled = false; el.style.opacity = ''; el.style.cursor = ''; }
@@ -12394,10 +12417,17 @@
             S.cmTradeType = srcTrade.tradeType || t.tradeType || 'BUY';
             rteSet('cmNotes', '');
             document.getElementById('cmSsGrid').innerHTML = '';
-            ['cmResultBtns', 'cmBiasBtns'].forEach(id =>
+            ['cmResultBtns'].forEach(id =>
                 document.getElementById(id).querySelectorAll('.seg-btn').forEach(b => b.className = b.className.replace(
                     /sel-\w+/g, '').trim())
             );
+            const autoPlayed = S.cmTradeType === 'SELL' ? 'BEARISH' : 'BULLISH';
+            const autoPlayedEl = document.getElementById('cmBiasPlayedAuto');
+            if (autoPlayedEl) {
+                autoPlayedEl.textContent = (autoPlayed === 'BULLISH' ? '▲ ' : '▼ ') + autoPlayed;
+                autoPlayedEl.style.color = autoPlayed === 'BULLISH' ? 'var(--bull)' : 'var(--bear)';
+            }
+            S.cmData.biasPlayed = autoPlayed;
             document.getElementById('closeModal').classList.add('open');
             setTimeout(() => updateCmAutoResult(), 50);
         }
@@ -12456,7 +12486,6 @@
         }
 
         async function saveClosure() {
-            if (!S.cmData.biasPlayed) { alert('Select bias that played out.'); return; }
             if (S.cmSS.some(ss => ss._uploading)) { showToast('Screenshot still uploading — please wait', 'warn'); return; }
             const t = S.trades.find(t => idEq(t.id, S.cmEditId));
             if (!t) return;
@@ -12465,6 +12494,9 @@
             const slVal = parseFloat(document.getElementById('cmSL').value) || t.slPrice;
             // Use S.cmTradeType — set in openCloseModal to account for linked intraday direction
             const effectiveTradeType = S.cmTradeType || t.tradeType || 'BUY';
+            // Bias Played Out is auto-derived from the trade's own executed direction —
+            // a BUY is inherently a bullish position taken, a SELL inherently bearish.
+            S.cmData.biasPlayed = effectiveTradeType === 'SELL' ? 'BEARISH' : 'BULLISH';
             let result = S.cmData.result;
             if (result !== 'SKIP' && entryVal && closeVal && slVal) {
                 const isSell = (effectiveTradeType === 'SELL');
