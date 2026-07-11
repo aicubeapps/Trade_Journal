@@ -15209,6 +15209,23 @@
                 }
             }
 
+            // Failsafe: disable run button if any trade is currently open
+            if (runBtn && reasonEl && _currentUser) {
+                try {
+                    const { count: openCount } = await _sb.from('trades')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('user_id', _currentUser.id)
+                        .eq('status', 'open');
+                    if (openCount > 0) {
+                        runBtn.disabled = true;
+                        runBtn.style.opacity = '0.4';
+                        runBtn.style.cursor = 'not-allowed';
+                        reasonEl.textContent = `Archive blocked — ${openCount} trade${openCount !== 1 ? 's are' : ' is'} still open. Close all open trades first.`;
+                        reasonEl.style.display = '';
+                    }
+                } catch (e) { /* non-blocking — the hard check in runArchive() still protects the actual run */ }
+            }
+
             // Storage quota (async, non-blocking)
             const storageBarEl = document.getElementById('archiveStorageBar');
             const storageTextEl = document.getElementById('archiveStorageText');
@@ -15263,6 +15280,23 @@
             let stats = {};
 
             try {
+                // ── FAILSAFE: refuse to archive if any trade is currently open ──
+                // Archiving is a destructive operation (deletes DB rows + storage files).
+                // Workflow assumes no trade stays open past Friday, but this check protects
+                // against that assumption ever silently breaking.
+                _arcStatus('Checking for open trades…');
+                const { count: openCount, error: openErr } = await _sb.from('trades')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('user_id', _currentUser.id)
+                    .eq('status', 'open');
+                if (openErr) throw new Error('Open-trade check failed: ' + openErr.message);
+                if (openCount > 0) {
+                    _arcShowError(`Archive blocked — ${openCount} trade${openCount !== 1 ? 's are' : ' is'} still open. Close or resolve all open trades before archiving.`);
+                    if (cancelBtn) cancelBtn.textContent = 'CLOSE';
+                    return;
+                }
+                _arcStatus('');
+
                 // ── STEP 1: Write archive_log ──
                 _arcSetStep(1, 'active');
                 _arcStatus('Writing archive log…');
