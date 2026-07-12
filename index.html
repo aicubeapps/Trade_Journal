@@ -1,101 +1,39 @@
 <!-- 
     Trade Journal
-    Version: v1.5.3
-    Released: 2026-06-29
+    Version: v5
+    Released: 2026-07-12 21:33 UTC
+    Build: ONLINE (Cloudflare Pages)
 
-    UI — Server sync status chip
-    - Replaced old DB dot + LIVE label with a tap-to-expand sync chip in topbar
-    - Chip shows coloured pulsing dot: green (live), amber (syncing), red (error)
-    - Tapping chip opens popover with 3 fields:
-        SERVER UPDATED — last_modified timestamp from sync_meta (date · time)
-        LAST PUSH FROM — "This device" if last_device matches DEVICE_ID, else "Other device · <shortId>"
-        THIS DEVICE — "✓ Up to date" / "⚠ Behind server" / "✕ Sync error"
-    - S.serverLastMod and S.serverLastDevice populated from sync_meta on every loadAllData
-    - sync_meta query expanded to include last_device (was select('last_modified') only)
-    - Popover closes on outside click; content refreshed each open
-    - Legacy dbDotTopbar / dbLabelTopbar elements removed from DOM; setSyncStatus kept compatible
-    - Removed "Synced 29 Jun · 13:49" from PERFORMANCE OVERVIEW header (perfSyncStatus hidden)
-    - Font size bump: topbar h1 13→14px, nav label 10→11px, nav icon 16→18px,
-      qt-label 10→11px, qt-sub 11→12px, nav-item base 13→14px
-    - Nav panel: new deep-navy colour scheme (#0f172a base) replacing old dark-sepia
-    - Per-item bright accent colours: sky-blue (Dashboard), indigo (Weekly), orange (Daily),
-      green (Intraday), amber (Open), slate (Closed), cyan (Insights), pink (Notes),
-      violet (News), emerald (Settings)
-    - Topbar: matches nav navy with sky-blue accent bottom border and #38bdf8 subtitle
-    - Topbar DB/sync button colours updated to slate palette
-    - Fixed note edit/delete: UUIDs in onclick attrs were unquoted, causing JS syntax errors
-    - Fixed note/rules sync: silent console.warn errors now surface as toast notifications
-    - Fixed notes not editable: edit modal now opens correctly with content pre-populated
-    - Fixed core rules localStorage key: now user-scoped (ict_core_rules_{userId}) to prevent
-      cross-user contamination; falls back to legacy key for migration on first login
-    - Added _currentUser guard to saveNoteToDb (graceful degradation if called pre-auth)
+    v5 — Online/Offline sync merge. Both builds now share identical business logic;
+    only the local-replica/File-System-Access layer differs (offline only).
 
-    Phase 5 — Settings Page Archive UI
-    - Replaced DEV archive trigger with production ARCHIVE MANAGEMENT section in Settings
-    - Storage quota display: lists bucket files per user, sums sizes, renders progress bar with colour coding (green/amber/red)
-    - getStorageQuota() lists userId/ subfolders then files within each (capped at 20 subfolders; shows "estimated" if capped)
-    - Archive history table: last 5 archive_log runs showing date, trade+weekly counts, zip size, status (✓/…/✕)
-    - renderArchiveHistory() queries archive_log, renders inline grid rows
-    - RUN QUARTERLY ARCHIVE button: production style (ink/paper); disabled with reason text if last archive < 30 days ago
-    - Quarterly reminder banner: shown during last 3 days of every 3rd month from lastArchived; dismissible per session
-    - showArchiveReminderBanner() checks archive_log for last completed run, computes 3-month due date, compares to today
-    - dismissArchiveBanner() sets session flag _archiveBannerDismissed to suppress re-show on page revisit
-    - populateArchiveInfo() extended to call getStorageQuota, renderArchiveHistory, showArchiveReminderBanner
-    - All existing IDs (archiveLastRunDisplay, archiveCutoffDisplay) preserved — populateArchiveInfo wiring unchanged
-
-    Phase 4 — Archival System
-    - New Supabase table: archive_log tracks each archive run (started_at, completed_at, status, stats)
-    - getArchiveCutoffDate() returns first day of next calendar month as cutoff
-    - runArchive() 11-step orchestrator: collect → download screenshots → zip → confirm → delete → finalise
-    - collectArchiveData() fetches full trade + weekly rows for all closed data before cutoff
-    - collectAllScreenshotUrls() extracts storage paths from all screenshot fields across trades/weeklies
-    - downloadAllScreenshotBlobs() batch-downloads all screenshot blobs before zipping
-    - buildArchiveZip() assembles JSZip with data/trades.json, data/weeklies.json, screenshots/{tradeId}/
-    - Legacy base64 screenshots embedded directly into zip alongside storage-backed ones
-    - computeArchiveChecksum() reports file count + total uncompressed bytes
-    - triggerZipDownload() forces browser download then awaits user checkbox confirmation
-    - Point-of-no-return gate: cancel disabled after zip download triggered
-    - runArchiveDestructive(): deletes Storage bucket screenshots then full DB row delete
-    - finaliseArchive(): reloads live data, recomputes insight_snapshots, stamps archivedThrough on cumulative_stats
-    - checkPriorIncompleteArchive() warns on login if a prior archive is in_progress
-    - populateArchiveInfo() shows last archive date and cutoff in Settings
-    - Dev trigger: RUN QUARTERLY ARCHIVE button in Settings (dashed border, gold, [DEV] label)
-    - JSZip 3.10.1 added as CDN dependency
-    - New Supabase table: cumulative_stats stores raw aggregates per user
-    - loadCumulativeStats() fetches on login into S.cumulativeStats
-    - saveCumulativeStats() fires on every closed trade save (fire and forget)
-    - getDashboardTotals() returns merged live + historical totals
-    - renderDashboard() stat boxes and R grid use getDashboardTotals()
-    - archivedThrough field prevents double-counting after Phase 4 archival
-    - Falls back to live S.trades when no cumulative stats exist (first run)
-
-    Phase 2 — Deeper Insights Protection
-    - New Supabase table: insight_snapshots stores computed aggregates per user
-    - Snapshot loaded on login via loadInsightSnapshot()
-    - Snapshot updated on every closed trade save (fire and forget)
-    - All 13 Deeper Insights sections merge live S.trades data with historical snapshot
-    - Array sections (1-6, grade performance): merged via mergeAggArrays() by key field
-    - Object sections (7-11, process quality, model accuracy): inline merge at render time
-    - Monthly breakdown (section 12): snapshot stores per-month aggregates; archived months
-      appear in selector and render correctly from snapshot data
-    - Merge uses raw aggregates (counts + sumR) not pre-computed averages — mathematically correct
-    - If snapshot is null or empty, all sections behave identically to previous behaviour
-    - populateMonthSelector now includes all months with data from live trades and snapshot
-
-    Phase 1 — Screenshot Storage Migration
-    - All screenshot uploads routed through Supabase Storage bucket (screenshots)
-    - Compression to ≤500KB before upload via canvas JPEG re-encoding
-    - Private bucket with 7-day signed URLs generated at render time
-    - Storage paths persisted in DB; signed URLs resolved at display time
-    - Full backward compatibility: existing base64 screenshots render unchanged
-    - Upload guards on all 9 save functions: blocks save if screenshot still uploading
-    - Storage cleanup on trade delete: fetches screenshot paths from Supabase before DB row delete
-    - Storage cleanup on weekly delete: same pattern
-    - Fixed race condition: delete functions now fetch full screenshot data from Supabase
-      instead of relying on in-memory S.trades (which only holds light data)
-    - Fixed delete race condition: S.trades/S.weeklies filter now runs after async delete completes
-    - Fixed _ssDB.remove throws: wrapped in try/catch so delete never silently fails
-    - Fixed closed weekly review modal: populates saved review data in read-only mode
+    Bug fixes carried into this sync:
+    - Share button fixed for screenshots + added to Closed Trades (shareClosedTrade)
+    - Fixed WIN-showing-negative-R bug (saveClosure writes effectiveTradeType back to t.tradeType)
+    - Fixed share always showing "BUY" for sell ideas (tradeType derived from biasSet at save)
+    - Fixed Brave password-manager prompting on all text fields (auth screen removed from DOM on login)
+    - NY time added to all note/update timestamps
+    - Closed Trade tagging system with per-context quick-pick suggestions; mobile tag-add
+      bug fixed (Android keyboard Enter-key unreliability, blur-fallback added)
+    - Paper Trade bucket: is_paper flag, LIVE/PAPER toggle, badges, filters, Dashboard/
+      Deeper Insights Live/Combined toggle
+    - Scalping Trade fix: standalone (unlinked) intraday trades now visible/closeable
+    - Deeper Insights: fixed NaN R bug (6 compute functions were missing wins/losses/sumR
+      fields, breaking merge with archived historical snapshots); Paper-aware filtering
+      completed across all panels
+    - Weekly Bias card: fixed two-hop linking bug (was comparing intraday's parent-daily-bias
+      ID directly against the weekly's own ID — only ever worked by UUID coincidence);
+      now shows Linked Daily Bias entries with a new read-only checklist viewer for closed trades
+    - Low-contrast Strategic Environment header text fixed; bullet/list-spilling-outside-panel
+      bug fixed at all 3 render sites
+    - Weekly Close Review batch: stats now scoped to the specific pair (not all pairs that
+      week); Bias Accuracy Engine and Environment Quality Validation fixed (were comparing
+      a display-label string against bare grade codes, always failing); Bias Alignment and
+      Bias Played Out are now fully auto-computed from trade data instead of manual entry
+    - Archive failsafe: cannot run while any trade is open (two-layer check — pre-flight UI
+      + hard block inside runArchive itself)
+    - New: ai_review column added to trades table so AI Review results (Gemini 1.5 Flash)
+      persist across sessions instead of being lost on reload
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -4766,7 +4704,155 @@
 
         /* ══ NEWS LAYOUT GRID (v3) ══ */
         /* Override shell width for news page only */
-        #page-news .shell { max-width:1200px; }
+        #page-closed .shell { max-width: 100%; padding-left: 20px; padding-right: 20px; }
+
+        /* ── AI Review block ── */
+        .ai-review-block {
+            margin-top: 14px;
+            border: 1.5px solid #e0d4f7;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #faf7ff;
+        }
+        .ai-review-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: #ede7fb;
+            cursor: pointer;
+            user-select: none;
+        }
+        .ai-review-header-left {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: #5b21b6;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .ai-review-scores {
+            display: flex;
+            gap: 10px;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: #7c3aed;
+        }
+        .ai-review-body {
+            padding: 12px 14px;
+            display: none;
+        }
+        .ai-review-body.open { display: block; }
+        .ai-review-dim {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #ede9fe;
+            font-size: 11px;
+        }
+        .ai-review-dim:last-of-type { border-bottom: none; }
+        .ai-review-dim-label {
+            font-family: var(--font-mono);
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #7c3aed;
+            min-width: 90px;
+        }
+        .ai-review-dim-reason { color: var(--muted); font-size: 10px; flex: 1; padding: 0 10px; }
+        .ai-review-dim-score {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 700;
+            color: #5b21b6;
+            white-space: nowrap;
+        }
+        .ai-review-feedback {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #ede9fe;
+            display: grid;
+            gap: 6px;
+        }
+        .ai-review-fb-row { font-size: 10px; line-height: 1.5; }
+        .ai-review-fb-label {
+            font-family: var(--font-mono);
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #5b21b6;
+            display: block;
+            margin-bottom: 2px;
+        }
+        .ai-review-pending {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: #7c3aed;
+        }
+        .ai-review-spinner {
+            width: 12px; height: 12px;
+            border: 2px solid #ede9fe;
+            border-top-color: #7c3aed;
+            border-radius: 50%;
+            animation: ai-spin .7s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes ai-spin { to { transform: rotate(360deg); } }
+        .ai-review-unavail {
+            padding: 10px 14px;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .ai-retry-btn {
+            font-family: var(--font-mono);
+            font-size: 8px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border: 1.5px solid #7c3aed;
+            background: transparent;
+            color: #7c3aed;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .ai-retry-btn:hover { background: #ede7fb; }
+
+        /* ── Closed trades type chips ── */
+        .ct-type-chips {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .ct-type-chip {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            padding: 5px 14px;
+            border-radius: 20px;
+            border: 1.5px solid var(--border);
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            transition: all .15s;
+        }
+        .ct-type-chip:hover { border-color: var(--ink); color: var(--ink); }
+        .ct-type-chip.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+        /* ── Weekly closed table (option B columns) ── */
+        .ct-table.ct-weekly th, .ct-table.ct-weekly td { white-space: normal; }
+        .ct-table.ct-weekly .wct-notes { max-width: 180px; font-size: 10px; color: var(--muted); }
 
         .news-layout-grid {
             display:grid;
@@ -5454,6 +5540,15 @@
                     <div class="sec-head">
                         <h2>CLOSED TRADES</h2>
                     </div>
+                    <!-- Type filter chips -->
+                    <div class="ct-type-chips" id="closedTypeChips">
+                        <button class="ct-type-chip active" onclick="setClosedTypeFilter('all',this)">ALL</button>
+                        <button class="ct-type-chip" onclick="setClosedTypeFilter('daily',this)">📋 DAILY</button>
+                        <button class="ct-type-chip" onclick="setClosedTypeFilter('intraday',this)">⚡ INTRADAY</button>
+                        <button class="ct-type-chip" onclick="setClosedTypeFilter('weekly',this)">📅 WEEKLY</button>
+                    </div>
+                    <!-- Trade filters (hidden in weekly mode) -->
+                    <div id="closedTradeFilters">
                     <div class="search-row">
                         <input class="search-input" id="closedSearch" placeholder="Search pair, notes…" oninput="renderClosed()">
                         <select class="filter-sel" id="filterResult" onchange="renderClosed()">
@@ -5469,7 +5564,15 @@
                             <input type="checkbox" id="closedShowPaper" checked onchange="renderClosed()"> Show Paper
                         </label>
                     </div>
-                    <div class="ct-wrap">
+                    </div>
+                    <!-- Weekly search (shown only in weekly mode) -->
+                    <div id="closedWeeklyFilters" style="display:none;">
+                    <div class="search-row">
+                        <input class="search-input" id="closedWeeklySearch" placeholder="Search pair, notes…" oninput="renderClosed()">
+                    </div>
+                    </div>
+                    <!-- Trades table (daily / intraday / all) -->
+                    <div class="ct-wrap" id="closedTradesTable">
                         <table class="ct-table">
                             <thead><tr>
                                     <th>Date</th><th>Pair</th><th>Grade</th><th>Result</th><th>R</th>
@@ -5477,6 +5580,16 @@
                                     <th>Bias</th><th>Notes</th><th></th>
                             </tr></thead>
                             <tbody id="closedBody"></tbody>
+                        </table>
+                    </div>
+                    <!-- Weekly table (weekly chip only) -->
+                    <div class="ct-wrap" id="closedWeeklyTable" style="display:none;">
+                        <table class="ct-table ct-weekly">
+                            <thead><tr>
+                                <th>Date</th><th>Pair</th><th>Bias</th><th>Environment</th>
+                                <th>Bias Acc.</th><th>Process</th><th>Trades</th><th>WR%</th><th>Net R</th><th>Notes</th><th></th>
+                            </tr></thead>
+                            <tbody id="closedWeeklyBody"></tbody>
                         </table>
                     </div>
                     <div class="empty-state" id="closedEmpty" style="display:none">No closed trades match filters.</div>
@@ -5853,6 +5966,23 @@
                         <div style="padding:14px;">
                             <div style="font-family:var(--font-mono);font-size:8px;color:var(--muted);margin-bottom:12px;line-height:1.7;">Export all closed trades to Excel. Includes pair, date, grade, result, R-multiple, bias, and notes.</div>
                             <button onclick="exportExcel()" style="font-family:var(--font-mono);font-size:8px;font-weight:700;padding:7px 16px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:4px;cursor:pointer;width:100%;">⬇ DOWNLOAD EXCEL</button>
+                        </div>
+                    </div>
+
+                    <!-- AI REVIEW — Gemini API key -->
+                    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px;">
+                        <div style="padding:10px 14px;background:#ede7fb;border-bottom:1px solid #d8b4fe;font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:#5b21b6;">🤖 AI REVIEW</div>
+                        <div style="padding:14px;">
+                            <div style="font-family:var(--font-mono);font-size:8px;color:var(--muted);line-height:1.7;margin-bottom:10px;">
+                                Uses Gemini 1.5 Flash (free tier) to independently score each daily trade close and weekly review.<br>
+                                Get a free API key at <span style="color:#5b21b6;text-decoration:underline;cursor:pointer" onclick="window.open('https://aistudio.google.com/app/apikey','_blank')">aistudio.google.com</span>
+                            </div>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="password" id="geminiKeyInput" placeholder="AIza…" autocomplete="off"
+                                    style="flex:1;font-family:var(--font-mono);font-size:10px;padding:7px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--cream);color:var(--ink);"
+                                    oninput="saveGeminiKey()">
+                                <span id="geminiKeyStatus" style="font-family:var(--font-mono);font-size:8px;color:var(--muted);white-space:nowrap;"></span>
+                            </div>
                         </div>
                     </div>
 
@@ -6514,6 +6644,8 @@
                 <div id="wrReviewDashboard" style="padding:8px 10px;background:var(--surface);border:1.5px solid var(--border);border-radius:4px;font-size:12px;line-height:1.8;min-height:60px;">
                     Complete all sections above to generate the final review summary.
                 </div>
+                <!-- AI Review block — populated after close -->
+                <div id="wrAiReviewContainer"></div>
             </div>
             <div class="modal-footer" style="background:#e8eaf6;flex-shrink:0;">
                 <button class="btn-ghost" onclick="closeWeeklyReview()">CANCEL</button>
@@ -6884,6 +7016,7 @@
         // ════════════════════════════════════════════════════════════════════
         const S = {
             insightsMode: 'live',
+            closedTypeFilter: 'all',
             answers: {},
             kills: {},
             killOpen: false,
@@ -8023,7 +8156,7 @@
 
         // ── TRADE <-> DB mapping ──
         const LIGHT_TRADE_COLS =
-            'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,tags,close_tags,is_paper,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,intra_alignment,intra_decision,intra_kill,intra_ex_data,intra_scores,review_notes,review_screenshots';
+            'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,tags,close_tags,is_paper,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,intra_alignment,intra_decision,intra_kill,intra_ex_data,intra_scores,review_notes,review_screenshots,ai_review';
 
         // Strip transient _displayUrl before any DB write — only the raw storage
         // path (dataUrl) should be persisted. _displayUrl is a 7-day signed URL
@@ -8069,6 +8202,7 @@
                 tags: t.tags || [],
                 close_tags: t.closeTags || [],
                 is_paper: !!t.isPaper,
+                ai_review: t.aiReview || null,
                 trade_notes: t.tradeNotes || [],
                 checklist_answers: t.checklistAnswers || {},
                 checklist_kills: t.checklistKills || {},
@@ -8130,6 +8264,7 @@
                 tags: r.tags || [],
                 closeTags: r.close_tags || [],
                 isPaper: !!r.is_paper,
+                aiReview: r.ai_review || null,
                 screenshots: r.screenshots || [],
                 eodScreenshots: r.eod_screenshots || [],
                 followupScreenshots: r.followup_screenshots || [],
@@ -9887,6 +10022,9 @@
 
             const isClosed = w.status === 'closed' && w.weeklyReview;
             const r = isClosed ? w.weeklyReview : null;
+            // Populate AI review block if closed
+            const aiContainer = document.getElementById('wrAiReviewContainer');
+            if (aiContainer) aiContainer.innerHTML = isClosed ? renderWeeklyAiReviewBlock(w) : '';
 
             // Populate fields — from saved review if closed, or blank for new review
             const reviewFields = [
@@ -10163,6 +10301,10 @@
             renderWeekly();
             updateWeeklyBadge();
             showToast('✅ Weekly review saved — bias closed');
+            // Trigger weekly AI review (non-blocking, async)
+            if (_geminiKey()) {
+                setTimeout(() => triggerWeeklyAiReview(w.id), 500);
+            }
         }
 
         function closeWeeklyReview() {
@@ -10345,8 +10487,12 @@
 
             let html = renderCards(openList);
             if (closedList.length > 0) {
-                html += `<div style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:18px 0 8px;padding:6px 0;border-top:1px solid var(--border)">✓ CLOSED ENTRIES (${closedList.length})</div>`;
-                html += renderCards(closedList);
+                html += `<div style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:18px 0 8px;padding:6px 0;border-top:1px solid var(--border)">
+                    ✓ CLOSED ENTRIES (${closedList.length})
+                    <span style="font-weight:400;letter-spacing:0;text-transform:none;margin-left:10px;">
+                        — <span style="text-decoration:underline;cursor:pointer;color:var(--ink);" onclick="setClosedTypeFilter('weekly');navTo('closed')">View in Closed Trades ↗</span>
+                    </span>
+                </div>`;
             }
             c.innerHTML = html;
         }
@@ -12590,6 +12736,10 @@
             renderOpen();
             renderDashboard();
             navTo('closed');
+            // Trigger AI review for daily trades (non-blocking, async)
+            if (!t.isIntraday && _geminiKey()) {
+                setTimeout(() => triggerDailyAiReview(t.id), 500);
+            }
         }
 
         // ── EDIT OPEN / EDIT CLOSED ──
@@ -12727,14 +12877,96 @@
         }
 
         // ── CLOSED TRADES ──
+        function setClosedTypeFilter(type, el) {
+            S.closedTypeFilter = type;
+            // Update chip active state
+            document.querySelectorAll('.ct-type-chip').forEach(b => b.classList.remove('active'));
+            if (el) el.classList.add('active');
+            // Toggle filter visibility
+            const isWeekly = type === 'weekly';
+            const tradeFilters = document.getElementById('closedTradeFilters');
+            const weeklyFilters = document.getElementById('closedWeeklyFilters');
+            const tradesTable = document.getElementById('closedTradesTable');
+            const weeklyTable = document.getElementById('closedWeeklyTable');
+            if (tradeFilters)  tradeFilters.style.display  = isWeekly ? 'none' : '';
+            if (weeklyFilters) weeklyFilters.style.display = isWeekly ? '' : 'none';
+            if (tradesTable)   tradesTable.style.display   = isWeekly ? 'none' : '';
+            if (weeklyTable)   weeklyTable.style.display   = isWeekly ? '' : 'none';
+            renderClosed();
+        }
+
         function renderClosed() {
+            const type = S.closedTypeFilter || 'all';
+
+            // ── Weekly mode — different data source and renderer ──
+            if (type === 'weekly') {
+                const search = (document.getElementById('closedWeeklySearch')?.value || '').toLowerCase();
+                const closedWeeklies = S.weeklies.filter(w => {
+                    if (w.status !== 'closed') return false;
+                    if (!search) return true;
+                    return w.pair.toLowerCase().includes(search) ||
+                        (w.notes || '').toLowerCase().includes(search) ||
+                        (w.weeklyReview?.lessons?.worked || '').toLowerCase().includes(search) ||
+                        (w.weeklyReview?.lessons?.failed || '').toLowerCase().includes(search);
+                });
+                const tbody = document.getElementById('closedWeeklyBody');
+                const empty = document.getElementById('closedEmpty');
+                if (!tbody) return;
+                if (closedWeeklies.length === 0) {
+                    tbody.innerHTML = '';
+                    empty.style.display = 'block';
+                    empty.textContent = 'No closed weekly bias entries.';
+                    return;
+                }
+                empty.style.display = 'none';
+                tbody.innerHTML = closedWeeklies.map(w => {
+                    const r = w.weeklyReview || {};
+                    const ps = r.performanceStats || {};
+                    const ba = r.biasAccuracy?.result || '—';
+                    const baColor = ba === 'Correct' ? 'var(--bull)' : ba === 'Incorrect' ? 'var(--bear)' : 'var(--muted)';
+                    const proc = r.processAdherence?.score ?? '—';
+                    const biasClass = w.bias === 'BULLISH' ? 'bull' : w.bias === 'BEARISH' ? 'bear' : 'neutral';
+                    const env = r.actualEnvironment || '—';
+                    const wr = ps.winRate != null ? ps.winRate.toFixed(1) + '%' : '—';
+                    const netR = ps.netR != null ? (ps.netR >= 0 ? '+' : '') + ps.netR.toFixed(2) + 'R' : '—';
+                    const netRColor = ps.netR == null ? 'var(--muted)' : ps.netR > 0 ? 'var(--bull)' : ps.netR < 0 ? 'var(--bear)' : 'var(--gold)';
+                    const notesText = r.lessons?.worked || r.lessons?.focus || w.notes || '—';
+                    return `<tr style="cursor:pointer" onclick="openWeeklyReview('${w.id}')">
+                      <td style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">${w.date}</td>
+                      <td style="font-family:var(--font-mono);font-weight:700">${w.pair}</td>
+                      <td><span class="pill pill-${biasClass}">${w.bias||'—'}</span></td>
+                      <td style="font-family:var(--font-mono);font-size:9px">${env}</td>
+                      <td style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:${baColor}">${ba}</td>
+                      <td style="font-family:var(--font-mono);font-size:9px;font-weight:700">${proc}</td>
+                      <td style="font-family:var(--font-mono);font-size:9px;text-align:center">${ps.count ?? '—'}</td>
+                      <td style="font-family:var(--font-mono);font-size:9px">${wr}</td>
+                      <td style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:${netRColor}">${netR}</td>
+                      <td class="wct-notes">${notesText}</td>
+                      <td style="white-space:nowrap" onclick="event.stopPropagation()">
+                        <button class="btn-ghost" style="font-size:8px;padding:5px 10px;" onclick="openWeeklyReview('${w.id}')">📋 VIEW</button>
+                        <button class="del-btn" onclick="deleteWeeklyBias('${w.id}')">DEL</button>
+                      </td>
+                    </tr>`;
+                }).join('');
+                return;
+            }
+
+            // ── Trade mode (all / daily / intraday) ──
             const search = (document.getElementById('closedSearch')?.value || '').toLowerCase();
             const fr = document.getElementById('filterResult')?.value || '';
             const fg = document.getElementById('filterGrade')?.value || '';
             const ft = document.getElementById('filterCloseTag')?.value || '';
             const showPaper = document.getElementById('closedShowPaper')?.checked !== false;
-            const closedAll = S.trades.filter(t => t.status === 'closed' && (showPaper || !t.isPaper) &&
-                (!t.isIntraday || (t.isIntraday && !t.weeklyLinkId)));
+
+            const closedAll = S.trades.filter(t => {
+                if (t.status !== 'closed') return false;
+                if (!showPaper && t.isPaper) return false;
+                if (type === 'daily')    return !t.isIntraday;
+                if (type === 'intraday') return t.isIntraday;
+                // 'all' — include daily, linked intraday, and scalps
+                return true;
+            });
+
             const tagSel = document.getElementById('filterCloseTag');
             if (tagSel) {
                 const allCloseTags = [...new Set(closedAll.flatMap(t => t.closeTags || []))].sort();
@@ -12743,17 +12975,24 @@
                     allCloseTags.map(tag => `<option value="${tag}">#${tag}</option>`).join('');
                 tagSel.value = allCloseTags.includes(currentVal) ? currentVal : '';
             }
+
             const closed = closedAll.filter(t => {
-                const ms = !search || t.pair.toLowerCase().includes(search) || (t.ideaNotes || '').toLowerCase()
-                    .includes(search) || (t.closeNotes || '').toLowerCase().includes(search) || (t
-                    .followupNotes || '').toLowerCase().includes(search);
+                const ms = !search || t.pair.toLowerCase().includes(search) ||
+                    (t.ideaNotes || '').toLowerCase().includes(search) ||
+                    (t.closeNotes || '').toLowerCase().includes(search) ||
+                    (t.followupNotes || '').toLowerCase().includes(search);
                 return ms && (!fr || t.result === fr) && (!fg || deriveDisplayGrade(t) === fg) &&
                     (!ft || (t.closeTags || []).includes(ft));
             });
-            const tbody = document.getElementById('closedBody'),
-                empty = document.getElementById('closedEmpty');
-            if (closed.length === 0) { tbody.innerHTML = '';
-                empty.style.display = 'block'; return; }
+
+            const tbody = document.getElementById('closedBody');
+            const empty = document.getElementById('closedEmpty');
+            if (closed.length === 0) {
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+                empty.textContent = 'No closed trades match filters.';
+                return;
+            }
             empty.style.display = 'none';
             tbody.innerHTML = closed.map(t => {
                 const rc = t.result === 'WIN' ? 'win' : t.result === 'LOSS' ? 'loss' : 'skip';
@@ -12761,11 +13000,9 @@
                 const displayGrade = deriveDisplayGrade(t);
                 const r = calcR(t);
                 const rDisplay = r !== null ? (r >= 0 ? '+' : '') + r.toFixed(2) + 'R' : '—';
-                const rColor = r === null ? 'var(--muted)' : r > 0 ? 'var(--bull)' : r < 0 ? 'var(--bear)' :
-                    'var(--gold)';
+                const rColor = r === null ? 'var(--muted)' : r > 0 ? 'var(--bull)' : r < 0 ? 'var(--bear)' : 'var(--gold)';
                 const bsc = t.biasSet === 'BULLISH' ? 'bull' : t.biasSet === 'BEARISH' ? 'bear' : 'neutral';
-                const hasFollowup = t.followupNotes || (t.followupScreenshots && t.followupScreenshots.length >
-                0);
+                const hasFollowup = t.followupNotes || (t.followupScreenshots && t.followupScreenshots.length > 0);
                 return `<tr style="cursor:pointer" onclick="openTradeHistory('${t.id}')">
               <td style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">${t.date}</td>
               <td style="font-family:var(--font-mono);font-weight:700">${t.pair}${t.isIntraday&&!t.weeklyLinkId?' <span class="badge-scalp">⚡</span>':''}${t.isPaper?' <span class="badge-paper">📝</span>':''}</td>
@@ -12962,6 +13199,7 @@
                 <div style="font-size:12px;line-height:1.5">${rteDisplay(n.text)}</div>
               </div>`).join('')}`:''}
             ${ssBlock(t.reviewScreenshots||[])}
+            ${!t.isIntraday && t.status === 'closed' ? renderTradeAiReviewBlock(t) : ''}
             <div style="height:8px"></div>
           `;
             renderTagsInWrap('closeTagWrap', S.closeTags, 'closed');
@@ -14527,7 +14765,481 @@
             }
             refreshSsCacheInfo();
             populateArchiveInfo();
+            // Gemini key
+            const geminiKeyEl = document.getElementById('geminiKeyInput');
+            if (geminiKeyEl && _currentUser) {
+                geminiKeyEl.value = localStorage.getItem('ict_gemini_key_' + _currentUser.id) || '';
+                _updateGeminiKeyStatus();
+            }
         }
+
+        // ════════════════════════════════════════════════════════════════════
+        // AI REVIEW — Gemini 1.5 Flash
+        // ════════════════════════════════════════════════════════════════════
+
+        function _geminiKey() {
+            if (!_currentUser) return null;
+            return localStorage.getItem('ict_gemini_key_' + _currentUser.id) || null;
+        }
+
+        function saveGeminiKey() {
+            if (!_currentUser) return;
+            const val = (document.getElementById('geminiKeyInput')?.value || '').trim();
+            if (val) localStorage.setItem('ict_gemini_key_' + _currentUser.id, val);
+            else localStorage.removeItem('ict_gemini_key_' + _currentUser.id);
+            _updateGeminiKeyStatus();
+        }
+
+        function _updateGeminiKeyStatus() {
+            const el = document.getElementById('geminiKeyStatus');
+            if (!el) return;
+            el.textContent = _geminiKey() ? '✓ Key saved' : 'No key set';
+            el.style.color = _geminiKey() ? 'var(--bull)' : 'var(--muted)';
+        }
+
+        // ── Gemini API call ──
+
+        async function callGeminiVision(promptText, imageDataUrls) {
+            const key = _geminiKey();
+            if (!key) throw new Error('No Gemini API key set');
+
+            const parts = [{ text: promptText }];
+            for (const dataUrl of imageDataUrls) {
+                if (!dataUrl || dataUrl.startsWith('https://')) continue;
+                const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+                if (match) {
+                    parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
+                }
+            }
+
+            const body = {
+                contents: [{ parts }],
+                generationConfig: { temperature: 0.3, maxOutputTokens: 800 },
+            };
+
+            const resp = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
+                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+            );
+            if (!resp.ok) throw new Error('Gemini API error: ' + resp.status + ' ' + (await resp.text()).slice(0, 120));
+            const data = await resp.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        }
+
+        // ── Parse Gemini response ──
+
+        function _parseDailyAiResponse(text) {
+            const get = (key) => {
+                const m = text.match(new RegExp(key + ':\\s*([^\\n]+)', 'i'));
+                return m ? m[1].trim() : null;
+            };
+            const scoreAndReason = (raw) => {
+                if (!raw) return { score: null, reason: '' };
+                const m = raw.match(/^(\d+)\/\d+\s*[—–-]?\s*(.*)$/);
+                return m ? { score: parseInt(m[1]), reason: m[2].trim() } : { score: null, reason: raw };
+            };
+            const setup = scoreAndReason(get('SETUP'));
+            const exec  = scoreAndReason(get('EXECUTION'));
+            const hon   = scoreAndReason(get('HONESTY'));
+            const overall = get('OVERALL');
+            return {
+                setupScore:     setup.score,     setupReason:     setup.reason,
+                executionScore: exec.score,      executionReason: exec.reason,
+                honestyScore:   hon.score,       honestyReason:   hon.reason,
+                overallScore:   overall ? parseInt(overall) : null,
+                worked:  get('WORKED')  || '',
+                improve: get('IMPROVE') || '',
+                lesson:  get('LESSON')  || '',
+            };
+        }
+
+        function _parseWeeklyAiResponse(text) {
+            const get = (key) => {
+                const m = text.match(new RegExp(key + ':\\s*([^\\n]+)', 'i'));
+                return m ? m[1].trim() : null;
+            };
+            const scoreAndReason = (raw) => {
+                if (!raw) return { score: null, reason: '' };
+                const m = raw.match(/^(\d+)\/\d+\s*[—–-]?\s*(.*)$/);
+                return m ? { score: parseInt(m[1]), reason: m[2].trim() } : { score: null, reason: raw };
+            };
+            const bias    = scoreAndReason(get('BIAS'));
+            const acc     = scoreAndReason(get('ACCURACY'));
+            const cons    = scoreAndReason(get('CONSISTENCY'));
+            const lessons = scoreAndReason(get('LESSONS'));
+            const overall = get('OVERALL');
+            return {
+                biasScore:        bias.score,    biasReason:        bias.reason,
+                accuracyScore:    acc.score,     accuracyReason:    acc.reason,
+                consistencyScore: cons.score,    consistencyReason: cons.reason,
+                lessonScore:      lessons.score, lessonReason:      lessons.reason,
+                overallScore:     overall ? parseInt(overall) : null,
+                worked:    get('WORKED')     || '',
+                improve:   get('IMPROVE')    || '',
+                lesson:    get('LESSON')     || '',
+                nextWeek:  get('NEXT_WEEK')  || '',
+            };
+        }
+
+        // ── Resolve screenshot dataUrls (signed if storage path) ──
+
+        async function _resolveDataUrls(ssList) {
+            const urls = [];
+            for (const ss of (ssList || [])) {
+                if (!ss) continue;
+                try {
+                    if (ss.dataUrl && ss.dataUrl.startsWith('data:')) {
+                        urls.push(ss.dataUrl);
+                    } else if (ss.dataUrl) {
+                        const signed = await resolveStoragePath(ss.dataUrl);
+                        if (signed) {
+                            const r = await fetch(signed);
+                            if (r.ok) {
+                                const blob = await r.blob();
+                                const base64 = await new Promise(res => {
+                                    const fr = new FileReader();
+                                    fr.onload = () => res(fr.result);
+                                    fr.readAsDataURL(blob);
+                                });
+                                urls.push(base64);
+                            }
+                        }
+                    }
+                } catch(e) { console.warn('AI review screenshot resolve failed:', e); }
+            }
+            return urls;
+        }
+
+        // ── Build daily prompt ──
+
+        function _buildDailyPrompt(t, intra) {
+            const ans = t.checklistAnswers || {};
+            const wbv = extractWBValues ? extractWBValues(ans) : {};
+            const dispMap = { bullish: 'Bullish Structure (HH+HL)', bearish: 'Bearish Structure (LH+LL)' };
+            const locMap  = { discount: 'Discount (below 50%)', equilibrium: 'Equilibrium (50%)', premium: 'Premium (above 50%)' };
+            const dolMap  = { not_reached: 'Not Reached', partial: 'Partially Reached', reached: '✓ Reached' };
+            const phaseMap = { frontside: 'Frontside (corrective pullback)', backside: 'Backside (continuation)', range: 'Range (no clear phase)' };
+            const irlMap  = WB_DISPLAY?.irl  || {};
+            const sweepMap = WB_DISPLAY?.sweep || {};
+
+            const r = calcR(t);
+            const rDisplay = r !== null ? (r >= 0 ? '+' : '') + r.toFixed(2) + 'R' : '—';
+
+            let intraBlock = 'None — daily-only trade, no linked intraday execution.';
+            if (intra) {
+                const ex = intra.intraExData || {};
+                intraBlock = `Alignment with daily bias: ${intra.intraAlignment || '—'}
+Execution sequence:
+  Liquidity taken:        ${ex.lq === true ? 'Yes' : ex.lq === false ? 'No' : '—'}
+  Displacement:           ${ex.disp || '—'}
+  Market Structure Shift: ${ex.mss === true ? 'Yes' : ex.mss === false ? 'No' : '—'}
+  Retracement entry:      ${ex.ret === true ? 'Yes' : ex.ret === false ? 'No' : '—'}
+Result: ${intra.result || '—'}  |  R: ${(() => { const ir = calcR(intra); return ir !== null ? (ir >= 0 ? '+' : '') + ir.toFixed(2) + 'R' : '—'; })()}
+Execution notes: ${intra.ideaNotes ? intra.ideaNotes.replace(/<[^>]+>/g, '') : '—'}`;
+            }
+
+            return `You are an independent trading coach reviewing a forex trade journal entry.
+Be direct and specific. No vague feedback. Every point must reference something concrete from the checklist, chart, or notes provided.
+
+=== FRAMEWORK ===
+ICT-based approach. Daily bias set via HTF checklist. Intraday execution: liquidity taken → displacement → MSS → retracement entry.
+
+=== TRADE ===
+Pair: ${t.pair}  |  Date: ${t.date}
+Direction: ${t.biasSet || '—'}  |  Bias Played: ${t.biasPlayed || '—'}  |  Match: ${t.biasMatch || '—'}
+Result: ${t.result || '—'}  |  R: ${rDisplay}  |  TP1R: ${t.tp1r || '—'}  |  TP1.5R: ${t.tp15r || '—'}
+Entry: ${t.entryPrice || '—'}  |  Close: ${t.closePrice || '—'}  |  SL: ${t.slPrice || '—'}
+
+=== DAILY CHECKLIST ===
+01 Swing Structure:       ${dispMap[wbv.structure] || wbv.structure || '—'}
+02 Price Location:        ${locMap[wbv.location] || wbv.location || '—'}
+03 HTF Draw on Liquidity: ${dolMap[wbv.dol] || wbv.dol || '—'}
+04 Swing Phase:           ${phaseMap[wbv.phase] || wbv.phase || '—'}
+05 HTF Reaction Area:     ${irlMap[wbv.irl] || wbv.irl || '—'}
+06 External Liquidity:    ${sweepMap[wbv.sweep] || wbv.sweep || '—'}
+
+=== DAILY ANALYSIS NOTES ===
+${t.ideaNotes ? t.ideaNotes.replace(/<[^>]+>/g, '') : '—'}
+
+=== CLOSE NOTES ===
+${t.closeNotes ? t.closeNotes.replace(/<[^>]+>/g, '') : '—'}
+
+=== INTRADAY EXECUTION ===
+${intraBlock}
+
+=== SCREENSHOTS ===
+[Attached: daily idea screenshot, EOD screenshot, intraday entry screenshot if present. Review against checklist and notes above.]
+
+=== SCORE THIS TRADE ===
+DO NOT reference any journal scores. Be direct. One specific reason per score.
+
+SETUP QUALITY /10 — checklist consistency + chart confirmation
+EXECUTION QUALITY /10 — lq→disp→mss→ret visible? alignment genuine?
+POST-TRADE HONESTY /10 — were close notes and biasPlayed accurate vs chart?
+OVERALL: sum /30
+
+Respond ONLY in this exact format:
+
+SETUP: [n]/10 — [one specific reason]
+EXECUTION: [n]/10 — [one specific reason]
+HONESTY: [n]/10 — [one specific reason]
+OVERALL: [n]/30
+---
+WORKED: [one specific thing done well]
+IMPROVE: [one specific actionable change]
+LESSON: [single most important takeaway]`;
+        }
+
+        // ── Build weekly prompt ──
+
+        function _buildWeeklyPrompt(w, dailySummaries) {
+            const ans = w.wbChecklistAnswers || {};
+            const v   = extractWBValues ? extractWBValues(ans) : {};
+            const result = w.wbChecklistAnswers ? runWBEngine(w.wbChecklistAnswers) : null;
+            const dispMap = { bullish: 'Bullish Structure (HH+HL)', bearish: 'Bearish Structure (LH+LL)' };
+            const locMap  = { discount: 'Discount', equilibrium: 'Equilibrium', premium: 'Premium' };
+            const dolMap  = { not_reached: 'Not Reached', partial: 'Partially Reached', reached: '✓ Reached' };
+            const phaseMap = { frontside: 'Frontside', backside: 'Backside', range: 'Range' };
+            const irlMap  = WB_DISPLAY?.irl  || {};
+            const sweepMap = WB_DISPLAY?.sweep || {};
+            const r = w.weeklyReview || {};
+            const ps = r.performanceStats || {};
+
+            let dailyBlock = 'No individual trade AI reviews available. Score consistency from performance stats only.';
+            if (dailySummaries && dailySummaries.length > 0) {
+                dailyBlock = dailySummaries.map((d, i) =>
+                    `Trade ${i+1}: ${d.date} — ${d.result} ${d.rDisplay}\n  Setup: ${d.setupScore??'—'}/10  Execution: ${d.executionScore??'—'}/10  Honesty: ${d.honestyScore??'—'}/10  Overall: ${d.overallScore??'—'}/30\n  Lesson: ${d.lesson || '—'}`
+                ).join('\n');
+            }
+
+            return `You are an independent trading coach reviewing a weekly forex bias entry.
+Be direct and specific. Reference concrete details from the checklist, screenshots, and review answers.
+
+=== FRAMEWORK ===
+ICT weekly bias system. 6-question checklist before week open. Structured close review at week end.
+
+=== WEEKLY BIAS ===
+Pair: ${w.pair}  |  Week of: ${w.date}
+Bias Set: ${w.bias || '—'}
+Derived bias: ${result?.meta?.label || '—'}
+Derived environment: ${result?.envData?.envLabel || '—'} (${result?.confidence || '—'} confidence)
+
+Checklist:
+01 Swing Structure:       ${dispMap[v.structure] || v.structure || '—'}
+02 Price Location:        ${locMap[v.location] || v.location || '—'}
+03 HTF Draw on Liquidity: ${dolMap[v.dol] || v.dol || '—'}
+04 Swing Phase:           ${phaseMap[v.phase] || v.phase || '—'}
+05 HTF Reaction Area:     ${irlMap[v.irl] || v.irl || '—'}
+06 External Liquidity:    ${sweepMap[v.sweep] || v.sweep || '—'}
+
+Weekly notes: ${w.notes ? w.notes.replace(/<[^>]+>/g, '') : '—'}
+
+=== SCREENSHOTS ===
+[Attached: weekly idea screenshot(s), mid-week update screenshot(s), end-of-week screenshot. Review against checklist and close answers.]
+
+=== END OF WEEK CLOSE REVIEW ===
+Actual environment delivered:  ${r.actualEnvironment || '—'}
+Dominant directional outcome:  ${r.dominantOutcome || '—'}
+What happened to structure:    ${r.structureOutcome || '—'}
+Liquidity objective reached:   ${r.liquidityReached || '—'}
+Swing phase evolution:         ${r.phaseEvolved || '—'}
+Actual opportunity quality:    ${r.opportunityQuality || '—'}
+Bias alignment with trades:    ${r.biasAlignment || '—'}
+
+=== WEEK PERFORMANCE ===
+Trades: ${ps.count ?? '—'}  |  WR: ${ps.winRate != null ? ps.winRate.toFixed(1) + '%' : '—'}  |  Net R: ${ps.netR != null ? (ps.netR >= 0 ? '+' : '') + ps.netR.toFixed(2) + 'R' : '—'}  |  Avg R: ${ps.avgR != null ? ps.avgR.toFixed(2) + 'R' : '—'}
+
+=== DAILY TRADE REVIEWS THIS WEEK ===
+${dailyBlock}
+
+=== WEEKLY LESSONS ===
+What worked:       ${r.lessons?.worked || '—'}
+What failed:       ${r.lessons?.failed || '—'}
+What surprised:    ${r.lessons?.surprised || '—'}
+Next week focus:   ${r.lessons?.focus || '—'}
+
+=== SCORE THIS WEEK ===
+DO NOT reference journal accuracy engine results. Be direct. One specific reason per score.
+
+BIAS QUALITY /10 — checklist logic + chart confirmation
+WEEK ACCURACY /10 — honesty of close review vs actual chart
+DAILY CONSISTENCY /10 — did daily trades honour the weekly bias?
+LESSON QUALITY /10 — specific, honest, actionable lessons?
+OVERALL: sum /40
+
+Respond ONLY in this exact format:
+
+BIAS: [n]/10 — [one specific reason]
+ACCURACY: [n]/10 — [one specific reason]
+CONSISTENCY: [n]/10 — [one specific reason]
+LESSONS: [n]/10 — [one specific reason]
+OVERALL: [n]/40
+---
+WORKED: [one specific thing done well]
+IMPROVE: [one specific actionable change]
+LESSON: [single most important takeaway]
+NEXT_WEEK: [one concrete focus tied to this week's observations]`;
+        }
+
+        // ── Orchestrators ──
+
+        async function triggerDailyAiReview(tradeId) {
+            const t = S.trades.find(t => idEq(t.id, tradeId));
+            if (!t || t.isIntraday) return;
+            const intra = S.trades.find(it => it.isIntraday && idEq(it.weeklyLinkId, t.id));
+            // Ensure screenshots loaded
+            await loadTradeScreenshots(t.id);
+            if (intra) await loadTradeScreenshots(intra.id);
+            // Collect images: daily idea + EOD + intra entry
+            const imageSets = [
+                ...(t.screenshots || []),
+                ...(t.eodScreenshots || []),
+                ...(intra ? (intra.screenshots || []) : []),
+            ];
+            const imageUrls = await _resolveDataUrls(imageSets);
+            const prompt = _buildDailyPrompt(t, intra || null);
+            try {
+                const raw = await callGeminiVision(prompt, imageUrls);
+                t.aiReview = {
+                    ..._parseDailyAiResponse(raw),
+                    generatedAt: new Date().toISOString(),
+                    model: 'gemini-1.5-flash',
+                    error: null,
+                };
+            } catch(e) {
+                console.warn('[AI Review] Daily failed:', e);
+                t.aiReview = { error: e.message, generatedAt: new Date().toISOString() };
+            }
+            saveTrade(t);
+            renderClosed(); // refresh closed table
+        }
+
+        async function triggerWeeklyAiReview(weeklyId) {
+            const w = S.weeklies.find(w => idEq(w.id, weeklyId));
+            if (!w || !w.weeklyReview) return;
+            // Collect daily AI summaries for this week
+            const weekTrades = getWeekTrades(w.date).filter(t => !t.isIntraday && t.status === 'closed');
+            const dailySummaries = weekTrades
+                .filter(t => t.aiReview && !t.aiReview.error)
+                .map(t => {
+                    const r = calcR(t);
+                    return {
+                        date: t.date,
+                        result: t.result,
+                        rDisplay: r !== null ? (r >= 0 ? '+' : '') + r.toFixed(2) + 'R' : '—',
+                        setupScore:     t.aiReview.setupScore,
+                        executionScore: t.aiReview.executionScore,
+                        honestyScore:   t.aiReview.honestyScore,
+                        overallScore:   t.aiReview.overallScore,
+                        lesson:         t.aiReview.lesson,
+                    };
+                });
+            // Collect screenshots: w.screenshots + updates screenshots
+            const allSS = [
+                ...(w.screenshots || []),
+                ...((w.updates || []).flatMap(u => u.screenshots || [])),
+            ];
+            const imageUrls = await _resolveDataUrls(allSS);
+            const prompt = _buildWeeklyPrompt(w, dailySummaries);
+            try {
+                const raw = await callGeminiVision(prompt, imageUrls);
+                w.weeklyReview.aiReview = {
+                    ..._parseWeeklyAiResponse(raw),
+                    dailyCount: dailySummaries.length,
+                    generatedAt: new Date().toISOString(),
+                    model: 'gemini-1.5-flash',
+                    error: null,
+                };
+            } catch(e) {
+                console.warn('[AI Review] Weekly failed:', e);
+                w.weeklyReview.aiReview = { error: e.message, generatedAt: new Date().toISOString() };
+            }
+            saveWeekly(w);
+            renderWeekly();
+            // Refresh the review modal if still open
+            const aiContainer = document.getElementById('wrAiReviewContainer');
+            if (aiContainer && S.wrEditId && idEq(S.wrEditId, weeklyId)) {
+                aiContainer.innerHTML = renderWeeklyAiReviewBlock(w);
+            }
+        }
+
+        // ── Render helpers ──
+
+        
+        function renderTradeAiReviewBlock(t) {
+            if (!_geminiKey()) {
+                return `<div class="ai-review-block"><div class="ai-review-unavail" style="font-size:9px;color:var(--muted);padding:10px 14px;">🤖 AI review disabled — add Gemini API key in <span style="text-decoration:underline;cursor:pointer;color:#5b21b6" onclick="navTo('settings')">Settings</span></div></div>`;
+            }
+            if (!t.aiReview) {
+                return `<div class="ai-review-block"><div class="ai-review-pending"><div class="ai-review-spinner"></div>AI review pending — will appear shortly…<button class="ai-retry-btn" onclick="triggerDailyAiReview('${t.id}')">↻ Run now</button></div></div>`;
+            }
+            if (t.aiReview.error) {
+                return `<div class="ai-review-block"><div class="ai-review-unavail">🤖 AI review unavailable<span style="color:var(--muted);font-size:8px;margin-left:6px;">${t.aiReview.error.slice(0,60)}</span><button class="ai-retry-btn" onclick="triggerDailyAiReview('${t.id}')">↻ Retry</button></div></div>`;
+            }
+            const ai = t.aiReview;
+            const overall = ai.overallScore ?? '—';
+            return `<div class="ai-review-block">
+              <div class="ai-review-header" onclick="this.nextElementSibling.classList.toggle('open')">
+                <div class="ai-review-header-left">🤖 AI INDEPENDENT REVIEW
+                  <span style="font-weight:400;color:#7c3aed;letter-spacing:0">${ai.model || 'gemini'}</span>
+                </div>
+                <div class="ai-review-scores">
+                  <span>${overall}/30</span>
+                  <span style="color:var(--muted)">▾</span>
+                </div>
+              </div>
+              <div class="ai-review-body">
+                <div class="ai-review-dim"><span class="ai-review-dim-label">SETUP</span><span class="ai-review-dim-reason">${ai.setupReason||''}</span><span class="ai-review-dim-score">${ai.setupScore??'—'}/10${_aiScoreBar(ai.setupScore,10)}</span></div>
+                <div class="ai-review-dim"><span class="ai-review-dim-label">EXECUTION</span><span class="ai-review-dim-reason">${ai.executionReason||''}</span><span class="ai-review-dim-score">${ai.executionScore??'—'}/10${_aiScoreBar(ai.executionScore,10)}</span></div>
+                <div class="ai-review-dim"><span class="ai-review-dim-label">HONESTY</span><span class="ai-review-dim-reason">${ai.honestyReason||''}</span><span class="ai-review-dim-score">${ai.honestyScore??'—'}/10${_aiScoreBar(ai.honestyScore,10)}</span></div>
+                <div class="ai-review-feedback">
+                  ${ai.worked  ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">✓ WORKED</span>${ai.worked}</div>` : ''}
+                  ${ai.improve ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">△ IMPROVE</span>${ai.improve}</div>` : ''}
+                  ${ai.lesson  ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">💡 LESSON</span>${ai.lesson}</div>` : ''}
+                </div>
+                <div style="font-family:var(--font-mono);font-size:7px;color:var(--muted);margin-top:8px;text-align:right">${ai.generatedAt ? new Date(ai.generatedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}</div>
+              </div>
+            </div>`;
+        }
+
+        function renderWeeklyAiReviewBlock(w) {
+            if (!_geminiKey()) {
+                return `<div class="ai-review-block" style="margin-top:10px"><div class="ai-review-unavail" style="font-size:9px;color:var(--muted);padding:10px 14px;">🤖 AI review disabled — add Gemini API key in <span style="text-decoration:underline;cursor:pointer;color:#5b21b6" onclick="navTo('settings')">Settings</span></div></div>`;
+            }
+            const ai = w.weeklyReview?.aiReview;
+            if (!ai) {
+                return `<div class="ai-review-block" style="margin-top:10px"><div class="ai-review-pending"><div class="ai-review-spinner"></div>AI review pending…<button class="ai-retry-btn" onclick="triggerWeeklyAiReview('${w.id}')">↻ Run now</button></div></div>`;
+            }
+            if (ai.error) {
+                return `<div class="ai-review-block" style="margin-top:10px"><div class="ai-review-unavail">🤖 AI review unavailable<span style="color:var(--muted);font-size:8px;margin-left:6px;">${ai.error.slice(0,60)}</span><button class="ai-retry-btn" onclick="triggerWeeklyAiReview('${w.id}')">↻ Retry</button></div></div>`;
+            }
+            const overall = ai.overallScore ?? '—';
+            return `<div class="ai-review-block" style="margin-top:10px">
+              <div class="ai-review-header" onclick="this.nextElementSibling.classList.toggle('open')">
+                <div class="ai-review-header-left">🤖 AI INDEPENDENT REVIEW
+                  <span style="font-weight:400;color:#7c3aed;letter-spacing:0">${ai.model || 'gemini'} · ${ai.dailyCount ?? 0} daily review${ai.dailyCount !== 1 ? 's' : ''} used</span>
+                </div>
+                <div class="ai-review-scores"><span>${overall}/40</span><span style="color:var(--muted)">▾</span></div>
+              </div>
+              <div class="ai-review-body">
+                <div class="ai-review-dim"><span class="ai-review-dim-label">BIAS</span><span class="ai-review-dim-reason">${ai.biasReason||''}</span><span class="ai-review-dim-score">${ai.biasScore??'—'}/10${_aiScoreBar(ai.biasScore,10)}</span></div>
+                <div class="ai-review-dim"><span class="ai-review-dim-label">ACCURACY</span><span class="ai-review-dim-reason">${ai.accuracyReason||''}</span><span class="ai-review-dim-score">${ai.accuracyScore??'—'}/10${_aiScoreBar(ai.accuracyScore,10)}</span></div>
+                <div class="ai-review-dim"><span class="ai-review-dim-label">CONSISTENCY</span><span class="ai-review-dim-reason">${ai.consistencyReason||''}</span><span class="ai-review-dim-score">${ai.consistencyScore??'—'}/10${_aiScoreBar(ai.consistencyScore,10)}</span></div>
+                <div class="ai-review-dim"><span class="ai-review-dim-label">LESSONS</span><span class="ai-review-dim-reason">${ai.lessonReason||''}</span><span class="ai-review-dim-score">${ai.lessonScore??'—'}/10${_aiScoreBar(ai.lessonScore,10)}</span></div>
+                <div class="ai-review-feedback">
+                  ${ai.worked   ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">✓ WORKED</span>${ai.worked}</div>` : ''}
+                  ${ai.improve  ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">△ IMPROVE</span>${ai.improve}</div>` : ''}
+                  ${ai.lesson   ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">💡 LESSON</span>${ai.lesson}</div>` : ''}
+                  ${ai.nextWeek ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">🎯 NEXT WEEK</span>${ai.nextWeek}</div>` : ''}
+                </div>
+                <div style="font-family:var(--font-mono);font-size:7px;color:var(--muted);margin-top:8px;text-align:right">${ai.generatedAt ? new Date(ai.generatedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}</div>
+              </div>
+            </div>`;
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // END AI REVIEW
+        // ════════════════════════════════════════════════════════════════════
 
         async function settingsForceSync(btn) {
             if (btn) { btn.textContent = 'Syncing…';
@@ -15002,7 +15714,7 @@
                     'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,' +
                     'bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,' +
                     'followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,' +
-                    'tags,close_tags,is_paper,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,' +
+                    'tags,close_tags,is_paper,trade_notes,checklist_answers,checklist_kills,checklist_model,wb_entry_id,ai_review,' +
                     'intra_alignment,intra_decision,intra_kill,intra_ex_data,intra_scores,review_notes,review_screenshots'
                 ).eq('user_id', _currentUser.id).order('created_at', { ascending: false }),
                 _sb.from('weeklies').select('*').eq('user_id', _currentUser.id).order('created_at', { ascending: false }),
