@@ -8382,6 +8382,7 @@
                 if (meta?.last_device) S.serverLastDevice = meta.last_device;
                 const cachedLastMod = getCachedLastMod();
                 if (!force && serverLastMod && serverLastMod === cachedLastMod && loadLocalCache()) {
+                    _mergePendingWritesIntoState();
                     setSyncStatus('synced');
                     updateSyncBar();
                     renderDashboard();
@@ -8412,6 +8413,7 @@
                 S.trades = (tr.data || []).map(dbToTrade);
                 S.weeklies = (wr.data || []).map(dbToWeekly);
                 S.notes = (nr.data || []).map(dbToNote);
+                _mergePendingWritesIntoState();
                 if (serverLastMod) { setCachedLastMod(serverLastMod); } else { await touchSyncMeta(); }
                 saveLocalCache();
                 setSyncStatus('synced');
@@ -8432,6 +8434,7 @@
                 setSyncStatus('error');
                 showToast('Sync error: ' + e.message, 'err');
                 if (loadLocalCache()) {
+                    _mergePendingWritesIntoState();
                     renderDashboard();
                     renderOpen();
                     updateOpenBadge();
@@ -8544,6 +8547,47 @@
 
         window.addEventListener('online', () => flushPendingWrites());
         setInterval(() => { if (_getPendingWrites().length > 0) flushPendingWrites(); }, 45000);
+
+        // Re-applies any still-pending queued writes on top of freshly-fetched/loaded
+        // state. Without this, a fetch that runs before a queued write has synced would
+        // silently overwrite the local-only edit with stale server data that doesn't
+        // have it yet — call this after every place S.trades/S.weeklies/S.notes gets
+        // (re)assigned from a remote fetch or the local cache.
+        function _mergePendingWritesIntoState() {
+            const queue = _getPendingWrites();
+            if (queue.length === 0) return;
+            queue.forEach(meta => {
+                try {
+                    if (meta.table === 'trades') {
+                        if (meta.opType === 'upsert') {
+                            const obj = dbToTrade(meta.payload);
+                            const idx = S.trades.findIndex(t => idEq(t.id, obj.id));
+                            if (idx !== -1) S.trades[idx] = obj; else S.trades.unshift(obj);
+                        } else if (meta.opType === 'delete') {
+                            S.trades = S.trades.filter(t => !idEq(t.id, meta.matchVal));
+                        } else if (meta.opType === 'delete_in') {
+                            S.trades = S.trades.filter(t => !meta.matchVal.some(id => idEq(t.id, id)));
+                        }
+                    } else if (meta.table === 'weeklies') {
+                        if (meta.opType === 'upsert') {
+                            const obj = dbToWeekly(meta.payload);
+                            const idx = S.weeklies.findIndex(w => idEq(w.id, obj.id));
+                            if (idx !== -1) S.weeklies[idx] = obj; else S.weeklies.unshift(obj);
+                        } else if (meta.opType === 'delete') {
+                            S.weeklies = S.weeklies.filter(w => !idEq(w.id, meta.matchVal));
+                        }
+                    } else if (meta.table === 'notes') {
+                        if (meta.opType === 'upsert') {
+                            const obj = dbToNote(meta.payload);
+                            const idx = S.notes.findIndex(n => idEq(n.id, obj.id));
+                            if (idx !== -1) S.notes[idx] = obj; else S.notes.unshift(obj);
+                        } else if (meta.opType === 'delete') {
+                            S.notes = S.notes.filter(n => !idEq(n.id, meta.matchVal));
+                        }
+                    }
+                } catch (e) { console.warn('Failed to merge pending write into state:', meta.id, e); }
+            });
+        }
 
         async function saveTrade(t) {
             if (!_currentUser) return false;
@@ -9277,7 +9321,7 @@
         }
 
         async function saveNoteToDb(n) {
-            if (!_currentUser) { showToast('Not logged in — note saved locally only', 'err'); return; }
+            if (!_currentUser) { showToast('Not logged in — note saved locally only', 'err'); return false; }
             saveLocalCache();
             const result = await queuedWrite({
                 id: 'notes:' + n.id,
@@ -9287,9 +9331,10 @@
             });
             if (!result.success) {
                 showToast('Offline — note saved locally, will sync when reconnected', 'warn');
-                return;
+                return false;
             }
             await touchSyncMeta();
+            return true;
         }
 
         async function deleteNoteFromDb(id) {
@@ -14621,20 +14666,21 @@
             const body = rteGet('noteBody');
             if (!title && !body) { alert('Add a title or content.'); return; }
             const now = new Date().toISOString();
+            let synced = false;
             if (_editNoteId) {
                 const n = S.notes.find(x => idEq(x.id, _editNoteId));
                 if (n) { n.title = title;
                     n.body = body;
                     n.updatedAt = now;
-                    await saveNoteToDb(n); }
+                    synced = await saveNoteToDb(n); }
             } else {
                 const n = { id: crypto.randomUUID(), title, body, createdAt: now, updatedAt: now };
                 S.notes.unshift(n);
-                await saveNoteToDb(n);
+                synced = await saveNoteToDb(n);
             }
             closeNoteModal();
             renderNotes();
-            showToast('Note saved ✓');
+            if (synced) showToast('Note saved ✓');
         }
 
         async function deleteNote(id) {
