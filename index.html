@@ -6816,6 +6816,7 @@
         function _cacheKey(suffix) { return 'ict_cache_' + suffix + '_' + (_currentUser ? _currentUser.id : 'anon'); }
 
         function saveLocalCache() {
+            console.log('[DIAG] saveLocalCache() called — notes count:', (S.notes || []).length, '— stack:', new Error().stack.split('\n')[2]?.trim());
             try {
                 const lightTrades = (S.trades || []).map(t => {
                     const { screenshots, eodScreenshots, followupScreenshots, _ssLoaded, ...rest } = t;
@@ -6840,6 +6841,7 @@
                 const tr = localStorage.getItem(_cacheKey('trades'));
                 const wr = localStorage.getItem(_cacheKey('weeklies'));
                 const nr = localStorage.getItem(_cacheKey('notes'));
+                console.log('[DIAG] loadLocalCache() called — raw notes value:', nr, '— stack:', new Error().stack.split('\n')[2]?.trim());
                 if (tr === null || wr === null) return false;
                 S.trades = JSON.parse(tr);
                 S.weeklies = JSON.parse(wr);
@@ -8040,6 +8042,7 @@
         }
 
         function onLoggedIn(user) {
+            console.log('[DIAG] onLoggedIn() called — was _currentUser already set?', !!_currentUser);
             _currentUser = user;
             const authScreenEl = document.getElementById('authScreen');
             if (authScreenEl) authScreenEl.remove();
@@ -8373,8 +8376,9 @@
 
         let _loadAllDataInProgress = false;
         async function loadAllData(force) {
+            console.log('[DIAG] loadAllData() called — force:', force, '— inProgress:', _loadAllDataInProgress, '— stack:', new Error().stack.split('\n')[2]?.trim());
             if (!_currentUser) return;
-            if (_loadAllDataInProgress) return;
+            if (_loadAllDataInProgress) { console.log('[DIAG] loadAllData() SKIPPED — already in progress'); return; }
             _loadAllDataInProgress = true;
             setSyncStatus('syncing');
             try {
@@ -8386,6 +8390,7 @@
                 if (meta?.last_device) S.serverLastDevice = meta.last_device;
                 const cachedLastMod = getCachedLastMod();
                 if (!force && serverLastMod && serverLastMod === cachedLastMod && loadLocalCache()) {
+                    console.log('[DIAG] loadAllData() took FAST/CACHED path');
                     _mergePendingWritesIntoState();
                     setSyncStatus('synced');
                     updateSyncBar();
@@ -8417,6 +8422,7 @@
                 S.trades = (tr.data || []).map(dbToTrade);
                 S.weeklies = (wr.data || []).map(dbToWeekly);
                 S.notes = (nr.data || []).map(dbToNote);
+                console.log('[DIAG] loadAllData() took FULL FETCH path — notes from server:', S.notes.length);
                 _mergePendingWritesIntoState();
                 if (serverLastMod) { setCachedLastMod(serverLastMod); } else { await touchSyncMeta(); }
                 saveLocalCache();
@@ -9406,6 +9412,7 @@
         }
 
         async function saveNoteToDb(n) {
+            console.log('[DIAG] saveNoteToDb() called for note:', n.id, n.title, '— S.notes count before saveLocalCache:', S.notes.length);
             if (!_currentUser) { showToast('Not logged in — note saved locally only', 'err'); return false; }
             saveLocalCache();
             const result = await attemptWrite({
