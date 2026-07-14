@@ -1,39 +1,41 @@
 <!-- 
     Trade Journal
-    Version: v5
-    Released: 2026-07-12 21:33 UTC
+    Version: v5.1
+    Released: 2026-07-14 11:51 UTC
     Build: ONLINE (Cloudflare Pages)
 
-    v5 — Online/Offline sync merge. Both builds now share identical business logic;
-    only the local-replica/File-System-Access layer differs (offline only).
+    v5.1 — Journaling Consistency + Offline Write Queue
 
-    Bug fixes carried into this sync:
-    - Share button fixed for screenshots + added to Closed Trades (shareClosedTrade)
-    - Fixed WIN-showing-negative-R bug (saveClosure writes effectiveTradeType back to t.tradeType)
-    - Fixed share always showing "BUY" for sell ideas (tradeType derived from biasSet at save)
-    - Fixed Brave password-manager prompting on all text fields (auth screen removed from DOM on login)
-    - NY time added to all note/update timestamps
-    - Closed Trade tagging system with per-context quick-pick suggestions; mobile tag-add
-      bug fixed (Android keyboard Enter-key unreliability, blur-fallback added)
-    - Paper Trade bucket: is_paper flag, LIVE/PAPER toggle, badges, filters, Dashboard/
-      Deeper Insights Live/Combined toggle
-    - Scalping Trade fix: standalone (unlinked) intraday trades now visible/closeable
-    - Deeper Insights: fixed NaN R bug (6 compute functions were missing wins/losses/sumR
-      fields, breaking merge with archived historical snapshots); Paper-aware filtering
-      completed across all panels
-    - Weekly Bias card: fixed two-hop linking bug (was comparing intraday's parent-daily-bias
-      ID directly against the weekly's own ID — only ever worked by UUID coincidence);
-      now shows Linked Daily Bias entries with a new read-only checklist viewer for closed trades
-    - Low-contrast Strategic Environment header text fixed; bullet/list-spilling-outside-panel
-      bug fixed at all 3 render sites
-    - Weekly Close Review batch: stats now scoped to the specific pair (not all pairs that
-      week); Bias Accuracy Engine and Environment Quality Validation fixed (were comparing
-      a display-label string against bare grade codes, always failing); Bias Alignment and
-      Bias Played Out are now fully auto-computed from trade data instead of manual entry
-    - Archive failsafe: cannot run while any trade is open (two-layer check — pre-flight UI
-      + hard block inside runArchive itself)
-    - New: ai_review column added to trades table so AI Review results (Gemini 1.5 Flash)
-      persist across sessions instead of being lost on reload
+    New:
+    - Journaling Consistency card on Dashboard: Weekly Review Consistency shown across
+      3 windows (12-week / quarter / all-time), Daily Journaling Streak (current +
+      longest, Mon-Fri only) with a GitHub-style heatmap
+    - Offline write queue: fixed a real data-loss bug where a failed network save
+      (e.g. no connection) discarded the edit entirely, with no local trace. All 7
+      core write paths (trades save/delete, weeklies save/delete, notes save/delete,
+      core rules save) now update local cache first unconditionally, then route
+      through a shared queuedWrite() function. On failure, the write is queued
+      (pure serializable data, not a closure, so it survives a page reload) and
+      automatically retried on: browser reconnect, a ~45s background interval, and
+      app boot. A small "N unsynced" badge near the sync status shows pending writes;
+      tapping it forces an immediate retry.
+    - Deliberately excluded from the queue: sync_meta (self-healing ping),
+      insight_snapshots/cumulative_stats (derived/recomputable), a legacy one-time
+      data-cleanup migration, and Archive's own writes (already has its own
+      human-gated, step-confirmed flow — auto-retrying a destructive delete silently
+      would be dangerous there)
+
+
+    v5.1 (2026-07-14 11:55 UTC): Journaling Consistency Dashboard card (Weekly Review
+    Consistency across 3 windows + Daily Journaling Streak with heatmap, all derived
+    from existing data, no schema change). Offline write queue: all 7 core write paths
+    (trades save/delete, weeklies save/delete, notes save/delete, core rules save) now
+    save locally first unconditionally, then route through a shared queuedWrite()
+    function; failures queue for auto-retry on browser reconnect + periodic interval +
+    app boot, with a "N unsynced" badge near sync status. Deliberately excluded from
+    the queue: sync_meta ping, insight_snapshots/cumulative_stats (derived), the legacy
+    one-time data-cleanup migration, and Archive's own writes (has its own human-gated
+    flow -- silent auto-retry of a destructive delete would be dangerous there).
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -4965,6 +4967,7 @@
                 <div class="sync-chip-dot" id="syncChipDot"></div>
                 <span class="sync-chip-label" id="syncChipLabel">—</span>
             </div>
+            <span id="unsyncedBadge" onclick="flushPendingWrites()" title="Tap to retry now" style="display:none;align-items:center;gap:4px;font-family:var(--font-mono);font-size:8px;font-weight:700;padding:4px 9px;border-radius:20px;background:rgba(255,176,32,0.15);color:#ffb020;border:1.5px solid rgba(255,176,32,0.4);cursor:pointer;white-space:nowrap;margin-left:6px;"></span>
             <button id="syncBtnTop" onclick="manualSync()" class="sync-refresh-btn" title="Sync now">⟳</button>
 
             <!-- Sync popover panel -->
@@ -5162,6 +5165,13 @@
                     <!-- R-captured breakdown -->
                     <div style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">R CAPTURED</div>
                     <div class="r-grid" id="rGrid"></div>
+
+                    <!-- NEW: Journaling Consistency -->
+                    <div id="consistencyWrap" class="dash-card" style="margin-bottom:12px;">
+                        <div class="dash-card-title">CONSISTENCY</div>
+                        <div id="consistencyStats" style="font-family:var(--font-mono);font-size:10px;color:var(--muted);line-height:1.9;margin-bottom:10px;"></div>
+                        <div id="consistencyHeatmap" style="display:flex;gap:3px;overflow-x:auto;padding-bottom:4px;"></div>
+                    </div>
 
                     <!-- NEW: Process Quality + Sync Status Row -->
                     <div id="processQualityWrap" class="dash-card" style="margin-bottom:12px;">
@@ -8037,6 +8047,8 @@
             document.querySelector('.topbar-brand p').textContent = user.email;
             requestPersistentStorage();
             loadAllData();
+            updateUnsyncedBadge();
+            setTimeout(flushPendingWrites, 1500);
             setTimeout(checkPriorIncompleteArchive, 3000);
             setTimeout(cleanStaleDisplayUrls, 5000); // One-time cleanup of _displayUrl persisted to DB
         }
@@ -8431,14 +8443,112 @@
             }
         }
 
+        // ════════════════════════════════════════════════════════════════════
+        // OFFLINE WRITE QUEUE — local-first writes with retry-on-reconnect
+        // Covers: trades (save/delete), weeklies (save/delete), notes (save/delete),
+        // core_rules (save). Deliberately excludes: sync_meta (self-healing ping),
+        // insight_snapshots/cumulative_stats (derived/recomputable), the one-time
+        // legacy data-cleanup migration, and Archive's own writes (which have their
+        // own human-gated, step-confirmed flow — auto-retrying a destructive delete
+        // silently in the background would be actively dangerous there).
+        // ════════════════════════════════════════════════════════════════════
+
+        function _pendingQueueKey() {
+            return 'ict_pending_writes_' + (_currentUser ? _currentUser.id : 'anon');
+        }
+
+        function _getPendingWrites() {
+            try { return JSON.parse(localStorage.getItem(_pendingQueueKey()) || '[]'); }
+            catch (e) { return []; }
+        }
+
+        function _setPendingWrites(queue) {
+            try { localStorage.setItem(_pendingQueueKey(), JSON.stringify(queue)); } catch (e) { /* storage full — best effort */ }
+        }
+
+        function _addPendingWrite(meta) {
+            const queue = _getPendingWrites();
+            const idx = queue.findIndex(m => m.id === meta.id);
+            if (idx !== -1) queue[idx] = meta; // newer edit to the same row replaces the queued one
+            else queue.push(meta);
+            _setPendingWrites(queue);
+            updateUnsyncedBadge();
+        }
+
+        function _removePendingWrite(id) {
+            _setPendingWrites(_getPendingWrites().filter(m => m.id !== id));
+            updateUnsyncedBadge();
+        }
+
+        function updateUnsyncedBadge() {
+            const n = _getPendingWrites().length;
+            const el = document.getElementById('unsyncedBadge');
+            if (!el) return;
+            if (n > 0) { el.textContent = n + ' unsynced'; el.style.display = 'inline-flex'; }
+            else el.style.display = 'none';
+        }
+
+        // Reconstructs and executes a write from pure serializable data (no closures),
+        // so a pending write survives a page reload and can be replayed later.
+        async function _replayWrite(meta) {
+            let query = _sb.from(meta.table);
+            if (meta.opType === 'upsert') {
+                query = query.upsert(meta.payload, { onConflict: meta.onConflict || 'id' });
+            } else if (meta.opType === 'delete') {
+                query = query.delete().eq(meta.matchCol, meta.matchVal).eq('user_id', _currentUser.id);
+            } else if (meta.opType === 'delete_in') {
+                query = query.delete().in(meta.matchCol, meta.matchVal).eq('user_id', _currentUser.id);
+            } else {
+                return { error: new Error('Unknown opType: ' + meta.opType) };
+            }
+            return await query;
+        }
+
+        // Single entry point every in-scope write routes through. Attempts the write
+        // immediately; on failure (network/offline), queues it for automatic retry
+        // instead of discarding the change.
+        async function queuedWrite(meta) {
+            try {
+                const { error } = await _replayWrite(meta);
+                if (error) throw error;
+                _removePendingWrite(meta.id);
+                return { success: true };
+            } catch (e) {
+                meta.timestamp = meta.timestamp || Date.now();
+                _addPendingWrite(meta);
+                return { success: false, error: e };
+            }
+        }
+
+        let _flushInProgress = false;
+        async function flushPendingWrites() {
+            if (_flushInProgress || !_currentUser || !navigator.onLine) return;
+            const queue = _getPendingWrites();
+            if (queue.length === 0) return;
+            _flushInProgress = true;
+            let synced = 0;
+            for (const meta of queue) {
+                try {
+                    const { error } = await _replayWrite(meta);
+                    if (!error) { _removePendingWrite(meta.id); synced++; }
+                } catch (e) { /* leave queued, try again next trigger */ }
+            }
+            _flushInProgress = false;
+            if (synced > 0) {
+                showToast(`✓ ${synced} change${synced !== 1 ? 's' : ''} synced`, 'ok');
+                await touchSyncMeta();
+                saveLocalCache();
+            }
+            updateUnsyncedBadge();
+        }
+
+        window.addEventListener('online', () => flushPendingWrites());
+        setInterval(() => { if (_getPendingWrites().length > 0) flushPendingWrites(); }, 45000);
+
         async function saveTrade(t) {
             if (!_currentUser) return false;
             setSyncStatus('syncing');
-            const { error } = await _sb.from('trades').upsert(tradeToDb(t), { onConflict: 'id' });
-            if (error) { setSyncStatus('error');
-                showToast('Save error: ' + error.message, 'err'); return false; }
-            // Update snapshot and cumulative stats whenever a trade is closed — fire and forget
-            if (t.status === 'closed') { saveInsightSnapshot(); saveCumulativeStats(); }
+            // Local-first: persist locally immediately, regardless of network outcome
             if (t._ssLoaded) {
                 await _ssDB.set(t.id, {
                     screenshots: t.screenshots || [],
@@ -8447,8 +8557,22 @@
                     cachedAt: new Date().toISOString(),
                 });
             }
-            await touchSyncMeta();
             saveLocalCache();
+
+            const result = await queuedWrite({
+                id: 'trades:' + t.id,
+                table: 'trades', opType: 'upsert', onConflict: 'id',
+                payload: tradeToDb(t),
+                description: `${t.pair || 'Trade'} · ${t.date || ''}`,
+            });
+            if (!result.success) {
+                setSyncStatus('error');
+                showToast('Offline — saved locally, will sync when reconnected', 'warn');
+                return false;
+            }
+            // Update snapshot and cumulative stats whenever a trade is closed — fire and forget
+            if (t.status === 'closed') { saveInsightSnapshot(); saveCumulativeStats(); }
+            await touchSyncMeta();
             setSyncStatus('synced');
             return true;
         }
@@ -8484,9 +8608,17 @@
 
             // Delete all DB rows
             if (allIdsToDelete.length === 1) {
-                await _sb.from('trades').delete().eq('id', id).eq('user_id', _currentUser.id);
+                await queuedWrite({
+                    id: 'trades:' + id,
+                    table: 'trades', opType: 'delete', matchCol: 'id', matchVal: id,
+                    description: `Delete trade ${id}`,
+                });
             } else {
-                await _sb.from('trades').delete().in('id', allIdsToDelete).eq('user_id', _currentUser.id);
+                await queuedWrite({
+                    id: 'trades_bulk:' + id,
+                    table: 'trades', opType: 'delete_in', matchCol: 'id', matchVal: allIdsToDelete,
+                    description: `Delete trade + ${allIdsToDelete.length - 1} linked`,
+                });
             }
 
             // Evict from IndexedDB cache
@@ -8502,11 +8634,19 @@
             if (!_currentUser) return false;
             setSyncStatus('syncing');
             const row = weeklyToDb(w);
-            const { error } = await _sb.from('weeklies').upsert(row, { onConflict: 'id' });
-            if (error) { setSyncStatus('error');
-                showToast('Save error: ' + error.message, 'err'); return false; }
-            await touchSyncMeta();
             saveLocalCache();
+            const result = await queuedWrite({
+                id: 'weeklies:' + w.id,
+                table: 'weeklies', opType: 'upsert', onConflict: 'id',
+                payload: row,
+                description: `${w.pair || 'Weekly'} · ${w.date || ''}`,
+            });
+            if (!result.success) {
+                setSyncStatus('error');
+                showToast('Offline — saved locally, will sync when reconnected', 'warn');
+                return false;
+            }
+            await touchSyncMeta();
             setSyncStatus('synced');
             return true;
         }
@@ -8527,7 +8667,11 @@
                     await deleteScreenshotsFromStorage(allUrls);
                 }
             } catch (e) { console.warn('Screenshot pre-fetch for weekly delete failed:', e); }
-            await _sb.from('weeklies').delete().eq('id', id).eq('user_id', _currentUser.id);
+            await queuedWrite({
+                id: 'weeklies:' + id,
+                table: 'weeklies', opType: 'delete', matchCol: 'id', matchVal: id,
+                description: `Delete weekly ${id}`,
+            });
             await touchSyncMeta();
             saveLocalCache();
         }
@@ -9134,22 +9278,33 @@
 
         async function saveNoteToDb(n) {
             if (!_currentUser) { showToast('Not logged in — note saved locally only', 'err'); return; }
-            try {
-                const { error } = await _sb.from('notes').upsert(noteToDb(n), { onConflict: 'id' });
-                if (error) throw error;
-                await touchSyncMeta();
-                saveLocalCache();
-            } catch (e) { console.warn('Note save error', e); showToast('Note sync error: ' + e.message, 'err'); }
+            saveLocalCache();
+            const result = await queuedWrite({
+                id: 'notes:' + n.id,
+                table: 'notes', opType: 'upsert', onConflict: 'id',
+                payload: noteToDb(n),
+                description: n.title || 'Note',
+            });
+            if (!result.success) {
+                showToast('Offline — note saved locally, will sync when reconnected', 'warn');
+                return;
+            }
+            await touchSyncMeta();
         }
 
         async function deleteNoteFromDb(id) {
             if (!_currentUser) return;
-            try {
-                const { error } = await _sb.from('notes').delete().eq('id', id).eq('user_id', _currentUser.id);
-                if (error) throw error;
-                await touchSyncMeta();
-                saveLocalCache();
-            } catch (e) { console.warn('Note delete error', e); showToast('Note delete error: ' + e.message, 'err'); }
+            const result = await queuedWrite({
+                id: 'notes:' + id,
+                table: 'notes', opType: 'delete', matchCol: 'id', matchVal: id,
+                description: `Delete note ${id}`,
+            });
+            if (!result.success) {
+                showToast('Offline — deletion queued, will sync when reconnected', 'warn');
+                return;
+            }
+            await touchSyncMeta();
+            saveLocalCache();
         }
 
         // ── Core Rules ──
@@ -9176,12 +9331,17 @@
 
         async function saveRulesToSupa(arr) {
             if (!_currentUser) return;
-            try {
-                const { error } = await _sb.from('core_rules').upsert({ user_id: _currentUser.id, rules: arr },
-                { onConflict: 'user_id' });
-                if (error) throw error;
-                await touchSyncMeta();
-            } catch (e) { console.warn('Core rules sync error', e); showToast('Core rules sync error: ' + e.message, 'err'); }
+            const result = await queuedWrite({
+                id: 'core_rules:' + _currentUser.id,
+                table: 'core_rules', opType: 'upsert', onConflict: 'user_id',
+                payload: { user_id: _currentUser.id, rules: arr },
+                description: 'Core trading rules',
+            });
+            if (!result.success) {
+                showToast('Offline — rules saved locally, will sync when reconnected', 'warn');
+                return;
+            }
+            await touchSyncMeta();
         }
 
         window.loadCoreRules = async function() {
@@ -13596,6 +13756,131 @@
                 `<div class="leak-card" style="border-color:${isWarn?'var(--bear)':'var(--gold)'};"><div class="leak-title">BIGGEST PERFORMANCE LEAK</div><div class="leak-body"><span class="leak-icon">⚠️</span><div class="leak-content"><div class="leak-headline ${isWarn?'warn':'ok'}">${leak.title}</div><div class="leak-msg">${leak.msg}</div></div>${leak.score!==undefined?`<div class="leak-score ${isWarn?'warn':'ok'}">${leak.score}</div>`:''}</div></div>`;
         }
 
+        // ── Journaling Consistency ──
+        // Weekly Review Consistency: fraction of calendar weeks with at least one
+        // closed (reviewed) Weekly Bias entry, across 3 windows (12-week, quarter, all-time).
+        // Daily Journaling Streak: consecutive Mon-Fri weekdays with at least one
+        // Daily Bias (non-intraday) trade logged, current streak + longest ever.
+
+        function _isoWeekStart(d) {
+            const date = new Date(d);
+            const day = date.getDay();
+            const diff = (day === 0 ? 6 : day - 1);
+            date.setDate(date.getDate() - diff);
+            date.setHours(0, 0, 0, 0);
+            return date;
+        }
+
+        function computeWeeklyReviewConsistency() {
+            const weeklies = S.weeklies || [];
+            const empty = { done: 0, total: 0 };
+            if (weeklies.length === 0) return { last12: empty, quarter: empty, allTime: empty };
+
+            const weekMap = {};
+            weeklies.forEach(w => {
+                if (!w.date) return;
+                const ws = _isoWeekStart(w.date + 'T00:00:00').toISOString().slice(0, 10);
+                if (!(ws in weekMap)) weekMap[ws] = false;
+                if (w.status === 'closed') weekMap[ws] = true;
+            });
+
+            const today = new Date();
+            const thisWeekStart = _isoWeekStart(today);
+
+            function windowStats(startDate) {
+                let done = 0, total = 0;
+                let cursor = _isoWeekStart(startDate);
+                while (cursor <= thisWeekStart) {
+                    const key = cursor.toISOString().slice(0, 10);
+                    total++;
+                    if (weekMap[key]) done++;
+                    cursor = new Date(cursor); cursor.setDate(cursor.getDate() + 7);
+                }
+                return { done, total };
+            }
+
+            const w12start = new Date(thisWeekStart); w12start.setDate(w12start.getDate() - 7 * 11);
+            const qStart = new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1);
+            const firstWeekly = weeklies.reduce((min, w) => (w.date && (!min || w.date < min)) ? w.date : min, null);
+            const allStart = firstWeekly ? new Date(firstWeekly + 'T00:00:00') : thisWeekStart;
+
+            return {
+                last12: windowStats(w12start),
+                quarter: windowStats(qStart),
+                allTime: windowStats(allStart),
+            };
+        }
+
+        function computeDailyJournalingStreak() {
+            const dailyTrades = (S.trades || []).filter(t => !t.isIntraday && t.date);
+            const loggedDates = new Set(dailyTrades.map(t => t.date));
+            const isWeekday = (d) => d.getDay() !== 0 && d.getDay() !== 6;
+
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const thisWeekStart = _isoWeekStart(today);
+            const startWeek = new Date(thisWeekStart); startWeek.setDate(startWeek.getDate() - 7 * 11);
+
+            const weeks = [];
+            let wCursor = new Date(startWeek);
+            while (wCursor <= thisWeekStart) {
+                const days = [];
+                for (let i = 0; i < 5; i++) {
+                    const d = new Date(wCursor); d.setDate(d.getDate() + i);
+                    const iso = d.toISOString().slice(0, 10);
+                    days.push({ date: iso, logged: loggedDates.has(iso), future: d > today });
+                }
+                weeks.push(days);
+                wCursor = new Date(wCursor); wCursor.setDate(wCursor.getDate() + 7);
+            }
+
+            let current = 0;
+            let cursor = new Date(today);
+            while (!isWeekday(cursor)) cursor.setDate(cursor.getDate() - 1);
+            while (true) {
+                const iso = cursor.toISOString().slice(0, 10);
+                if (loggedDates.has(iso)) {
+                    current++;
+                    do { cursor.setDate(cursor.getDate() - 1); } while (!isWeekday(cursor));
+                } else break;
+            }
+
+            let longest = 0, run = 0;
+            if (dailyTrades.length > 0) {
+                const firstDate = dailyTrades.reduce((min, t) => (!min || t.date < min) ? t.date : min, null);
+                let d = new Date(firstDate + 'T00:00:00');
+                while (d <= today) {
+                    if (isWeekday(d)) {
+                        const iso = d.toISOString().slice(0, 10);
+                        if (loggedDates.has(iso)) { run++; longest = Math.max(longest, run); }
+                        else run = 0;
+                    }
+                    d.setDate(d.getDate() + 1);
+                }
+            }
+
+            return { current, longest, weeks };
+        }
+
+        function renderConsistency() {
+            const statsEl = document.getElementById('consistencyStats');
+            const heatmapEl = document.getElementById('consistencyHeatmap');
+            if (!statsEl || !heatmapEl) return;
+
+            const wr = computeWeeklyReviewConsistency();
+            const ds = computeDailyJournalingStreak();
+
+            statsEl.innerHTML = `
+                <div>Weekly reviews: ${wr.last12.done}/${wr.last12.total} (12-wk) · ${wr.quarter.done}/${wr.quarter.total} (qtr) · ${wr.allTime.done}/${wr.allTime.total} (all-time)</div>
+                <div>Daily streak: <b style="color:var(--ink)">${ds.current} day${ds.current !== 1 ? 's' : ''}</b> · Longest: ${ds.longest} day${ds.longest !== 1 ? 's' : ''}</div>
+            `;
+
+            heatmapEl.innerHTML = ds.weeks.map(week => `
+                <div style="display:flex;flex-direction:column;gap:3px;">
+                    ${week.map(d => `<div title="${d.date}${d.future ? '' : (d.logged ? ' — logged' : ' — missed')}" style="width:12px;height:12px;border-radius:2px;background:${d.future ? 'var(--cream)' : (d.logged ? 'var(--bull)' : 'var(--bear-lt)')};"></div>`).join('')}
+                </div>
+            `).join('');
+        }
+
         function renderAdditionalInsights() {
             const grid = document.getElementById('additionalInsightsGrid');
             if (!grid) return;
@@ -13794,6 +14079,7 @@
             renderOpportunityDistribution();
             renderPerformanceLeak();
             renderAdditionalInsights();
+            renderConsistency();
 
             const homeOpen = document.getElementById('homeOpenSection');
             if (open.length > 0) {
