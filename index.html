@@ -1,41 +1,38 @@
 <!-- 
     Trade Journal
     Version: v5.1
-    Released: 2026-07-14 11:51 UTC
+    Released: 2026-07-14 (final revision same day)
     Build: ONLINE (Cloudflare Pages)
 
-    v5.1 — Journaling Consistency + Offline Write Queue
+    v5.1 — Journaling Consistency + Offline Bucket/Sync Barrier + Version tracking
 
     New:
     - Journaling Consistency card on Dashboard: Weekly Review Consistency shown across
       3 windows (12-week / quarter / all-time), Daily Journaling Streak (current +
-      longest, Mon-Fri only) with a GitHub-style heatmap
-    - Offline write queue: fixed a real data-loss bug where a failed network save
-      (e.g. no connection) discarded the edit entirely, with no local trace. All 7
-      core write paths (trades save/delete, weeklies save/delete, notes save/delete,
-      core rules save) now update local cache first unconditionally, then route
-      through a shared queuedWrite() function. On failure, the write is queued
-      (pure serializable data, not a closure, so it survives a page reload) and
-      automatically retried on: browser reconnect, a ~45s background interval, and
-      app boot. A small "N unsynced" badge near the sync status shows pending writes;
-      tapping it forces an immediate retry.
-    - Deliberately excluded from the queue: sync_meta (self-healing ping),
+      longest, Mon-Fri only) with a GitHub-style heatmap.
+    - Offline write protocol (replaces an earlier same-day queue design that blurred
+      "offline" and "genuine error" together, causing real errors to be silently
+      queued instead of surfaced): online writes go direct, exactly as before.
+      Offline / genuine network failure -> the write goes into a small dedicated
+      bucket (localStorage, ~15-20 items max by design). On reconnect, a sync barrier
+      blocks all new saves while the whole bucket is pushed AND verified present
+      server-side (re-fetched by id, not just "no error returned"); bounded at 3
+      attempts, then releases the barrier and leaves any still-unverified entries in
+      the bucket for a later retry rather than looping forever. A small "N unsynced"
+      badge near sync status shows pending items; tapping it forces an immediate
+      retry. Covers all 7 core write paths: trades save/delete, weeklies save/delete,
+      notes save/delete, core rules save.
+    - Fixed a related data-loss bug: loadAllData()'s full-fetch path used to
+      unconditionally overwrite in-memory/local-cache state with server data,
+      silently erasing anything still pending sync. Now re-merges pending bucket
+      entries back on top after every fetch/cache-load path.
+    - Deliberately excluded from the bucket: sync_meta (self-healing ping),
       insight_snapshots/cumulative_stats (derived/recomputable), a legacy one-time
       data-cleanup migration, and Archive's own writes (already has its own
       human-gated, step-confirmed flow — auto-retrying a destructive delete silently
-      would be dangerous there)
-
-
-    v5.1 (2026-07-14 11:55 UTC): Journaling Consistency Dashboard card (Weekly Review
-    Consistency across 3 windows + Daily Journaling Streak with heatmap, all derived
-    from existing data, no schema change). Offline write queue: all 7 core write paths
-    (trades save/delete, weeklies save/delete, notes save/delete, core rules save) now
-    save locally first unconditionally, then route through a shared queuedWrite()
-    function; failures queue for auto-retry on browser reconnect + periodic interval +
-    app boot, with a "N unsynced" badge near sync status. Deliberately excluded from
-    the queue: sync_meta ping, insight_snapshots/cumulative_stats (derived), the legacy
-    one-time data-cleanup migration, and Archive's own writes (has its own human-gated
-    flow -- silent auto-retry of a destructive delete would be dangerous there).
+      would be dangerous there).
+    - Version number now visible in-app (Settings -> About), sourced from a single
+      APP_VERSION constant so future releases just bump one line.
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -4967,7 +4964,7 @@
                 <div class="sync-chip-dot" id="syncChipDot"></div>
                 <span class="sync-chip-label" id="syncChipLabel">—</span>
             </div>
-            <span id="unsyncedBadge" onclick="flushPendingWrites()" title="Tap to retry now" style="display:none;align-items:center;gap:4px;font-family:var(--font-mono);font-size:8px;font-weight:700;padding:4px 9px;border-radius:20px;background:rgba(255,176,32,0.15);color:#ffb020;border:1.5px solid rgba(255,176,32,0.4);cursor:pointer;white-space:nowrap;margin-left:6px;"></span>
+            <span id="unsyncedBadge" onclick="syncOfflineBucket()" title="Tap to retry now" style="display:none;align-items:center;gap:4px;font-family:var(--font-mono);font-size:8px;font-weight:700;padding:4px 9px;border-radius:20px;background:rgba(255,176,32,0.15);color:#ffb020;border:1.5px solid rgba(255,176,32,0.4);cursor:pointer;white-space:nowrap;margin-left:6px;"></span>
             <button id="syncBtnTop" onclick="manualSync()" class="sync-refresh-btn" title="Sync now">⟳</button>
 
             <!-- Sync popover panel -->
@@ -6036,7 +6033,8 @@
                         <div style="padding:14px;">
                             <div style="font-family:var(--font-mono);font-size:9px;color:var(--ink);line-height:1.9;">
                                 My Trade Journal<br>
-                                <span style="color:var(--muted);">Scan · Plan · Execute<br>Built for disciplined execution</span>
+                                <span style="color:var(--muted);">Scan · Plan · Execute<br>Built for disciplined execution</span><br>
+                                <span id="aboutVersion" style="color:var(--muted);"></span>
                             </div>
                         </div>
                     </div>
@@ -7024,6 +7022,9 @@
         // ════════════════════════════════════════════════════════════════════
         // STATE — EXTENDED
         // ════════════════════════════════════════════════════════════════════
+        const APP_VERSION = 'v5.1';
+        const APP_VERSION_DATE = '2026-07-14';
+
         const S = {
             insightsMode: 'live',
             closedTypeFilter: 'all',
@@ -8048,7 +8049,7 @@
             requestPersistentStorage();
             loadAllData();
             updateUnsyncedBadge();
-            setTimeout(flushPendingWrites, 1500);
+            setTimeout(syncOfflineBucket, 1500);
             setTimeout(checkPriorIncompleteArchive, 3000);
             setTimeout(cleanStaleDisplayUrls, 5000); // One-time cleanup of _displayUrl persisted to DB
         }
@@ -8447,52 +8448,72 @@
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // OFFLINE WRITE QUEUE — local-first writes with retry-on-reconnect
-        // Covers: trades (save/delete), weeklies (save/delete), notes (save/delete),
-        // core_rules (save). Deliberately excludes: sync_meta (self-healing ping),
+        // OFFLINE BUCKET + SYNC BARRIER
+        // Online: direct save/delete, exactly like the app worked before any of
+        // this existed. Genuine errors (bad data, permissions, etc.) surface
+        // immediately and are NEVER queued, since retrying wouldn't fix them.
+        // Offline (or a real network failure): the write goes into a small
+        // dedicated bucket instead. On reconnect, everything in the bucket is
+        // pushed AND verified present server-side before the app resumes normal
+        // operation — new saves are held until this passes. Scale is tiny by
+        // design (personal use, ~15-20 items max), so a full push+verify pass is
+        // cheap. Deliberately excludes: sync_meta (self-healing ping),
         // insight_snapshots/cumulative_stats (derived/recomputable), the one-time
-        // legacy data-cleanup migration, and Archive's own writes (which have their
-        // own human-gated, step-confirmed flow — auto-retrying a destructive delete
-        // silently in the background would be actively dangerous there).
+        // legacy data-cleanup migration, and Archive's own writes (their own
+        // human-gated, step-confirmed flow — auto-retrying a destructive delete
+        // silently would be actively dangerous there).
         // ════════════════════════════════════════════════════════════════════
 
-        function _pendingQueueKey() {
-            return 'ict_pending_writes_' + (_currentUser ? _currentUser.id : 'anon');
+        let _syncBarrierActive = false;
+
+        function _offlineBucketKey() {
+            return 'ict_offline_bucket_' + (_currentUser ? _currentUser.id : 'anon');
         }
 
-        function _getPendingWrites() {
-            try { return JSON.parse(localStorage.getItem(_pendingQueueKey()) || '[]'); }
+        function _getOfflineBucket() {
+            try { return JSON.parse(localStorage.getItem(_offlineBucketKey()) || '[]'); }
             catch (e) { return []; }
         }
 
-        function _setPendingWrites(queue) {
-            try { localStorage.setItem(_pendingQueueKey(), JSON.stringify(queue)); } catch (e) { /* storage full — best effort */ }
+        function _setOfflineBucket(bucket) {
+            try { localStorage.setItem(_offlineBucketKey(), JSON.stringify(bucket)); } catch (e) { /* storage full — best effort */ }
         }
 
-        function _addPendingWrite(meta) {
-            const queue = _getPendingWrites();
-            const idx = queue.findIndex(m => m.id === meta.id);
-            if (idx !== -1) queue[idx] = meta; // newer edit to the same row replaces the queued one
-            else queue.push(meta);
-            _setPendingWrites(queue);
+        function _addToOfflineBucket(meta) {
+            const bucket = _getOfflineBucket();
+            const idx = bucket.findIndex(m => m.id === meta.id);
+            meta.attempts = 0;
+            if (idx !== -1) bucket[idx] = meta; // newer edit to the same row replaces the queued one
+            else bucket.push(meta);
+            _setOfflineBucket(bucket);
             updateUnsyncedBadge();
         }
 
-        function _removePendingWrite(id) {
-            _setPendingWrites(_getPendingWrites().filter(m => m.id !== id));
+        function _removeFromOfflineBucket(id) {
+            _setOfflineBucket(_getOfflineBucket().filter(m => m.id !== id));
             updateUnsyncedBadge();
         }
 
         function updateUnsyncedBadge() {
-            const n = _getPendingWrites().length;
+            const n = _getOfflineBucket().length;
             const el = document.getElementById('unsyncedBadge');
             if (!el) return;
             if (n > 0) { el.textContent = n + ' unsynced'; el.style.display = 'inline-flex'; }
             else el.style.display = 'none';
         }
 
+        // Distinguishes "can't reach the server" from a genuine data/permission error.
+        // Only network-shaped failures should ever go into the offline bucket.
+        function _isNetworkError(error) {
+            if (!navigator.onLine) return true;
+            if (!error) return false;
+            const msg = (error.message || '').toLowerCase();
+            return error.name === 'TypeError' || msg.includes('fetch') || msg.includes('network') ||
+                msg.includes('load failed');
+        }
+
         // Reconstructs and executes a write from pure serializable data (no closures),
-        // so a pending write survives a page reload and can be replayed later.
+        // so a bucketed write survives a page reload and can be replayed later.
         async function _replayWrite(meta) {
             let query = _sb.from(meta.table);
             if (meta.opType === 'upsert') {
@@ -8507,56 +8528,106 @@
             return await query;
         }
 
-        // Single entry point every in-scope write routes through. Attempts the write
-        // immediately; on failure (network/offline), queues it for automatic retry
-        // instead of discarding the change.
-        async function queuedWrite(meta) {
+        // Confirms a pushed row actually exists server-side (or, for deletes, that
+        // it's actually gone). Cheap at this scale — one row lookup per bucket entry.
+        async function _verifyWrite(meta) {
+            try {
+                if (meta.opType === 'upsert') {
+                    const { data, error } = await _sb.from(meta.table).select('id').eq('id', meta.payload.id).maybeSingle();
+                    if (error) return false;
+                    return !!data;
+                } else if (meta.opType === 'delete') {
+                    const { data, error } = await _sb.from(meta.table).select('id').eq(meta.matchCol, meta.matchVal).maybeSingle();
+                    if (error) return false;
+                    return !data;
+                } else if (meta.opType === 'delete_in') {
+                    const { data, error } = await _sb.from(meta.table).select('id').in(meta.matchCol, meta.matchVal);
+                    if (error) return false;
+                    return !data || data.length === 0;
+                }
+            } catch (e) { return false; }
+            return false;
+        }
+
+        // Single entry point every in-scope write routes through. Online: attempts
+        // directly, exactly like the pre-bucket behavior. Offline / network failure:
+        // adds to the bucket instead of discarding the change. Real (non-network)
+        // errors are surfaced immediately, never bucketed.
+        async function attemptWrite(meta) {
+            if (_syncBarrierActive) {
+                showToast('⏳ Syncing offline changes — try again in a moment', 'warn');
+                return { success: false, blocked: true };
+            }
+            if (!navigator.onLine) {
+                _addToOfflineBucket(meta);
+                return { success: false, queued: true };
+            }
             try {
                 const { error } = await _replayWrite(meta);
                 if (error) throw error;
-                _removePendingWrite(meta.id);
                 return { success: true };
             } catch (e) {
-                meta.timestamp = meta.timestamp || Date.now();
-                _addPendingWrite(meta);
+                if (_isNetworkError(e)) {
+                    _addToOfflineBucket(meta);
+                    return { success: false, queued: true };
+                }
                 return { success: false, error: e };
             }
         }
 
-        let _flushInProgress = false;
-        async function flushPendingWrites() {
-            if (_flushInProgress || !_currentUser || !navigator.onLine) return;
-            const queue = _getPendingWrites();
-            if (queue.length === 0) return;
-            _flushInProgress = true;
-            let synced = 0;
-            for (const meta of queue) {
-                try {
-                    const { error } = await _replayWrite(meta);
-                    if (!error) { _removePendingWrite(meta.id); synced++; }
-                } catch (e) { /* leave queued, try again next trigger */ }
+        // Reconnect flow: pushes the whole bucket, verifies each entry actually
+        // landed server-side, retries only the still-failing ones, bounded at 3
+        // total attempts. Blocks new saves via _syncBarrierActive for the duration.
+        async function syncOfflineBucket() {
+            if (_syncBarrierActive || !_currentUser || !navigator.onLine) return;
+            let bucket = _getOfflineBucket();
+            if (bucket.length === 0) return;
+
+            _syncBarrierActive = true;
+            showToast(`⏳ Syncing ${bucket.length} offline change${bucket.length !== 1 ? 's' : ''}…`, 'warn');
+
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                bucket = _getOfflineBucket();
+                if (bucket.length === 0) break;
+
+                for (const meta of bucket) {
+                    try { await _replayWrite(meta); } catch (e) { /* checked by verification below regardless */ }
+                }
+
+                for (const meta of bucket) {
+                    const verified = await _verifyWrite(meta);
+                    if (verified) _removeFromOfflineBucket(meta.id);
+                }
+
+                bucket = _getOfflineBucket();
+                if (bucket.length === 0) break;
+                if (attempt < 3) await new Promise(r => setTimeout(r, 1500));
             }
-            _flushInProgress = false;
-            if (synced > 0) {
-                showToast(`✓ ${synced} change${synced !== 1 ? 's' : ''} synced`, 'ok');
+
+            _syncBarrierActive = false;
+            const remaining = _getOfflineBucket().length;
+            if (remaining === 0) {
+                showToast('✓ All offline changes synced', 'ok');
                 await touchSyncMeta();
                 saveLocalCache();
+            } else {
+                showToast(`⚠ ${remaining} change${remaining !== 1 ? 's' : ''} still unsynced — will retry later`, 'err');
             }
             updateUnsyncedBadge();
         }
 
-        window.addEventListener('online', () => flushPendingWrites());
-        setInterval(() => { if (_getPendingWrites().length > 0) flushPendingWrites(); }, 45000);
+        window.addEventListener('online', () => syncOfflineBucket());
+        setInterval(() => { if (_getOfflineBucket().length > 0) syncOfflineBucket(); }, 45000);
 
-        // Re-applies any still-pending queued writes on top of freshly-fetched/loaded
-        // state. Without this, a fetch that runs before a queued write has synced would
-        // silently overwrite the local-only edit with stale server data that doesn't
-        // have it yet — call this after every place S.trades/S.weeklies/S.notes gets
-        // (re)assigned from a remote fetch or the local cache.
+        // Re-applies anything still in the offline bucket on top of freshly-fetched/
+        // loaded state. Without this, a fetch that runs before a bucketed write has
+        // synced would silently overwrite the local-only edit with stale server data
+        // that doesn't have it yet — call this after every place S.trades/S.weeklies/
+        // S.notes gets (re)assigned from a remote fetch or the local cache.
         function _mergePendingWritesIntoState() {
-            const queue = _getPendingWrites();
-            if (queue.length === 0) return;
-            queue.forEach(meta => {
+            const bucket = _getOfflineBucket();
+            if (bucket.length === 0) return;
+            bucket.forEach(meta => {
                 try {
                     if (meta.table === 'trades') {
                         if (meta.opType === 'upsert') {
@@ -8585,7 +8656,7 @@
                             S.notes = S.notes.filter(n => !idEq(n.id, meta.matchVal));
                         }
                     }
-                } catch (e) { console.warn('Failed to merge pending write into state:', meta.id, e); }
+                } catch (e) { console.warn('Failed to merge bucketed write into state:', meta.id, e); }
             });
         }
 
@@ -8603,7 +8674,7 @@
             }
             saveLocalCache();
 
-            const result = await queuedWrite({
+            const result = await attemptWrite({
                 id: 'trades:' + t.id,
                 table: 'trades', opType: 'upsert', onConflict: 'id',
                 payload: tradeToDb(t),
@@ -8611,7 +8682,8 @@
             });
             if (!result.success) {
                 setSyncStatus('error');
-                showToast('Offline — saved locally, will sync when reconnected', 'warn');
+                if (result.queued) showToast('Offline — saved locally, will sync when reconnected', 'warn');
+                else if (!result.blocked) showToast('Save error: ' + (result.error?.message || 'unknown error'), 'err');
                 return false;
             }
             // Update snapshot and cumulative stats whenever a trade is closed — fire and forget
@@ -8651,18 +8723,22 @@
             }
 
             // Delete all DB rows
+            let delResult;
             if (allIdsToDelete.length === 1) {
-                await queuedWrite({
+                delResult = await attemptWrite({
                     id: 'trades:' + id,
                     table: 'trades', opType: 'delete', matchCol: 'id', matchVal: id,
                     description: `Delete trade ${id}`,
                 });
             } else {
-                await queuedWrite({
+                delResult = await attemptWrite({
                     id: 'trades_bulk:' + id,
                     table: 'trades', opType: 'delete_in', matchCol: 'id', matchVal: allIdsToDelete,
                     description: `Delete trade + ${allIdsToDelete.length - 1} linked`,
                 });
+            }
+            if (!delResult.success && !delResult.queued && !delResult.blocked) {
+                showToast('Delete error: ' + (delResult.error?.message || 'unknown error'), 'err');
             }
 
             // Evict from IndexedDB cache
@@ -8679,7 +8755,7 @@
             setSyncStatus('syncing');
             const row = weeklyToDb(w);
             saveLocalCache();
-            const result = await queuedWrite({
+            const result = await attemptWrite({
                 id: 'weeklies:' + w.id,
                 table: 'weeklies', opType: 'upsert', onConflict: 'id',
                 payload: row,
@@ -8687,7 +8763,8 @@
             });
             if (!result.success) {
                 setSyncStatus('error');
-                showToast('Offline — saved locally, will sync when reconnected', 'warn');
+                if (result.queued) showToast('Offline — saved locally, will sync when reconnected', 'warn');
+                else if (!result.blocked) showToast('Save error: ' + (result.error?.message || 'unknown error'), 'err');
                 return false;
             }
             await touchSyncMeta();
@@ -8711,11 +8788,14 @@
                     await deleteScreenshotsFromStorage(allUrls);
                 }
             } catch (e) { console.warn('Screenshot pre-fetch for weekly delete failed:', e); }
-            await queuedWrite({
+            const delResult = await attemptWrite({
                 id: 'weeklies:' + id,
                 table: 'weeklies', opType: 'delete', matchCol: 'id', matchVal: id,
                 description: `Delete weekly ${id}`,
             });
+            if (!delResult.success && !delResult.queued && !delResult.blocked) {
+                showToast('Delete error: ' + (delResult.error?.message || 'unknown error'), 'err');
+            }
             await touchSyncMeta();
             saveLocalCache();
         }
@@ -9323,14 +9403,15 @@
         async function saveNoteToDb(n) {
             if (!_currentUser) { showToast('Not logged in — note saved locally only', 'err'); return false; }
             saveLocalCache();
-            const result = await queuedWrite({
+            const result = await attemptWrite({
                 id: 'notes:' + n.id,
                 table: 'notes', opType: 'upsert', onConflict: 'id',
                 payload: noteToDb(n),
                 description: n.title || 'Note',
             });
             if (!result.success) {
-                showToast('Offline — note saved locally, will sync when reconnected', 'warn');
+                if (result.queued) showToast('Offline — note saved locally, will sync when reconnected', 'warn');
+                else if (!result.blocked) showToast('Note save error: ' + (result.error?.message || 'unknown error'), 'err');
                 return false;
             }
             await touchSyncMeta();
@@ -9339,13 +9420,14 @@
 
         async function deleteNoteFromDb(id) {
             if (!_currentUser) return;
-            const result = await queuedWrite({
+            const result = await attemptWrite({
                 id: 'notes:' + id,
                 table: 'notes', opType: 'delete', matchCol: 'id', matchVal: id,
                 description: `Delete note ${id}`,
             });
             if (!result.success) {
-                showToast('Offline — deletion queued, will sync when reconnected', 'warn');
+                if (result.queued) showToast('Offline — deletion queued, will sync when reconnected', 'warn');
+                else if (!result.blocked) showToast('Note delete error: ' + (result.error?.message || 'unknown error'), 'err');
                 return;
             }
             await touchSyncMeta();
@@ -9376,14 +9458,15 @@
 
         async function saveRulesToSupa(arr) {
             if (!_currentUser) return;
-            const result = await queuedWrite({
+            const result = await attemptWrite({
                 id: 'core_rules:' + _currentUser.id,
                 table: 'core_rules', opType: 'upsert', onConflict: 'user_id',
                 payload: { user_id: _currentUser.id, rules: arr },
                 description: 'Core trading rules',
             });
             if (!result.success) {
-                showToast('Offline — rules saved locally, will sync when reconnected', 'warn');
+                if (result.queued) showToast('Offline — rules saved locally, will sync when reconnected', 'warn');
+                else if (!result.blocked) showToast('Core rules sync error: ' + (result.error?.message || 'unknown error'), 'err');
                 return;
             }
             await touchSyncMeta();
@@ -15063,6 +15146,8 @@
 
         // ── SETTINGS ──
         async function populateSettingsPage() {
+            const versionEl = document.getElementById('aboutVersion');
+            if (versionEl) versionEl.textContent = `Version ${APP_VERSION} · ${APP_VERSION_DATE}`;
             const emailEl = document.getElementById('settingsUserEmail');
             const deviceEl = document.getElementById('settingsDeviceId');
             if (emailEl) emailEl.textContent = _currentUser?.email || '—';
