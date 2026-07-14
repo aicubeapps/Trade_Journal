@@ -1,38 +1,39 @@
 <!-- 
     Trade Journal
-    Version: v5.1
-    Released: 2026-07-14 (final revision same day)
+    Version: v5
+    Released: 2026-07-12 21:33 UTC
     Build: ONLINE (Cloudflare Pages)
 
-    v5.1 — Journaling Consistency + Offline Bucket/Sync Barrier + Version tracking
+    v5 — Online/Offline sync merge. Both builds now share identical business logic;
+    only the local-replica/File-System-Access layer differs (offline only).
 
-    New:
-    - Journaling Consistency card on Dashboard: Weekly Review Consistency shown across
-      3 windows (12-week / quarter / all-time), Daily Journaling Streak (current +
-      longest, Mon-Fri only) with a GitHub-style heatmap.
-    - Offline write protocol (replaces an earlier same-day queue design that blurred
-      "offline" and "genuine error" together, causing real errors to be silently
-      queued instead of surfaced): online writes go direct, exactly as before.
-      Offline / genuine network failure -> the write goes into a small dedicated
-      bucket (localStorage, ~15-20 items max by design). On reconnect, a sync barrier
-      blocks all new saves while the whole bucket is pushed AND verified present
-      server-side (re-fetched by id, not just "no error returned"); bounded at 3
-      attempts, then releases the barrier and leaves any still-unverified entries in
-      the bucket for a later retry rather than looping forever. A small "N unsynced"
-      badge near sync status shows pending items; tapping it forces an immediate
-      retry. Covers all 7 core write paths: trades save/delete, weeklies save/delete,
-      notes save/delete, core rules save.
-    - Fixed a related data-loss bug: loadAllData()'s full-fetch path used to
-      unconditionally overwrite in-memory/local-cache state with server data,
-      silently erasing anything still pending sync. Now re-merges pending bucket
-      entries back on top after every fetch/cache-load path.
-    - Deliberately excluded from the bucket: sync_meta (self-healing ping),
-      insight_snapshots/cumulative_stats (derived/recomputable), a legacy one-time
-      data-cleanup migration, and Archive's own writes (already has its own
-      human-gated, step-confirmed flow — auto-retrying a destructive delete silently
-      would be dangerous there).
-    - Version number now visible in-app (Settings -> About), sourced from a single
-      APP_VERSION constant so future releases just bump one line.
+    Bug fixes carried into this sync:
+    - Share button fixed for screenshots + added to Closed Trades (shareClosedTrade)
+    - Fixed WIN-showing-negative-R bug (saveClosure writes effectiveTradeType back to t.tradeType)
+    - Fixed share always showing "BUY" for sell ideas (tradeType derived from biasSet at save)
+    - Fixed Brave password-manager prompting on all text fields (auth screen removed from DOM on login)
+    - NY time added to all note/update timestamps
+    - Closed Trade tagging system with per-context quick-pick suggestions; mobile tag-add
+      bug fixed (Android keyboard Enter-key unreliability, blur-fallback added)
+    - Paper Trade bucket: is_paper flag, LIVE/PAPER toggle, badges, filters, Dashboard/
+      Deeper Insights Live/Combined toggle
+    - Scalping Trade fix: standalone (unlinked) intraday trades now visible/closeable
+    - Deeper Insights: fixed NaN R bug (6 compute functions were missing wins/losses/sumR
+      fields, breaking merge with archived historical snapshots); Paper-aware filtering
+      completed across all panels
+    - Weekly Bias card: fixed two-hop linking bug (was comparing intraday's parent-daily-bias
+      ID directly against the weekly's own ID — only ever worked by UUID coincidence);
+      now shows Linked Daily Bias entries with a new read-only checklist viewer for closed trades
+    - Low-contrast Strategic Environment header text fixed; bullet/list-spilling-outside-panel
+      bug fixed at all 3 render sites
+    - Weekly Close Review batch: stats now scoped to the specific pair (not all pairs that
+      week); Bias Accuracy Engine and Environment Quality Validation fixed (were comparing
+      a display-label string against bare grade codes, always failing); Bias Alignment and
+      Bias Played Out are now fully auto-computed from trade data instead of manual entry
+    - Archive failsafe: cannot run while any trade is open (two-layer check — pre-flight UI
+      + hard block inside runArchive itself)
+    - New: ai_review column added to trades table so AI Review results (Gemini 1.5 Flash)
+      persist across sessions instead of being lost on reload
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -4875,8 +4876,73 @@
             padding:10px 14px;
             background:var(--ink); color:var(--paper);
             font-family:var(--font-mono); font-size:8px; font-weight:700; letter-spacing:1.5px;
+            flex-wrap:wrap; gap:6px;
         }
         .ec-panel-head-left { display:flex; align-items:center; gap:8px; }
+
+        /* ── FF-style calendar ── */
+        .ec-day-sep {
+            font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:2px;
+            color:var(--muted);background:var(--cream);padding:5px 14px;
+            border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+            text-transform:uppercase;
+        }
+        .ec-row {
+            display:grid;
+            grid-template-columns:76px 60px 18px 1fr 62px 62px 62px;
+            gap:0;
+            align-items:center;
+            padding:7px 14px;
+            border-bottom:1px solid var(--border);
+            border-left:3px solid transparent;
+            transition:background 0.1s;
+        }
+        .ec-row:hover { background:var(--cream); }
+        .ec-row.imp-high { border-left-color:#e53935; }
+        .ec-row.imp-med  { border-left-color:#fb8c00; }
+        .ec-row.imp-low  { border-left-color:#bdbdbd; }
+        .ec-time {
+            font-family:var(--font-mono);font-size:10px;color:var(--muted);
+        }
+        .ec-time .ec-local { font-size:8px;display:block;color:var(--muted);opacity:.6; }
+        .ec-ccy {
+            font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--ink);
+            text-align:center;
+        }
+        .ec-impact-dot {
+            width:8px;height:8px;border-radius:50%;margin:0 auto;
+        }
+        .ec-impact-dot.high { background:#e53935; }
+        .ec-impact-dot.med  { background:#fb8c00; }
+        .ec-impact-dot.low  { background:#bdbdbd; }
+        .ec-name { font-size:11px;color:var(--ink);line-height:1.3;padding-right:8px; }
+        .ec-val {
+            font-family:var(--font-mono);font-size:10px;text-align:right;
+            color:var(--muted);
+        }
+        .ec-val.actual-good { color:#2e7d32;font-weight:700; }
+        .ec-val.actual-bad  { color:#c62828;font-weight:700; }
+        .ec-val.actual-neu  { color:var(--ink);font-weight:700; }
+        .ec-val.upcoming    { color:var(--muted);opacity:.5; }
+        .ec-col-head {
+            font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;
+            color:var(--muted);text-align:right;
+        }
+        .ec-filter-chip {
+            font-family:var(--font-mono);font-size:8px;font-weight:700;padding:3px 8px;
+            border-radius:10px;border:1.5px solid var(--border);background:transparent;
+            color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap;
+        }
+        .ec-filter-chip.active { background:var(--paper);color:var(--ink);border-color:var(--ink); }
+        .ec-filter-chip.high-chip.active { border-color:#e53935;color:#e53935; }
+        .ec-filter-chip.med-chip.active  { border-color:#fb8c00;color:#fb8c00; }
+        .ec-empty { padding:24px;text-align:center;font-size:12px;color:var(--muted); }
+        .ec-header-row {
+            display:grid;
+            grid-template-columns:76px 60px 18px 1fr 62px 62px 62px;
+            gap:0; padding:4px 14px 4px;
+            background:var(--cream);border-bottom:1px solid var(--border);
+        }
         /* ── Discord panels ── */
         .discord-panel-main {
             border:1.5px solid var(--border); border-radius:6px;
@@ -4964,7 +5030,6 @@
                 <div class="sync-chip-dot" id="syncChipDot"></div>
                 <span class="sync-chip-label" id="syncChipLabel">—</span>
             </div>
-            <span id="unsyncedBadge" onclick="syncOfflineBucket()" title="Tap to retry now" style="display:none;align-items:center;gap:4px;font-family:var(--font-mono);font-size:8px;font-weight:700;padding:4px 9px;border-radius:20px;background:rgba(255,176,32,0.15);color:#ffb020;border:1.5px solid rgba(255,176,32,0.4);cursor:pointer;white-space:nowrap;margin-left:6px;"></span>
             <button id="syncBtnTop" onclick="manualSync()" class="sync-refresh-btn" title="Sync now">⟳</button>
 
             <!-- Sync popover panel -->
@@ -5162,13 +5227,6 @@
                     <!-- R-captured breakdown -->
                     <div style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">R CAPTURED</div>
                     <div class="r-grid" id="rGrid"></div>
-
-                    <!-- NEW: Journaling Consistency -->
-                    <div id="consistencyWrap" class="dash-card" style="margin-bottom:12px;">
-                        <div class="dash-card-title">CONSISTENCY</div>
-                        <div id="consistencyStats" style="font-family:var(--font-mono);font-size:10px;color:var(--muted);line-height:1.9;margin-bottom:10px;"></div>
-                        <div id="consistencyHeatmap" style="display:flex;gap:3px;overflow-x:auto;padding-bottom:4px;"></div>
-                    </div>
 
                     <!-- NEW: Process Quality + Sync Status Row -->
                     <div id="processQualityWrap" class="dash-card" style="margin-bottom:12px;">
@@ -5836,15 +5894,20 @@
                         <!-- LEFT column: Economic Calendar + News Feed -->
                         <div class="news-left-col">
 
-                            <!-- Economic Calendar — TradingView Widget -->
+                            <!-- Economic Calendar — Finnhub FF-style -->
                             <div class="ec-panel" id="ecPanel">
                                 <div class="ec-panel-head">
-                                    <div class="ec-panel-head-left">
-                                        &#128197; ECONOMIC CALENDAR
+                                    <div class="ec-panel-head-left" style="display:flex;align-items:center;gap:10px;">
+                                        📅 ECONOMIC CALENDAR
+                                        <span id="ecTzBadge" style="font-family:var(--font-mono);font-size:8px;font-weight:400;color:var(--muted);letter-spacing:0;"></span>
                                     </div>
-                                    <span style="font-size:7px;opacity:0.5;letter-spacing:0.5px;">powered by TradingView</span>
+                                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                                        <div id="ecImpactFilters" style="display:flex;gap:4px;"></div>
+                                        <div id="ecCcyFilters" style="display:flex;gap:4px;"></div>
+                                        <button onclick="EC.refresh()" style="font-family:var(--font-mono);font-size:8px;font-weight:700;padding:3px 8px;border:1.5px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;">⟳</button>
+                                    </div>
                                 </div>
-                                <div id="tvEcContainer" style="width:100%;height:500px;"></div>
+                                <div id="ecCalBody" style="width:100%;min-height:300px;font-size:12px;"></div>
                             </div>
 
                             <!-- Status bar -->
@@ -6033,8 +6096,7 @@
                         <div style="padding:14px;">
                             <div style="font-family:var(--font-mono);font-size:9px;color:var(--ink);line-height:1.9;">
                                 My Trade Journal<br>
-                                <span style="color:var(--muted);">Scan · Plan · Execute<br>Built for disciplined execution</span><br>
-                                <span id="aboutVersion" style="color:var(--muted);"></span>
+                                <span style="color:var(--muted);">Scan · Plan · Execute<br>Built for disciplined execution</span>
                             </div>
                         </div>
                     </div>
@@ -6816,7 +6878,6 @@
         function _cacheKey(suffix) { return 'ict_cache_' + suffix + '_' + (_currentUser ? _currentUser.id : 'anon'); }
 
         function saveLocalCache() {
-            console.log('[DIAG] saveLocalCache() called — notes count:', (S.notes || []).length, '— stack:', new Error().stack.split('\n')[2]?.trim());
             try {
                 const lightTrades = (S.trades || []).map(t => {
                     const { screenshots, eodScreenshots, followupScreenshots, _ssLoaded, ...rest } = t;
@@ -6841,7 +6902,6 @@
                 const tr = localStorage.getItem(_cacheKey('trades'));
                 const wr = localStorage.getItem(_cacheKey('weeklies'));
                 const nr = localStorage.getItem(_cacheKey('notes'));
-                console.log('[DIAG] loadLocalCache() called — raw notes value:', nr, '— stack:', new Error().stack.split('\n')[2]?.trim());
                 if (tr === null || wr === null) return false;
                 S.trades = JSON.parse(tr);
                 S.weeklies = JSON.parse(wr);
@@ -7024,9 +7084,6 @@
         // ════════════════════════════════════════════════════════════════════
         // STATE — EXTENDED
         // ════════════════════════════════════════════════════════════════════
-        const APP_VERSION = 'v5.1';
-        const APP_VERSION_DATE = '2026-07-14';
-
         const S = {
             insightsMode: 'live',
             closedTypeFilter: 'all',
@@ -8042,7 +8099,6 @@
         }
 
         function onLoggedIn(user) {
-            console.log('[DIAG] onLoggedIn() called — was _currentUser already set?', !!_currentUser);
             _currentUser = user;
             const authScreenEl = document.getElementById('authScreen');
             if (authScreenEl) authScreenEl.remove();
@@ -8051,8 +8107,6 @@
             document.querySelector('.topbar-brand p').textContent = user.email;
             requestPersistentStorage();
             loadAllData();
-            updateUnsyncedBadge();
-            setTimeout(syncOfflineBucket, 1500);
             setTimeout(checkPriorIncompleteArchive, 3000);
             setTimeout(cleanStaleDisplayUrls, 5000); // One-time cleanup of _displayUrl persisted to DB
         }
@@ -8134,7 +8188,7 @@
 
         _sb.auth.getSession().then(({ data: { session } }) => { if (session?.user) onLoggedIn(session.user); });
         _sb.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_IN' && session?.user && !_currentUser) onLoggedIn(session.user);
+            if (event === 'SIGNED_IN' && session?.user) onLoggedIn(session.user);
             if (event === 'SIGNED_OUT') { _currentUser = null;
                 if (!document.getElementById('authScreen')) location.reload(); }
         });
@@ -8374,12 +8428,8 @@
             };
         }
 
-        let _loadAllDataInProgress = false;
         async function loadAllData(force) {
-            console.log('[DIAG] loadAllData() called — force:', force, '— inProgress:', _loadAllDataInProgress, '— stack:', new Error().stack.split('\n')[2]?.trim());
             if (!_currentUser) return;
-            if (_loadAllDataInProgress) { console.log('[DIAG] loadAllData() SKIPPED — already in progress'); return; }
-            _loadAllDataInProgress = true;
             setSyncStatus('syncing');
             try {
                 const { data: meta, error: metaErr } = await _sb.from('sync_meta').select('last_modified,last_device').eq('user_id',
@@ -8390,8 +8440,6 @@
                 if (meta?.last_device) S.serverLastDevice = meta.last_device;
                 const cachedLastMod = getCachedLastMod();
                 if (!force && serverLastMod && serverLastMod === cachedLastMod && loadLocalCache()) {
-                    console.log('[DIAG] loadAllData() took FAST/CACHED path');
-                    _mergePendingWritesIntoState();
                     setSyncStatus('synced');
                     updateSyncBar();
                     renderDashboard();
@@ -8422,8 +8470,6 @@
                 S.trades = (tr.data || []).map(dbToTrade);
                 S.weeklies = (wr.data || []).map(dbToWeekly);
                 S.notes = (nr.data || []).map(dbToNote);
-                console.log('[DIAG] loadAllData() took FULL FETCH path — notes from server:', S.notes.length);
-                _mergePendingWritesIntoState();
                 if (serverLastMod) { setCachedLastMod(serverLastMod); } else { await touchSyncMeta(); }
                 saveLocalCache();
                 setSyncStatus('synced');
@@ -8444,7 +8490,6 @@
                 setSyncStatus('error');
                 showToast('Sync error: ' + e.message, 'err');
                 if (loadLocalCache()) {
-                    _mergePendingWritesIntoState();
                     renderDashboard();
                     renderOpen();
                     updateOpenBadge();
@@ -8453,228 +8498,17 @@
                     refreshIntraWeeklyDropdown();
                     renderNotes();
                 }
-            } finally {
-                _loadAllDataInProgress = false;
             }
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        // OFFLINE BUCKET + SYNC BARRIER
-        // Online: direct save/delete, exactly like the app worked before any of
-        // this existed. Genuine errors (bad data, permissions, etc.) surface
-        // immediately and are NEVER queued, since retrying wouldn't fix them.
-        // Offline (or a real network failure): the write goes into a small
-        // dedicated bucket instead. On reconnect, everything in the bucket is
-        // pushed AND verified present server-side before the app resumes normal
-        // operation — new saves are held until this passes. Scale is tiny by
-        // design (personal use, ~15-20 items max), so a full push+verify pass is
-        // cheap. Deliberately excludes: sync_meta (self-healing ping),
-        // insight_snapshots/cumulative_stats (derived/recomputable), the one-time
-        // legacy data-cleanup migration, and Archive's own writes (their own
-        // human-gated, step-confirmed flow — auto-retrying a destructive delete
-        // silently would be actively dangerous there).
-        // ════════════════════════════════════════════════════════════════════
-
-        let _syncBarrierActive = false;
-
-        function _offlineBucketKey() {
-            return 'ict_offline_bucket_' + (_currentUser ? _currentUser.id : 'anon');
-        }
-
-        function _getOfflineBucket() {
-            try { return JSON.parse(localStorage.getItem(_offlineBucketKey()) || '[]'); }
-            catch (e) { return []; }
-        }
-
-        function _setOfflineBucket(bucket) {
-            try { localStorage.setItem(_offlineBucketKey(), JSON.stringify(bucket)); } catch (e) { /* storage full — best effort */ }
-        }
-
-        function _addToOfflineBucket(meta) {
-            const bucket = _getOfflineBucket();
-            const idx = bucket.findIndex(m => m.id === meta.id);
-            meta.attempts = 0;
-            if (idx !== -1) bucket[idx] = meta; // newer edit to the same row replaces the queued one
-            else bucket.push(meta);
-            _setOfflineBucket(bucket);
-            updateUnsyncedBadge();
-        }
-
-        function _removeFromOfflineBucket(id) {
-            _setOfflineBucket(_getOfflineBucket().filter(m => m.id !== id));
-            updateUnsyncedBadge();
-        }
-
-        function updateUnsyncedBadge() {
-            const n = _getOfflineBucket().length;
-            const el = document.getElementById('unsyncedBadge');
-            if (!el) return;
-            if (n > 0) { el.textContent = n + ' unsynced'; el.style.display = 'inline-flex'; }
-            else el.style.display = 'none';
-        }
-
-        // Distinguishes "can't reach the server" from a genuine data/permission error.
-        // Only network-shaped failures should ever go into the offline bucket.
-        function _isNetworkError(error) {
-            if (!navigator.onLine) return true;
-            if (!error) return false;
-            const msg = (error.message || '').toLowerCase();
-            return error.name === 'TypeError' || msg.includes('fetch') || msg.includes('network') ||
-                msg.includes('load failed');
-        }
-
-        // Reconstructs and executes a write from pure serializable data (no closures),
-        // so a bucketed write survives a page reload and can be replayed later.
-        async function _replayWrite(meta) {
-            let query = _sb.from(meta.table);
-            if (meta.opType === 'upsert') {
-                query = query.upsert(meta.payload, { onConflict: meta.onConflict || 'id' });
-            } else if (meta.opType === 'delete') {
-                query = query.delete().eq(meta.matchCol, meta.matchVal).eq('user_id', _currentUser.id);
-            } else if (meta.opType === 'delete_in') {
-                query = query.delete().in(meta.matchCol, meta.matchVal).eq('user_id', _currentUser.id);
-            } else {
-                return { error: new Error('Unknown opType: ' + meta.opType) };
-            }
-            return await query;
-        }
-
-        // Confirms a pushed row actually exists server-side (or, for deletes, that
-        // it's actually gone). Cheap at this scale — one row lookup per bucket entry.
-        async function _verifyWrite(meta) {
-            try {
-                if (meta.opType === 'upsert') {
-                    const { data, error } = await _sb.from(meta.table).select('id').eq('id', meta.payload.id).maybeSingle();
-                    if (error) return false;
-                    return !!data;
-                } else if (meta.opType === 'delete') {
-                    const { data, error } = await _sb.from(meta.table).select('id').eq(meta.matchCol, meta.matchVal).maybeSingle();
-                    if (error) return false;
-                    return !data;
-                } else if (meta.opType === 'delete_in') {
-                    const { data, error } = await _sb.from(meta.table).select('id').in(meta.matchCol, meta.matchVal);
-                    if (error) return false;
-                    return !data || data.length === 0;
-                }
-            } catch (e) { return false; }
-            return false;
-        }
-
-        // Single entry point every in-scope write routes through. Online: attempts
-        // directly, exactly like the pre-bucket behavior. Offline / network failure:
-        // adds to the bucket instead of discarding the change. Real (non-network)
-        // errors are surfaced immediately, never bucketed.
-        async function attemptWrite(meta) {
-            if (_syncBarrierActive) {
-                showToast('⏳ Syncing offline changes — try again in a moment', 'warn');
-                return { success: false, blocked: true };
-            }
-            if (!navigator.onLine) {
-                _addToOfflineBucket(meta);
-                return { success: false, queued: true };
-            }
-            try {
-                const { error } = await _replayWrite(meta);
-                if (error) throw error;
-                return { success: true };
-            } catch (e) {
-                if (_isNetworkError(e)) {
-                    _addToOfflineBucket(meta);
-                    return { success: false, queued: true };
-                }
-                return { success: false, error: e };
-            }
-        }
-
-        // Reconnect flow: pushes the whole bucket, verifies each entry actually
-        // landed server-side, retries only the still-failing ones, bounded at 3
-        // total attempts. Blocks new saves via _syncBarrierActive for the duration.
-        async function syncOfflineBucket() {
-            if (_syncBarrierActive || !_currentUser || !navigator.onLine) return;
-            let bucket = _getOfflineBucket();
-            if (bucket.length === 0) return;
-
-            _syncBarrierActive = true;
-            showToast(`⏳ Syncing ${bucket.length} offline change${bucket.length !== 1 ? 's' : ''}…`, 'warn');
-
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                bucket = _getOfflineBucket();
-                if (bucket.length === 0) break;
-
-                for (const meta of bucket) {
-                    try { await _replayWrite(meta); } catch (e) { /* checked by verification below regardless */ }
-                }
-
-                for (const meta of bucket) {
-                    const verified = await _verifyWrite(meta);
-                    if (verified) _removeFromOfflineBucket(meta.id);
-                }
-
-                bucket = _getOfflineBucket();
-                if (bucket.length === 0) break;
-                if (attempt < 3) await new Promise(r => setTimeout(r, 1500));
-            }
-
-            _syncBarrierActive = false;
-            const remaining = _getOfflineBucket().length;
-            if (remaining === 0) {
-                showToast('✓ All offline changes synced', 'ok');
-                await touchSyncMeta();
-                saveLocalCache();
-            } else {
-                showToast(`⚠ ${remaining} change${remaining !== 1 ? 's' : ''} still unsynced — will retry later`, 'err');
-            }
-            updateUnsyncedBadge();
-        }
-
-        window.addEventListener('online', () => syncOfflineBucket());
-        setInterval(() => { if (_getOfflineBucket().length > 0) syncOfflineBucket(); }, 45000);
-
-        // Re-applies anything still in the offline bucket on top of freshly-fetched/
-        // loaded state. Without this, a fetch that runs before a bucketed write has
-        // synced would silently overwrite the local-only edit with stale server data
-        // that doesn't have it yet — call this after every place S.trades/S.weeklies/
-        // S.notes gets (re)assigned from a remote fetch or the local cache.
-        function _mergePendingWritesIntoState() {
-            const bucket = _getOfflineBucket();
-            if (bucket.length === 0) return;
-            bucket.forEach(meta => {
-                try {
-                    if (meta.table === 'trades') {
-                        if (meta.opType === 'upsert') {
-                            const obj = dbToTrade(meta.payload);
-                            const idx = S.trades.findIndex(t => idEq(t.id, obj.id));
-                            if (idx !== -1) S.trades[idx] = obj; else S.trades.unshift(obj);
-                        } else if (meta.opType === 'delete') {
-                            S.trades = S.trades.filter(t => !idEq(t.id, meta.matchVal));
-                        } else if (meta.opType === 'delete_in') {
-                            S.trades = S.trades.filter(t => !meta.matchVal.some(id => idEq(t.id, id)));
-                        }
-                    } else if (meta.table === 'weeklies') {
-                        if (meta.opType === 'upsert') {
-                            const obj = dbToWeekly(meta.payload);
-                            const idx = S.weeklies.findIndex(w => idEq(w.id, obj.id));
-                            if (idx !== -1) S.weeklies[idx] = obj; else S.weeklies.unshift(obj);
-                        } else if (meta.opType === 'delete') {
-                            S.weeklies = S.weeklies.filter(w => !idEq(w.id, meta.matchVal));
-                        }
-                    } else if (meta.table === 'notes') {
-                        if (meta.opType === 'upsert') {
-                            const obj = dbToNote(meta.payload);
-                            const idx = S.notes.findIndex(n => idEq(n.id, obj.id));
-                            if (idx !== -1) S.notes[idx] = obj; else S.notes.unshift(obj);
-                        } else if (meta.opType === 'delete') {
-                            S.notes = S.notes.filter(n => !idEq(n.id, meta.matchVal));
-                        }
-                    }
-                } catch (e) { console.warn('Failed to merge bucketed write into state:', meta.id, e); }
-            });
         }
 
         async function saveTrade(t) {
             if (!_currentUser) return false;
             setSyncStatus('syncing');
-            // Local-first: persist locally immediately, regardless of network outcome
+            const { error } = await _sb.from('trades').upsert(tradeToDb(t), { onConflict: 'id' });
+            if (error) { setSyncStatus('error');
+                showToast('Save error: ' + error.message, 'err'); return false; }
+            // Update snapshot and cumulative stats whenever a trade is closed — fire and forget
+            if (t.status === 'closed') { saveInsightSnapshot(); saveCumulativeStats(); }
             if (t._ssLoaded) {
                 await _ssDB.set(t.id, {
                     screenshots: t.screenshots || [],
@@ -8683,23 +8517,8 @@
                     cachedAt: new Date().toISOString(),
                 });
             }
-            saveLocalCache();
-
-            const result = await attemptWrite({
-                id: 'trades:' + t.id,
-                table: 'trades', opType: 'upsert', onConflict: 'id',
-                payload: tradeToDb(t),
-                description: `${t.pair || 'Trade'} · ${t.date || ''}`,
-            });
-            if (!result.success) {
-                setSyncStatus('error');
-                if (result.queued) showToast('Offline — saved locally, will sync when reconnected', 'warn');
-                else if (!result.blocked) showToast('Save error: ' + (result.error?.message || 'unknown error'), 'err');
-                return false;
-            }
-            // Update snapshot and cumulative stats whenever a trade is closed — fire and forget
-            if (t.status === 'closed') { saveInsightSnapshot(); saveCumulativeStats(); }
             await touchSyncMeta();
+            saveLocalCache();
             setSyncStatus('synced');
             return true;
         }
@@ -8734,22 +8553,10 @@
             }
 
             // Delete all DB rows
-            let delResult;
             if (allIdsToDelete.length === 1) {
-                delResult = await attemptWrite({
-                    id: 'trades:' + id,
-                    table: 'trades', opType: 'delete', matchCol: 'id', matchVal: id,
-                    description: `Delete trade ${id}`,
-                });
+                await _sb.from('trades').delete().eq('id', id).eq('user_id', _currentUser.id);
             } else {
-                delResult = await attemptWrite({
-                    id: 'trades_bulk:' + id,
-                    table: 'trades', opType: 'delete_in', matchCol: 'id', matchVal: allIdsToDelete,
-                    description: `Delete trade + ${allIdsToDelete.length - 1} linked`,
-                });
-            }
-            if (!delResult.success && !delResult.queued && !delResult.blocked) {
-                showToast('Delete error: ' + (delResult.error?.message || 'unknown error'), 'err');
+                await _sb.from('trades').delete().in('id', allIdsToDelete).eq('user_id', _currentUser.id);
             }
 
             // Evict from IndexedDB cache
@@ -8765,20 +8572,11 @@
             if (!_currentUser) return false;
             setSyncStatus('syncing');
             const row = weeklyToDb(w);
-            saveLocalCache();
-            const result = await attemptWrite({
-                id: 'weeklies:' + w.id,
-                table: 'weeklies', opType: 'upsert', onConflict: 'id',
-                payload: row,
-                description: `${w.pair || 'Weekly'} · ${w.date || ''}`,
-            });
-            if (!result.success) {
-                setSyncStatus('error');
-                if (result.queued) showToast('Offline — saved locally, will sync when reconnected', 'warn');
-                else if (!result.blocked) showToast('Save error: ' + (result.error?.message || 'unknown error'), 'err');
-                return false;
-            }
+            const { error } = await _sb.from('weeklies').upsert(row, { onConflict: 'id' });
+            if (error) { setSyncStatus('error');
+                showToast('Save error: ' + error.message, 'err'); return false; }
             await touchSyncMeta();
+            saveLocalCache();
             setSyncStatus('synced');
             return true;
         }
@@ -8799,14 +8597,7 @@
                     await deleteScreenshotsFromStorage(allUrls);
                 }
             } catch (e) { console.warn('Screenshot pre-fetch for weekly delete failed:', e); }
-            const delResult = await attemptWrite({
-                id: 'weeklies:' + id,
-                table: 'weeklies', opType: 'delete', matchCol: 'id', matchVal: id,
-                description: `Delete weekly ${id}`,
-            });
-            if (!delResult.success && !delResult.queued && !delResult.blocked) {
-                showToast('Delete error: ' + (delResult.error?.message || 'unknown error'), 'err');
-            }
+            await _sb.from('weeklies').delete().eq('id', id).eq('user_id', _currentUser.id);
             await touchSyncMeta();
             saveLocalCache();
         }
@@ -9412,38 +9203,23 @@
         }
 
         async function saveNoteToDb(n) {
-            console.log('[DIAG] saveNoteToDb() called for note:', n.id, n.title, '— S.notes count before saveLocalCache:', S.notes.length);
-            if (!_currentUser) { showToast('Not logged in — note saved locally only', 'err'); return false; }
-            saveLocalCache();
-            const result = await attemptWrite({
-                id: 'notes:' + n.id,
-                table: 'notes', opType: 'upsert', onConflict: 'id',
-                payload: noteToDb(n),
-                description: n.title || 'Note',
-            });
-            if (!result.success) {
-                if (result.queued) showToast('Offline — note saved locally, will sync when reconnected', 'warn');
-                else if (!result.blocked) showToast('Note save error: ' + (result.error?.message || 'unknown error'), 'err');
-                return false;
-            }
-            await touchSyncMeta();
-            return true;
+            if (!_currentUser) { showToast('Not logged in — note saved locally only', 'err'); return; }
+            try {
+                const { error } = await _sb.from('notes').upsert(noteToDb(n), { onConflict: 'id' });
+                if (error) throw error;
+                await touchSyncMeta();
+                saveLocalCache();
+            } catch (e) { console.warn('Note save error', e); showToast('Note sync error: ' + e.message, 'err'); }
         }
 
         async function deleteNoteFromDb(id) {
             if (!_currentUser) return;
-            const result = await attemptWrite({
-                id: 'notes:' + id,
-                table: 'notes', opType: 'delete', matchCol: 'id', matchVal: id,
-                description: `Delete note ${id}`,
-            });
-            if (!result.success) {
-                if (result.queued) showToast('Offline — deletion queued, will sync when reconnected', 'warn');
-                else if (!result.blocked) showToast('Note delete error: ' + (result.error?.message || 'unknown error'), 'err');
-                return;
-            }
-            await touchSyncMeta();
-            saveLocalCache();
+            try {
+                const { error } = await _sb.from('notes').delete().eq('id', id).eq('user_id', _currentUser.id);
+                if (error) throw error;
+                await touchSyncMeta();
+                saveLocalCache();
+            } catch (e) { console.warn('Note delete error', e); showToast('Note delete error: ' + e.message, 'err'); }
         }
 
         // ── Core Rules ──
@@ -9470,18 +9246,12 @@
 
         async function saveRulesToSupa(arr) {
             if (!_currentUser) return;
-            const result = await attemptWrite({
-                id: 'core_rules:' + _currentUser.id,
-                table: 'core_rules', opType: 'upsert', onConflict: 'user_id',
-                payload: { user_id: _currentUser.id, rules: arr },
-                description: 'Core trading rules',
-            });
-            if (!result.success) {
-                if (result.queued) showToast('Offline — rules saved locally, will sync when reconnected', 'warn');
-                else if (!result.blocked) showToast('Core rules sync error: ' + (result.error?.message || 'unknown error'), 'err');
-                return;
-            }
-            await touchSyncMeta();
+            try {
+                const { error } = await _sb.from('core_rules').upsert({ user_id: _currentUser.id, rules: arr },
+                { onConflict: 'user_id' });
+                if (error) throw error;
+                await touchSyncMeta();
+            } catch (e) { console.warn('Core rules sync error', e); showToast('Core rules sync error: ' + e.message, 'err'); }
         }
 
         window.loadCoreRules = async function() {
@@ -13896,131 +13666,6 @@
                 `<div class="leak-card" style="border-color:${isWarn?'var(--bear)':'var(--gold)'};"><div class="leak-title">BIGGEST PERFORMANCE LEAK</div><div class="leak-body"><span class="leak-icon">⚠️</span><div class="leak-content"><div class="leak-headline ${isWarn?'warn':'ok'}">${leak.title}</div><div class="leak-msg">${leak.msg}</div></div>${leak.score!==undefined?`<div class="leak-score ${isWarn?'warn':'ok'}">${leak.score}</div>`:''}</div></div>`;
         }
 
-        // ── Journaling Consistency ──
-        // Weekly Review Consistency: fraction of calendar weeks with at least one
-        // closed (reviewed) Weekly Bias entry, across 3 windows (12-week, quarter, all-time).
-        // Daily Journaling Streak: consecutive Mon-Fri weekdays with at least one
-        // Daily Bias (non-intraday) trade logged, current streak + longest ever.
-
-        function _isoWeekStart(d) {
-            const date = new Date(d);
-            const day = date.getDay();
-            const diff = (day === 0 ? 6 : day - 1);
-            date.setDate(date.getDate() - diff);
-            date.setHours(0, 0, 0, 0);
-            return date;
-        }
-
-        function computeWeeklyReviewConsistency() {
-            const weeklies = S.weeklies || [];
-            const empty = { done: 0, total: 0 };
-            if (weeklies.length === 0) return { last12: empty, quarter: empty, allTime: empty };
-
-            const weekMap = {};
-            weeklies.forEach(w => {
-                if (!w.date) return;
-                const ws = _isoWeekStart(w.date + 'T00:00:00').toISOString().slice(0, 10);
-                if (!(ws in weekMap)) weekMap[ws] = false;
-                if (w.status === 'closed') weekMap[ws] = true;
-            });
-
-            const today = new Date();
-            const thisWeekStart = _isoWeekStart(today);
-
-            function windowStats(startDate) {
-                let done = 0, total = 0;
-                let cursor = _isoWeekStart(startDate);
-                while (cursor <= thisWeekStart) {
-                    const key = cursor.toISOString().slice(0, 10);
-                    total++;
-                    if (weekMap[key]) done++;
-                    cursor = new Date(cursor); cursor.setDate(cursor.getDate() + 7);
-                }
-                return { done, total };
-            }
-
-            const w12start = new Date(thisWeekStart); w12start.setDate(w12start.getDate() - 7 * 11);
-            const qStart = new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1);
-            const firstWeekly = weeklies.reduce((min, w) => (w.date && (!min || w.date < min)) ? w.date : min, null);
-            const allStart = firstWeekly ? new Date(firstWeekly + 'T00:00:00') : thisWeekStart;
-
-            return {
-                last12: windowStats(w12start),
-                quarter: windowStats(qStart),
-                allTime: windowStats(allStart),
-            };
-        }
-
-        function computeDailyJournalingStreak() {
-            const dailyTrades = (S.trades || []).filter(t => !t.isIntraday && t.date);
-            const loggedDates = new Set(dailyTrades.map(t => t.date));
-            const isWeekday = (d) => d.getDay() !== 0 && d.getDay() !== 6;
-
-            const today = new Date(); today.setHours(0, 0, 0, 0);
-            const thisWeekStart = _isoWeekStart(today);
-            const startWeek = new Date(thisWeekStart); startWeek.setDate(startWeek.getDate() - 7 * 11);
-
-            const weeks = [];
-            let wCursor = new Date(startWeek);
-            while (wCursor <= thisWeekStart) {
-                const days = [];
-                for (let i = 0; i < 5; i++) {
-                    const d = new Date(wCursor); d.setDate(d.getDate() + i);
-                    const iso = d.toISOString().slice(0, 10);
-                    days.push({ date: iso, logged: loggedDates.has(iso), future: d > today });
-                }
-                weeks.push(days);
-                wCursor = new Date(wCursor); wCursor.setDate(wCursor.getDate() + 7);
-            }
-
-            let current = 0;
-            let cursor = new Date(today);
-            while (!isWeekday(cursor)) cursor.setDate(cursor.getDate() - 1);
-            while (true) {
-                const iso = cursor.toISOString().slice(0, 10);
-                if (loggedDates.has(iso)) {
-                    current++;
-                    do { cursor.setDate(cursor.getDate() - 1); } while (!isWeekday(cursor));
-                } else break;
-            }
-
-            let longest = 0, run = 0;
-            if (dailyTrades.length > 0) {
-                const firstDate = dailyTrades.reduce((min, t) => (!min || t.date < min) ? t.date : min, null);
-                let d = new Date(firstDate + 'T00:00:00');
-                while (d <= today) {
-                    if (isWeekday(d)) {
-                        const iso = d.toISOString().slice(0, 10);
-                        if (loggedDates.has(iso)) { run++; longest = Math.max(longest, run); }
-                        else run = 0;
-                    }
-                    d.setDate(d.getDate() + 1);
-                }
-            }
-
-            return { current, longest, weeks };
-        }
-
-        function renderConsistency() {
-            const statsEl = document.getElementById('consistencyStats');
-            const heatmapEl = document.getElementById('consistencyHeatmap');
-            if (!statsEl || !heatmapEl) return;
-
-            const wr = computeWeeklyReviewConsistency();
-            const ds = computeDailyJournalingStreak();
-
-            statsEl.innerHTML = `
-                <div>Weekly reviews: ${wr.last12.done}/${wr.last12.total} (12-wk) · ${wr.quarter.done}/${wr.quarter.total} (qtr) · ${wr.allTime.done}/${wr.allTime.total} (all-time)</div>
-                <div>Daily streak: <b style="color:var(--ink)">${ds.current} day${ds.current !== 1 ? 's' : ''}</b> · Longest: ${ds.longest} day${ds.longest !== 1 ? 's' : ''}</div>
-            `;
-
-            heatmapEl.innerHTML = ds.weeks.map(week => `
-                <div style="display:flex;flex-direction:column;gap:3px;">
-                    ${week.map(d => `<div title="${d.date}${d.future ? '' : (d.logged ? ' — logged' : ' — missed')}" style="width:12px;height:12px;border-radius:2px;background:${d.future ? 'var(--cream)' : (d.logged ? 'var(--bull)' : 'var(--bear-lt)')};"></div>`).join('')}
-                </div>
-            `).join('');
-        }
-
         function renderAdditionalInsights() {
             const grid = document.getElementById('additionalInsightsGrid');
             if (!grid) return;
@@ -14219,7 +13864,6 @@
             renderOpportunityDistribution();
             renderPerformanceLeak();
             renderAdditionalInsights();
-            renderConsistency();
 
             const homeOpen = document.getElementById('homeOpenSection');
             if (open.length > 0) {
@@ -14761,21 +14405,20 @@
             const body = rteGet('noteBody');
             if (!title && !body) { alert('Add a title or content.'); return; }
             const now = new Date().toISOString();
-            let synced = false;
             if (_editNoteId) {
                 const n = S.notes.find(x => idEq(x.id, _editNoteId));
                 if (n) { n.title = title;
                     n.body = body;
                     n.updatedAt = now;
-                    synced = await saveNoteToDb(n); }
+                    await saveNoteToDb(n); }
             } else {
                 const n = { id: crypto.randomUUID(), title, body, createdAt: now, updatedAt: now };
                 S.notes.unshift(n);
-                synced = await saveNoteToDb(n);
+                await saveNoteToDb(n);
             }
             closeNoteModal();
             renderNotes();
-            if (synced) showToast('Note saved ✓');
+            showToast('Note saved ✓');
         }
 
         async function deleteNote(id) {
@@ -15158,8 +14801,6 @@
 
         // ── SETTINGS ──
         async function populateSettingsPage() {
-            const versionEl = document.getElementById('aboutVersion');
-            if (versionEl) versionEl.textContent = `Version ${APP_VERSION} · ${APP_VERSION_DATE}`;
             const emailEl = document.getElementById('settingsUserEmail');
             const deviceEl = document.getElementById('settingsDeviceId');
             if (emailEl) emailEl.textContent = _currentUser?.email || '—';
@@ -18957,44 +18598,224 @@ NEXT_WEEK: [one concrete focus tied to this week's observations]`;
 
         // ── END NEWS MODULE v3 ──
 
-        // EC module — TradingView Economic Calendar
-        // Uses exact embed code from TradingView (embed-widget-events.js)
-        const EC = {
-            init: () => {
-                const container = document.getElementById('tvEcContainer');
-                if (!container || container.dataset.loaded) return;
-                container.dataset.loaded = '1';
-                // Inject the widget wrapper TV expects
-                container.innerHTML = `
-                    <div class="tradingview-widget-container" style="width:100%;height:500px;">
-                        <div class="tradingview-widget-container__widget"></div>
-                        <div class="tradingview-widget-copyright">
-                            <a href="https://www.tradingview.com/economic-calendar/" rel="noopener nofollow" target="_blank">
-                                <span style="color:#2962FF;font-size:11px;">Economic Calendar</span>
-                            </a>
-                            <span style="font-size:11px;color:#888;"> by TradingView</span>
-                        </div>
-                    </div>`;
-                // Create and append the TV script tag — must be created via
-                // document.createElement to execute after DOM insertion
-                const s = document.createElement('script');
-                s.type = 'text/javascript';
-                s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-events.js';
-                s.async = true;
-                s.textContent = JSON.stringify({
-                    colorTheme: 'light',
-                    isTransparent: true,
-                    locale: 'en',
-                    width: '100%',
-                    height: 500,
-                    countryFilter: 'us,eu,gb,ch,jp,au,ca,nz,cn',
-                    importanceFilter: '-1,0,1'
+        // EC module — FF-style Economic Calendar powered by Finnhub
+        const EC = (() => {
+            const STORAGE_KEY = 'ec_prefs_v1';
+            const IMPACTS = ['high','med','low'];
+            const CCYS = ['USD','EUR','GBP','CHF','JPY','AUD','CAD','NZD'];
+            const MY_CCYS = ['USD','EUR','GBP','CHF']; // default to user's traded pairs
+
+            // Events where a LOWER actual is GOOD for the currency
+            // (e.g. unemployment, inflation in tightening context)
+            const LOWER_BETTER = new Set([
+                'unemployment','jobless','initial claims','continuing claims',
+                'cpi','ppi','inflation','trade deficit','deficit'
+            ]);
+
+            let _events = [];
+            let _loading = false;
+            let _prefs = { impacts: ['high','med','low'], ccys: [...MY_CCYS] };
+            let _tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const _nyTz = 'America/New_York';
+
+            function _loadPrefs() {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (raw) Object.assign(_prefs, JSON.parse(raw));
+                } catch(e) {}
+            }
+            function _savePrefs() {
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(_prefs)); } catch(e) {}
+            }
+
+            function _fmt(dateStr, tz) {
+                try {
+                    const d = new Date(dateStr);
+                    if (isNaN(d)) return '—';
+                    return d.toLocaleTimeString('en-GB', {
+                        timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false
+                    });
+                } catch(e) { return '—'; }
+            }
+
+            function _fmtDate(dateStr, tz) {
+                try {
+                    const d = new Date(dateStr);
+                    return d.toLocaleDateString('en-GB', {
+                        timeZone: tz, weekday:'short', day:'2-digit', month:'short', year:'numeric'
+                    });
+                } catch(e) { return dateStr; }
+            }
+
+            function _impactClass(impact) {
+                if (!impact && impact !== 0) return 'low';
+                const n = typeof impact === 'string' ? impact.toLowerCase() : '';
+                if (impact === 1 || n === 'high') return 'high';
+                if (impact === 0 || n === 'medium' || n === 'med') return 'med';
+                return 'low';
+            }
+
+            function _actualColor(event) {
+                const { actual, estimate, prev, unit, event: name } = event;
+                if (actual == null || actual === '') return '';
+                const ref = estimate != null && estimate !== '' ? estimate : prev;
+                if (ref == null || ref === '') return 'actual-neu';
+                const aNum = parseFloat(String(actual).replace(/[^\d.-]/g,''));
+                const rNum = parseFloat(String(ref).replace(/[^\d.-]/g,''));
+                if (isNaN(aNum) || isNaN(rNum) || aNum === rNum) return 'actual-neu';
+                const nameLow = (name || '').toLowerCase();
+                const lowerIsBetter = [...LOWER_BETTER].some(k => nameLow.includes(k));
+                const better = lowerIsBetter ? (aNum < rNum) : (aNum > rNum);
+                return better ? 'actual-good' : 'actual-bad';
+            }
+
+            function _fmtVal(v) {
+                if (v == null || v === '') return '<span class="ec-val upcoming">—</span>';
+                return v;
+            }
+
+            function _renderFilters() {
+                const impEl = document.getElementById('ecImpactFilters');
+                const ccyEl = document.getElementById('ecCcyFilters');
+                if (!impEl || !ccyEl) return;
+
+                const impLabels = { high:'🔴 HIGH', med:'🟠 MED', low:'⚪ LOW' };
+                impEl.innerHTML = IMPACTS.map(i => `
+                    <button class="ec-filter-chip ${i === 'high' ? 'high-chip' : i === 'med' ? 'med-chip' : ''} ${_prefs.impacts.includes(i) ? 'active' : ''}"
+                        onclick="EC.toggleImpact('${i}',this)">${impLabels[i]}</button>
+                `).join('');
+
+                ccyEl.innerHTML = CCYS.map(c => `
+                    <button class="ec-filter-chip ${_prefs.ccys.includes(c) ? 'active' : ''}"
+                        onclick="EC.toggleCcy('${c}',this)">${c}</button>
+                `).join('');
+
+                const tzEl = document.getElementById('ecTzBadge');
+                if (tzEl) tzEl.textContent = `NY & ${_tz}`;
+            }
+
+            function _renderEvents() {
+                const body = document.getElementById('ecCalBody');
+                if (!body) return;
+
+                const filtered = _events.filter(e => {
+                    const imp = _impactClass(e.impact);
+                    const ccy = (e.country || '').toUpperCase();
+                    return _prefs.impacts.includes(imp) && _prefs.ccys.includes(ccy);
                 });
-                container.querySelector('.tradingview-widget-container').appendChild(s);
-            },
-            setFilter: () => {},
-            refreshCustomAssets: () => {}
-        };
+
+                if (_loading) { body.innerHTML = '<div class="ec-empty">Loading calendar…</div>'; return; }
+                if (filtered.length === 0) {
+                    body.innerHTML = '<div class="ec-empty">No events matching current filters.</div>'; return;
+                }
+
+                let html = `<div class="ec-header-row">
+                    <div class="ec-col-head">TIME (NY)</div>
+                    <div class="ec-col-head">CCY</div>
+                    <div></div>
+                    <div class="ec-col-head" style="text-align:left">EVENT</div>
+                    <div class="ec-col-head">PREV</div>
+                    <div class="ec-col-head">FORECAST</div>
+                    <div class="ec-col-head">ACTUAL</div>
+                </div>`;
+
+                let lastDay = '';
+                filtered.forEach(e => {
+                    const dayKey = _fmtDate(e.time, _nyTz);
+                    if (dayKey !== lastDay) {
+                        html += `<div class="ec-day-sep">${dayKey}</div>`;
+                        lastDay = dayKey;
+                    }
+                    const imp = _impactClass(e.impact);
+                    const nyTime = _fmt(e.time, _nyTz);
+                    const localTime = _fmt(e.time, _tz);
+                    const showLocal = _tz !== _nyTz;
+                    const aColor = _actualColor(e);
+                    const hasActual = e.actual != null && e.actual !== '';
+                    const actualDisplay = hasActual
+                        ? `<span class="ec-val ${aColor}">${e.actual}</span>`
+                        : `<span class="ec-val upcoming">—</span>`;
+
+                    html += `<div class="ec-row imp-${imp}">
+                        <div class="ec-time">
+                            ${nyTime}
+                            ${showLocal ? `<span class="ec-local">${localTime}</span>` : ''}
+                        </div>
+                        <div class="ec-ccy">${e.country || ''}</div>
+                        <div><div class="ec-impact-dot ${imp}"></div></div>
+                        <div class="ec-name">${e.event || ''}</div>
+                        <div class="ec-val">${_fmtVal(e.prev)}</div>
+                        <div class="ec-val">${_fmtVal(e.estimate)}</div>
+                        <div style="text-align:right">${actualDisplay}</div>
+                    </div>`;
+                });
+
+                body.innerHTML = html;
+            }
+
+            async function _fetch() {
+                const keys = (() => {
+                    try { return JSON.parse(localStorage.getItem('news_api_keys_v3') || '{}'); }
+                    catch(e) { return {}; }
+                })();
+                const key = keys.finnhub;
+                if (!key) {
+                    const body = document.getElementById('ecCalBody');
+                    if (body) body.innerHTML = '<div class="ec-empty">Add your Finnhub API key in Settings → News API Keys to enable the calendar.</div>';
+                    return;
+                }
+
+                _loading = true;
+                _renderEvents();
+
+                const today = new Date();
+                const from = today.toISOString().slice(0,10);
+                const to = new Date(today.getTime() + 7 * 86400000).toISOString().slice(0,10);
+
+                try {
+                    const r = await fetch(
+                        `https://finnhub.io/api/v1/calendar/economic?from=${from}&to=${to}&token=${key}`
+                    );
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    const data = await r.json();
+                    _events = (data.economicCalendar || []).sort((a,b) => new Date(a.time) - new Date(b.time));
+                } catch(e) {
+                    const body = document.getElementById('ecCalBody');
+                    if (body) body.innerHTML = `<div class="ec-empty">Failed to load calendar: ${e.message}</div>`;
+                } finally {
+                    _loading = false;
+                    _renderEvents();
+                }
+            }
+
+            return {
+                init() {
+                    _loadPrefs();
+                    _tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                    _renderFilters();
+                    _fetch();
+                },
+                refresh() { _fetch(); },
+                toggleImpact(imp, el) {
+                    const idx = _prefs.impacts.indexOf(imp);
+                    if (idx !== -1) _prefs.impacts.splice(idx, 1);
+                    else _prefs.impacts.push(imp);
+                    el.classList.toggle('active');
+                    _savePrefs();
+                    _renderEvents();
+                },
+                toggleCcy(ccy, el) {
+                    const idx = _prefs.ccys.indexOf(ccy);
+                    if (idx !== -1) _prefs.ccys.splice(idx, 1);
+                    else _prefs.ccys.push(ccy);
+                    el.classList.toggle('active');
+                    _savePrefs();
+                    _renderEvents();
+                },
+                setFilter() {},
+                refreshCustomAssets() {}
+            };
+        })();
         // ══════════════════════════════════════════════════════════
         // DISCORD MODULE (DC)
         // Two channels via Cloudflare Worker proxy
