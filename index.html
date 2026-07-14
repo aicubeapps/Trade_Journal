@@ -8131,7 +8131,7 @@
 
         _sb.auth.getSession().then(({ data: { session } }) => { if (session?.user) onLoggedIn(session.user); });
         _sb.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_IN' && session?.user) onLoggedIn(session.user);
+            if (event === 'SIGNED_IN' && session?.user && !_currentUser) onLoggedIn(session.user);
             if (event === 'SIGNED_OUT') { _currentUser = null;
                 if (!document.getElementById('authScreen')) location.reload(); }
         });
@@ -8371,8 +8371,11 @@
             };
         }
 
+        let _loadAllDataInProgress = false;
         async function loadAllData(force) {
             if (!_currentUser) return;
+            if (_loadAllDataInProgress) return;
+            _loadAllDataInProgress = true;
             setSyncStatus('syncing');
             try {
                 const { data: meta, error: metaErr } = await _sb.from('sync_meta').select('last_modified,last_device').eq('user_id',
@@ -8444,6 +8447,8 @@
                     refreshIntraWeeklyDropdown();
                     renderNotes();
                 }
+            } finally {
+                _loadAllDataInProgress = false;
             }
         }
 
