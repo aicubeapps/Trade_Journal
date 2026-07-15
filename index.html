@@ -4937,29 +4937,22 @@
             .news-right-col { order:3; }
             #page-news .shell { max-width:100%; }
 
-            /* EC calendar: make the body scrollable and collapse columns on mobile */
+            /* EC calendar: make body scrollable on mobile so all 7 columns
+               are reachable via swipe — no columns hidden, no data lost */
             #ecCalBody {
                 overflow-x:auto;
                 -webkit-overflow-scrolling:touch;
             }
+            /* Compact all 7 columns; user can swipe horizontally for overflow */
             .ec-hdr,
             .ec-row {
-                /* Shrink to 5 columns: drop Forecast + Previous on narrow screens */
-                grid-template-columns:55px 36px 10px 1fr 58px;
-                min-width:0;
+                grid-template-columns:48px 32px 10px 1fr 44px 44px 44px;
+                min-width:276px;
             }
-            /* Hide Forecast (col 6) and Previous (col 5) — keep only Actual (col 7) */
-            .ec-hdr div:nth-child(5),
-            .ec-hdr div:nth-child(6),
-            .ec-row  > *:nth-child(5),
-            .ec-row  > *:nth-child(6) {
-                display:none;
-            }
-            /* Slightly smaller text so content fits at ~380px */
-            .ec-name { font-size:10px; }
+            .ec-name { font-size:9px; }
             .ec-val  { font-size:8px; }
-            .ec-time { font-size:8px; }
-            .ec-ccy  { font-size:9px; }
+            .ec-time { font-size:7px; }
+            .ec-ccy  { font-size:8px; font-weight:700; }
         }
     </style>
 </head>
