@@ -4936,6 +4936,30 @@
             }
             .news-right-col { order:3; }
             #page-news .shell { max-width:100%; }
+
+            /* EC calendar: make the body scrollable and collapse columns on mobile */
+            #ecCalBody {
+                overflow-x:auto;
+                -webkit-overflow-scrolling:touch;
+            }
+            .ec-hdr,
+            .ec-row {
+                /* Shrink to 5 columns: drop Forecast + Previous on narrow screens */
+                grid-template-columns:55px 36px 10px 1fr 58px;
+                min-width:0;
+            }
+            /* Hide Forecast (col 6) and Previous (col 5) — keep only Actual (col 7) */
+            .ec-hdr div:nth-child(5),
+            .ec-hdr div:nth-child(6),
+            .ec-row  > *:nth-child(5),
+            .ec-row  > *:nth-child(6) {
+                display:none;
+            }
+            /* Slightly smaller text so content fits at ~380px */
+            .ec-name { font-size:10px; }
+            .ec-val  { font-size:8px; }
+            .ec-time { font-size:8px; }
+            .ec-ccy  { font-size:9px; }
         }
     </style>
 </head>
