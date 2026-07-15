@@ -4879,8 +4879,6 @@
             flex-wrap:wrap; gap:6px;
         }
         .ec-panel-head-left { display:flex; align-items:center; gap:8px; }
-
-        /* ── FF-style calendar ── */
         .ec-day-sep {
             font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:2px;
             color:var(--muted);background:var(--cream);padding:5px 14px;
@@ -4889,119 +4887,45 @@
         }
         .ec-row {
             display:grid;
-            grid-template-columns:76px 60px 18px 1fr 62px 62px 62px;
-            gap:0;
-            align-items:center;
-            padding:7px 14px;
+            grid-template-columns:68px 46px 12px 1fr 68px 68px 68px;
+            gap:0; align-items:center;
+            padding:8px 14px;
             border-bottom:1px solid var(--border);
             border-left:3px solid transparent;
-            transition:background 0.1s;
         }
         .ec-row:hover { background:var(--cream); }
-        .ec-row.imp-high { border-left-color:#e53935; }
-        .ec-row.imp-med  { border-left-color:#fb8c00; }
-        .ec-row.imp-low  { border-left-color:#bdbdbd; }
-        .ec-time {
-            font-family:var(--font-mono);font-size:10px;color:var(--muted);
-        }
-        .ec-time .ec-local { font-size:8px;display:block;color:var(--muted);opacity:.6; }
-        .ec-ccy {
-            font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--ink);
-            text-align:center;
-        }
-        .ec-impact-dot {
-            width:8px;height:8px;border-radius:50%;margin:0 auto;
-        }
-        .ec-impact-dot.high { background:#e53935; }
-        .ec-impact-dot.med  { background:#fb8c00; }
-        .ec-impact-dot.low  { background:#bdbdbd; }
+        .ec-row.imp-High  { border-left-color:#e53935; }
+        .ec-row.imp-Medium{ border-left-color:#fb8c00; }
+        .ec-row.imp-Low   { border-left-color:#bdbdbd; }
+        .ec-time { font-family:var(--font-mono);font-size:9px;color:var(--muted);line-height:1.5; }
+        .ec-time .ec-local{ font-size:8px;display:block;opacity:.55; }
+        .ec-ccy  { font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--ink); }
+        .ec-dot  { width:8px;height:8px;border-radius:50%; }
+        .ec-dot.High   { background:#e53935; }
+        .ec-dot.Medium { background:#fb8c00; }
+        .ec-dot.Low    { background:#bdbdbd; }
         .ec-name { font-size:11px;color:var(--ink);line-height:1.3;padding-right:8px; }
-        .ec-val {
-            font-family:var(--font-mono);font-size:10px;text-align:right;
-            color:var(--muted);
+        .ec-val  { font-family:var(--font-mono);font-size:9px;text-align:right;color:var(--muted); }
+        .ec-val.good { color:#2e7d32;font-weight:700; }
+        .ec-val.bad  { color:#c62828;font-weight:700; }
+        .ec-val.neu  { color:var(--ink);font-weight:700; }
+        .ec-hdr {
+            display:grid;grid-template-columns:68px 46px 12px 1fr 68px 68px 68px;
+            gap:0;padding:4px 14px;background:var(--cream);border-bottom:1px solid var(--border);
+            font-family:var(--font-mono);font-size:7px;font-weight:700;letter-spacing:.5px;color:var(--muted);
         }
-        .ec-val.actual-good { color:#2e7d32;font-weight:700; }
-        .ec-val.actual-bad  { color:#c62828;font-weight:700; }
-        .ec-val.actual-neu  { color:var(--ink);font-weight:700; }
-        .ec-val.upcoming    { color:var(--muted);opacity:.5; }
-        .ec-col-head {
-            font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;
-            color:var(--muted);text-align:right;
-        }
-        .ec-filter-chip {
-            font-family:var(--font-mono);font-size:8px;font-weight:700;padding:3px 8px;
-            border-radius:10px;border:1.5px solid var(--border);background:transparent;
-            color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap;
-        }
-        .ec-filter-chip.active { background:var(--paper);color:var(--ink);border-color:var(--ink); }
-        .ec-filter-chip.high-chip.active { border-color:#e53935;color:#e53935; }
-        .ec-filter-chip.med-chip.active  { border-color:#fb8c00;color:#fb8c00; }
+        .ec-hdr div { text-align:right; }
+        .ec-hdr div:nth-child(1),.ec-hdr div:nth-child(2),.ec-hdr div:nth-child(3),.ec-hdr div:nth-child(4){ text-align:left; }
         .ec-empty { padding:24px;text-align:center;font-size:12px;color:var(--muted); }
-        .ec-header-row {
-            display:grid;
-            grid-template-columns:76px 60px 18px 1fr 62px 62px 62px;
-            gap:0; padding:4px 14px 4px;
-            background:var(--cream);border-bottom:1px solid var(--border);
+        .ec-chip {
+            font-family:var(--font-mono);font-size:8px;font-weight:700;padding:2px 8px;
+            border-radius:10px;border:1.5px solid rgba(255,255,255,0.2);background:transparent;
+            color:rgba(255,255,255,0.6);cursor:pointer;transition:all .15s;white-space:nowrap;
         }
-        /* ── Discord panels ── */
-        .discord-panel-main {
-            border:1.5px solid var(--border); border-radius:6px;
-            overflow:hidden; background:var(--surface);
-        }
-        .discord-panel-head {
-            display:flex; align-items:center; gap:8px;
-            padding:10px 14px;
-            background:var(--ink); color:var(--paper);
-            font-family:var(--font-mono); font-size:8px; font-weight:700; letter-spacing:1.5px;
-        }
-        .discord-channel-card {
-            border:1.5px solid var(--border); border-radius:6px;
-            background:var(--surface); overflow:hidden;
-        }
-        .discord-channel-head {
-            display:flex; align-items:center; gap:8px;
-            padding:9px 14px; border-bottom:1px solid var(--border);
-            font-family:var(--font-mono); font-size:8px; font-weight:700;
-            letter-spacing:1px; color:var(--ink);
-            background:var(--cream);
-        }
-        .discord-channel-body {
-            padding:0; max-height:320px; overflow-y:auto;
-        }
-        .discord-msg {
-            padding:8px 12px; border-bottom:1px solid var(--border);
-            display:flex; flex-direction:column; gap:3px;
-        }
-        .discord-msg:last-child { border-bottom:none; }
-        .discord-msg-meta {
-            display:flex; align-items:center; gap:6px;
-            font-family:var(--font-mono); font-size:7px; color:var(--muted);
-        }
-        .discord-msg-author {
-            font-weight:700; color:var(--ink);
-        }
-        .discord-msg-content {
-            font-size:11px; color:var(--ink); line-height:1.5;
-            word-break:break-word; white-space:pre-wrap;
-        }
-        .discord-msg-img {
-            max-width:100%; max-height:160px; border-radius:4px;
-            margin-top:4px; border:1px solid var(--border);
-            object-fit:cover; cursor:pointer;
-        }
-        .discord-stub-body {
-            padding:24px 16px; text-align:center;
-            font-family:var(--font-mono); font-size:8px;
-            color:var(--muted); letter-spacing:0.5px; line-height:1.8;
-        }
-        .discord-load-more {
-            display:block; width:100%; padding:7px;
-            font-family:var(--font-mono); font-size:7px; font-weight:700; letter-spacing:1px;
-            text-transform:uppercase; background:transparent;
-            border:none; border-top:1px solid var(--border);
-            color:var(--muted); cursor:pointer; transition:all .15s;
-        }
-        .discord-load-more:hover { color:var(--ink); background:var(--cream); }
+        .ec-chip.on { background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.5); }
+        .ec-chip.High.on   { border-color:#e53935;color:#ff8a80; }
+        .ec-chip.Medium.on { border-color:#fb8c00;color:#ffcc80; }
+
 
         /* ── Mobile stacking ── */
         @media (max-width:768px) {
@@ -5894,20 +5818,20 @@
                         <!-- LEFT column: Economic Calendar + News Feed -->
                         <div class="news-left-col">
 
-                            <!-- Economic Calendar — Finnhub FF-style -->
+                            <!-- Economic Calendar — FF JSON feed (nfs.faireconomy.media) -->
                             <div class="ec-panel" id="ecPanel">
                                 <div class="ec-panel-head">
-                                    <div class="ec-panel-head-left" style="display:flex;align-items:center;gap:10px;">
+                                    <div class="ec-panel-head-left">
                                         📅 ECONOMIC CALENDAR
-                                        <span id="ecTzBadge" style="font-family:var(--font-mono);font-size:8px;font-weight:400;color:var(--muted);letter-spacing:0;"></span>
                                     </div>
                                     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                                         <div id="ecImpactFilters" style="display:flex;gap:4px;"></div>
                                         <div id="ecCcyFilters" style="display:flex;gap:4px;"></div>
-                                        <button onclick="EC.refresh()" style="font-family:var(--font-mono);font-size:8px;font-weight:700;padding:3px 8px;border:1.5px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;">⟳</button>
+                                        <button onclick="EC.manualRefresh()" title="Force refresh from Forex Factory" style="font-family:var(--font-mono);font-size:8px;font-weight:700;padding:3px 8px;border:1.5px solid rgba(255,255,255,0.25);border-radius:4px;background:transparent;color:rgba(255,255,255,0.7);cursor:pointer;">⟳ REFRESH</button>
                                     </div>
                                 </div>
-                                <div id="ecCalBody" style="width:100%;min-height:300px;font-size:12px;"></div>
+                                <div id="ecStatusBar" style="font-family:var(--font-mono);font-size:8px;color:var(--muted);padding:5px 14px;border-bottom:1px solid var(--border);background:var(--cream);display:none;"></div>
+                                <div id="ecCalBody" style="width:100%;min-height:200px;"></div>
                             </div>
 
                             <!-- Status bar -->
@@ -6096,7 +6020,8 @@
                         <div style="padding:14px;">
                             <div style="font-family:var(--font-mono);font-size:9px;color:var(--ink);line-height:1.9;">
                                 My Trade Journal<br>
-                                <span style="color:var(--muted);">Scan · Plan · Execute<br>Built for disciplined execution</span>
+                                <span style="color:var(--muted);">Scan · Plan · Execute<br>Built for disciplined execution</span><br>
+                                <span id="aboutVersion" style="color:var(--muted);"></span>
                             </div>
                         </div>
                     </div>
@@ -7084,6 +7009,9 @@
         // ════════════════════════════════════════════════════════════════════
         // STATE — EXTENDED
         // ════════════════════════════════════════════════════════════════════
+        const APP_VERSION = 'v5';
+        const APP_VERSION_DATE = '2026-07-15 15:00 UTC';
+
         const S = {
             insightsMode: 'live',
             closedTypeFilter: 'all',
@@ -14801,6 +14729,8 @@
 
         // ── SETTINGS ──
         async function populateSettingsPage() {
+            const vEl = document.getElementById('aboutVersion');
+            if (vEl) vEl.textContent = APP_VERSION + ' · ' + APP_VERSION_DATE;
             const emailEl = document.getElementById('settingsUserEmail');
             const deviceEl = document.getElementById('settingsDeviceId');
             if (emailEl) emailEl.textContent = _currentUser?.email || '—';
@@ -18598,224 +18528,246 @@ NEXT_WEEK: [one concrete focus tied to this week's observations]`;
 
         // ── END NEWS MODULE v3 ──
 
-        // EC module — FF-style Economic Calendar powered by Finnhub
+        // ─── Economic Calendar — Forex Factory JSON feed ───────────────────
+        // Data source: https://nfs.faireconomy.media/ff_calendar_thisweek.json
+        // Free, public, official FF CDN. Rate-limited to 2 fetches per 5 min —
+        // we stay well clear by fetching at most once per day (after 5pm NY),
+        // caching in localStorage, and only fetching again on manual refresh.
+        // This means opening/closing the app 10 times does NOT refetch; the cache
+        // persists until 5pm NY the next calendar day or you press REFRESH.
         const EC = (() => {
-            const STORAGE_KEY = 'ec_prefs_v1';
-            const IMPACTS = ['high','med','low'];
-            const CCYS = ['USD','EUR','GBP','CHF','JPY','AUD','CAD','NZD'];
-            const MY_CCYS = ['USD','EUR','GBP','CHF']; // default to user's traded pairs
+            const CACHE_KEY  = 'ec_ff_cache_v1';
+            const PREFS_KEY  = 'ec_ff_prefs_v1';
+            const FF_URL     = 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
+            const NY_TZ      = 'America/New_York';
+            const LOCAL_TZ   = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const SHOW_LOCAL = LOCAL_TZ !== NY_TZ;
 
-            // Events where a LOWER actual is GOOD for the currency
-            // (e.g. unemployment, inflation in tightening context)
-            const LOWER_BETTER = new Set([
-                'unemployment','jobless','initial claims','continuing claims',
-                'cpi','ppi','inflation','trade deficit','deficit'
-            ]);
+            const LOWER_BETTER = new Set(['unemployment','jobless','initial claims',
+                'continuing claims','cpi','ppi','inflation','deficit','trade deficit']);
 
             let _events = [];
-            let _loading = false;
-            let _prefs = { impacts: ['high','med','low'], ccys: [...MY_CCYS] };
-            let _tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const _nyTz = 'America/New_York';
+            let _prefs  = { impacts: ['High','Medium','Low'], ccys: ['USD','EUR','GBP','CHF'] };
 
-            function _loadPrefs() {
+            // ── Cache / freshness ────────────────────────────────────────────
+            function _loadCache() {
+                try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); }
+                catch(e) { return null; }
+            }
+            function _saveCache(events) {
+                const now = new Date();
                 try {
-                    const raw = localStorage.getItem(STORAGE_KEY);
-                    if (raw) Object.assign(_prefs, JSON.parse(raw));
+                    localStorage.setItem(CACHE_KEY, JSON.stringify({
+                        events,
+                        fetchedAt: now.toISOString(),
+                        fetchedNyDate: _nyDateStr(now),
+                    }));
                 } catch(e) {}
             }
-            function _savePrefs() {
-                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(_prefs)); } catch(e) {}
+
+            // Returns YYYY-MM-DD in NY timezone
+            function _nyDateStr(d) {
+                return d.toLocaleDateString('en-CA', { timeZone: NY_TZ });
+            }
+            // Returns current NY hour (0-23)
+            function _nyHour(d) {
+                return parseInt(d.toLocaleTimeString('en-US', {
+                    timeZone: NY_TZ, hour: 'numeric', hour12: false
+                }), 10);
             }
 
-            function _fmt(dateStr, tz) {
+            // Should we use cached data or fetch fresh?
+            function _needsFetch(cache) {
+                if (!cache || !cache.events || !cache.fetchedNyDate) return true;
+                const now = new Date();
+                const todayNy = _nyDateStr(now);
+                const nyH = _nyHour(now);
+                // If cached on a previous day AND it's now past 5pm NY → fetch
+                if (cache.fetchedNyDate < todayNy && nyH >= 17) return true;
+                // If cached before 5pm today and it's now past 5pm → fetch
+                const cachedAt = new Date(cache.fetchedAt);
+                const cachedNyH = _nyHour(cachedAt);
+                if (cache.fetchedNyDate === todayNy && cachedNyH < 17 && nyH >= 17) return true;
+                // Otherwise use cache
+                return false;
+            }
+
+            // ── Prefs ────────────────────────────────────────────────────────
+            function _loadPrefs() {
+                try { const p = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null');
+                    if (p) _prefs = p; } catch(e) {}
+            }
+            function _savePrefs() {
+                try { localStorage.setItem(PREFS_KEY, JSON.stringify(_prefs)); } catch(e) {}
+            }
+
+            // ── Time formatting ──────────────────────────────────────────────
+            function _fmtTime(iso, tz) {
                 try {
-                    const d = new Date(dateStr);
-                    if (isNaN(d)) return '—';
-                    return d.toLocaleTimeString('en-GB', {
+                    return new Date(iso).toLocaleTimeString('en-GB', {
                         timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false
                     });
                 } catch(e) { return '—'; }
             }
-
-            function _fmtDate(dateStr, tz) {
+            function _fmtDay(iso) {
                 try {
-                    const d = new Date(dateStr);
-                    return d.toLocaleDateString('en-GB', {
-                        timeZone: tz, weekday:'short', day:'2-digit', month:'short', year:'numeric'
+                    return new Date(iso).toLocaleDateString('en-GB', {
+                        timeZone: NY_TZ, weekday:'short', day:'2-digit', month:'short', year:'numeric'
                     });
-                } catch(e) { return dateStr; }
+                } catch(e) { return iso; }
+            }
+            function _dayKey(iso) {
+                try {
+                    return new Date(iso).toLocaleDateString('en-CA', { timeZone: NY_TZ });
+                } catch(e) { return iso; }
             }
 
-            function _impactClass(impact) {
-                if (!impact && impact !== 0) return 'low';
-                const n = typeof impact === 'string' ? impact.toLowerCase() : '';
-                if (impact === 1 || n === 'high') return 'high';
-                if (impact === 0 || n === 'medium' || n === 'med') return 'med';
-                return 'low';
+            // ── Actual colouring ─────────────────────────────────────────────
+            function _actualClass(event) {
+                const { actual, forecast, previous, title } = event;
+                if (!actual || actual === '') return '';
+                const ref = (forecast && forecast !== '') ? forecast : previous;
+                if (!ref || ref === '') return 'neu';
+                const aNum = parseFloat(actual.replace(/[^0-9.-]/g,''));
+                const rNum = parseFloat(ref.replace(/[^0-9.-]/g,''));
+                if (isNaN(aNum) || isNaN(rNum) || aNum === rNum) return 'neu';
+                const nameLow = (title || '').toLowerCase();
+                const lowerBetter = [...LOWER_BETTER].some(k => nameLow.includes(k));
+                return (lowerBetter ? aNum < rNum : aNum > rNum) ? 'good' : 'bad';
             }
 
-            function _actualColor(event) {
-                const { actual, estimate, prev, unit, event: name } = event;
-                if (actual == null || actual === '') return '';
-                const ref = estimate != null && estimate !== '' ? estimate : prev;
-                if (ref == null || ref === '') return 'actual-neu';
-                const aNum = parseFloat(String(actual).replace(/[^\d.-]/g,''));
-                const rNum = parseFloat(String(ref).replace(/[^\d.-]/g,''));
-                if (isNaN(aNum) || isNaN(rNum) || aNum === rNum) return 'actual-neu';
-                const nameLow = (name || '').toLowerCase();
-                const lowerIsBetter = [...LOWER_BETTER].some(k => nameLow.includes(k));
-                const better = lowerIsBetter ? (aNum < rNum) : (aNum > rNum);
-                return better ? 'actual-good' : 'actual-bad';
-            }
-
-            function _fmtVal(v) {
-                if (v == null || v === '') return '<span class="ec-val upcoming">—</span>';
-                return v;
-            }
-
+            // ── Render ───────────────────────────────────────────────────────
             function _renderFilters() {
                 const impEl = document.getElementById('ecImpactFilters');
                 const ccyEl = document.getElementById('ecCcyFilters');
                 if (!impEl || !ccyEl) return;
 
-                const impLabels = { high:'🔴 HIGH', med:'🟠 MED', low:'⚪ LOW' };
-                impEl.innerHTML = IMPACTS.map(i => `
-                    <button class="ec-filter-chip ${i === 'high' ? 'high-chip' : i === 'med' ? 'med-chip' : ''} ${_prefs.impacts.includes(i) ? 'active' : ''}"
-                        onclick="EC.toggleImpact('${i}',this)">${impLabels[i]}</button>
-                `).join('');
+                const IMPS = ['High','Medium','Low'];
+                const CCYS = ['USD','EUR','GBP','CHF','JPY','AUD','CAD','NZD'];
 
-                ccyEl.innerHTML = CCYS.map(c => `
-                    <button class="ec-filter-chip ${_prefs.ccys.includes(c) ? 'active' : ''}"
-                        onclick="EC.toggleCcy('${c}',this)">${c}</button>
-                `).join('');
-
-                const tzEl = document.getElementById('ecTzBadge');
-                if (tzEl) tzEl.textContent = `NY & ${_tz}`;
+                impEl.innerHTML = IMPS.map(i =>
+                    `<button class="ec-chip ${i} ${_prefs.impacts.includes(i)?'on':''}"
+                        onclick="EC.toggleImp('${i}',this)">${i==='High'?'🔴':i==='Medium'?'🟠':'⚪'} ${i.toUpperCase()}</button>`
+                ).join('');
+                ccyEl.innerHTML = CCYS.map(c =>
+                    `<button class="ec-chip ${_prefs.ccys.includes(c)?'on':''}"
+                        onclick="EC.toggleCcy('${c}',this)">${c}</button>`
+                ).join('');
             }
 
-            function _renderEvents() {
+            function _render() {
                 const body = document.getElementById('ecCalBody');
                 if (!body) return;
 
-                const filtered = _events.filter(e => {
-                    const imp = _impactClass(e.impact);
-                    const ccy = (e.country || '').toUpperCase();
-                    return _prefs.impacts.includes(imp) && _prefs.ccys.includes(ccy);
-                });
+                const rows = _events.filter(e =>
+                    _prefs.impacts.includes(e.impact) && _prefs.ccys.includes(e.country)
+                );
 
-                if (_loading) { body.innerHTML = '<div class="ec-empty">Loading calendar…</div>'; return; }
-                if (filtered.length === 0) {
-                    body.innerHTML = '<div class="ec-empty">No events matching current filters.</div>'; return;
-                }
-
-                let html = `<div class="ec-header-row">
-                    <div class="ec-col-head">TIME (NY)</div>
-                    <div class="ec-col-head">CCY</div>
-                    <div></div>
-                    <div class="ec-col-head" style="text-align:left">EVENT</div>
-                    <div class="ec-col-head">PREV</div>
-                    <div class="ec-col-head">FORECAST</div>
-                    <div class="ec-col-head">ACTUAL</div>
-                </div>`;
-
-                let lastDay = '';
-                filtered.forEach(e => {
-                    const dayKey = _fmtDate(e.time, _nyTz);
-                    if (dayKey !== lastDay) {
-                        html += `<div class="ec-day-sep">${dayKey}</div>`;
-                        lastDay = dayKey;
-                    }
-                    const imp = _impactClass(e.impact);
-                    const nyTime = _fmt(e.time, _nyTz);
-                    const localTime = _fmt(e.time, _tz);
-                    const showLocal = _tz !== _nyTz;
-                    const aColor = _actualColor(e);
-                    const hasActual = e.actual != null && e.actual !== '';
-                    const actualDisplay = hasActual
-                        ? `<span class="ec-val ${aColor}">${e.actual}</span>`
-                        : `<span class="ec-val upcoming">—</span>`;
-
-                    html += `<div class="ec-row imp-${imp}">
-                        <div class="ec-time">
-                            ${nyTime}
-                            ${showLocal ? `<span class="ec-local">${localTime}</span>` : ''}
-                        </div>
-                        <div class="ec-ccy">${e.country || ''}</div>
-                        <div><div class="ec-impact-dot ${imp}"></div></div>
-                        <div class="ec-name">${e.event || ''}</div>
-                        <div class="ec-val">${_fmtVal(e.prev)}</div>
-                        <div class="ec-val">${_fmtVal(e.estimate)}</div>
-                        <div style="text-align:right">${actualDisplay}</div>
-                    </div>`;
-                });
-
-                body.innerHTML = html;
-            }
-
-            async function _fetch() {
-                const keys = (() => {
-                    try { return JSON.parse(localStorage.getItem('news_api_keys_v3') || '{}'); }
-                    catch(e) { return {}; }
-                })();
-                const key = keys.finnhub;
-                if (!key) {
-                    const body = document.getElementById('ecCalBody');
-                    if (body) body.innerHTML = '<div class="ec-empty">Add your Finnhub API key in Settings → News API Keys to enable the calendar.</div>';
+                if (rows.length === 0) {
+                    body.innerHTML = '<div class="ec-empty">No events match current filters.</div>';
                     return;
                 }
 
-                _loading = true;
-                _renderEvents();
+                let html = `<div class="ec-hdr">
+                    <div>TIME (NY)</div>
+                    <div>CCY</div><div></div>
+                    <div style="text-align:left">EVENT</div>
+                    <div>PREV</div><div>FCST</div><div>ACTUAL</div>
+                </div>`;
 
-                const today = new Date();
-                const from = today.toISOString().slice(0,10);
-                const to = new Date(today.getTime() + 7 * 86400000).toISOString().slice(0,10);
+                let lastDay = '';
+                for (const e of rows) {
+                    const dk = _dayKey(e.date);
+                    if (dk !== lastDay) {
+                        html += `<div class="ec-day-sep">${_fmtDay(e.date)}</div>`;
+                        lastDay = dk;
+                    }
+                    const nyTime    = _fmtTime(e.date, NY_TZ);
+                    const localTime = SHOW_LOCAL ? _fmtTime(e.date, LOCAL_TZ) : '';
+                    const aClass    = _actualClass(e);
+                    const actual    = e.actual
+                        ? `<span class="ec-val ${aClass}">${e.actual}</span>`
+                        : `<span class="ec-val" style="opacity:.3">—</span>`;
+                    html += `<div class="ec-row imp-${e.impact}">
+                        <div class="ec-time">${nyTime}${SHOW_LOCAL?`<span class="ec-local">${localTime}</span>`:''}</div>
+                        <div class="ec-ccy">${e.country}</div>
+                        <div><div class="ec-dot ${e.impact}" style="margin:0 auto;"></div></div>
+                        <div class="ec-name">${e.title}</div>
+                        <div class="ec-val">${e.previous||'—'}</div>
+                        <div class="ec-val">${e.forecast||'—'}</div>
+                        <div style="text-align:right">${actual}</div>
+                    </div>`;
+                }
+                body.innerHTML = html;
+            }
 
+            function _setStatus(msg) {
+                const el = document.getElementById('ecStatusBar');
+                if (!el) return;
+                if (msg) { el.textContent = msg; el.style.display = 'block'; }
+                else el.style.display = 'none';
+            }
+
+            // ── Fetch ────────────────────────────────────────────────────────
+            async function _fetch(force) {
+                const cache = _loadCache();
+                if (!force && !_needsFetch(cache)) {
+                    // Use cached data
+                    _events = (cache.events || []);
+                    const nyH = _nyHour(new Date());
+                    const nextRefreshMsg = nyH < 17
+                        ? `Cached · auto-refresh after 5:00 PM NY`
+                        : `Refreshed today · next auto-refresh tomorrow after 5:00 PM NY`;
+                    _setStatus(`Last fetched ${cache.fetchedAt ? new Date(cache.fetchedAt).toLocaleString() : '—'} · ${nextRefreshMsg}`);
+                    _render();
+                    return;
+                }
+
+                _setStatus('Fetching latest data from Forex Factory…');
                 try {
-                    const r = await fetch(
-                        `https://finnhub.io/api/v1/calendar/economic?from=${from}&to=${to}&token=${key}`
-                    );
+                    const r = await fetch(FF_URL, { cache: 'no-store' });
                     if (!r.ok) throw new Error('HTTP ' + r.status);
                     const data = await r.json();
-                    _events = (data.economicCalendar || []).sort((a,b) => new Date(a.time) - new Date(b.time));
+                    // Sort by date ascending
+                    _events = data.sort((a, b) => new Date(a.date) - new Date(b.date));
+                    _saveCache(_events);
+                    _setStatus(`Fetched ${new Date().toLocaleString()} · next auto-refresh after 5:00 PM NY`);
                 } catch(e) {
-                    const body = document.getElementById('ecCalBody');
-                    if (body) body.innerHTML = `<div class="ec-empty">Failed to load calendar: ${e.message}</div>`;
-                } finally {
-                    _loading = false;
-                    _renderEvents();
+                    if (cache && cache.events) {
+                        _events = cache.events;
+                        _setStatus(`⚠ Fetch failed (${e.message}) — showing cached data from ${cache.fetchedAt ? new Date(cache.fetchedAt).toLocaleString() : '?'}`);
+                    } else {
+                        _events = [];
+                        _setStatus(`⚠ Could not load calendar: ${e.message}`);
+                    }
                 }
+                _render();
             }
 
             return {
                 init() {
                     _loadPrefs();
-                    _tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
                     _renderFilters();
-                    _fetch();
+                    _fetch(false);
                 },
-                refresh() { _fetch(); },
-                toggleImpact(imp, el) {
-                    const idx = _prefs.impacts.indexOf(imp);
-                    if (idx !== -1) _prefs.impacts.splice(idx, 1);
-                    else _prefs.impacts.push(imp);
-                    el.classList.toggle('active');
-                    _savePrefs();
-                    _renderEvents();
+                manualRefresh() { _fetch(true); },
+                toggleImp(imp, el) {
+                    const i = _prefs.impacts.indexOf(imp);
+                    if (i !== -1) _prefs.impacts.splice(i, 1); else _prefs.impacts.push(imp);
+                    el.classList.toggle('on');
+                    _savePrefs(); _render();
                 },
                 toggleCcy(ccy, el) {
-                    const idx = _prefs.ccys.indexOf(ccy);
-                    if (idx !== -1) _prefs.ccys.splice(idx, 1);
-                    else _prefs.ccys.push(ccy);
-                    el.classList.toggle('active');
-                    _savePrefs();
-                    _renderEvents();
+                    const i = _prefs.ccys.indexOf(ccy);
+                    if (i !== -1) _prefs.ccys.splice(i, 1); else _prefs.ccys.push(ccy);
+                    el.classList.toggle('on');
+                    _savePrefs(); _render();
                 },
                 setFilter() {},
                 refreshCustomAssets() {}
             };
         })();
+
         // ══════════════════════════════════════════════════════════
         // DISCORD MODULE (DC)
         // Two channels via Cloudflare Worker proxy
