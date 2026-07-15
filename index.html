@@ -807,6 +807,101 @@
             flex-wrap: wrap;
         }
 
+        /* ── JOURNALING HEATMAP ── */
+        .jheat-card {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+        }
+        .jheat-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .jheat-title {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: var(--muted);
+            text-transform: uppercase;
+        }
+        .jheat-nav {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-mono);
+        }
+        .jheat-nav button {
+            width: 22px; height: 22px; border-radius: 4px; border: 1.5px solid var(--border);
+            background: var(--cream); color: var(--ink); cursor: pointer; font-size: 11px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .jheat-nav button:hover { background: var(--warm); }
+        .jheat-label { font-size: 11px; font-weight: 700; min-width: 90px; text-align: center; }
+        .jheat-view-toggle { display: flex; gap: 4px; }
+        .jheat-view-toggle button {
+            font-family: var(--font-mono); font-size: 8px; font-weight: 700; letter-spacing: 0.5px;
+            padding: 5px 9px; border-radius: 4px; border: 1.5px solid var(--border);
+            background: var(--cream); color: var(--muted); cursor: pointer; text-transform: uppercase;
+        }
+        .jheat-view-toggle button.sel {
+            background: var(--nav-bg); color: #fff; border-color: var(--nav-bg);
+        }
+        .jheat-total {
+            font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--ink);
+        }
+        .jheat-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 5px;
+        }
+        .jheat-grid.jheat-week-mode { grid-template-columns: repeat(6, 1fr); }
+        .jheat-grid.jheat-year-mode { grid-template-columns: repeat(4, 1fr); }
+        .jheat-dow {
+            font-family: var(--font-mono); font-size: 7px; font-weight: 700; color: var(--muted);
+            text-align: center; letter-spacing: 0.5px; text-transform: uppercase; padding-bottom: 2px;
+        }
+        .jheat-cell {
+            border-radius: 4px;
+            padding: 6px 5px;
+            min-height: 52px;
+            font-family: var(--font-mono);
+            display: flex; flex-direction: column; justify-content: space-between;
+            border: 1px solid var(--border);
+        }
+        .jheat-cell.jheat-empty { background: transparent; border: none; }
+        .jheat-cell .jc-date { font-size: 8px; font-weight: 700; opacity: 0.75; }
+        .jheat-cell .jc-count { font-size: 12px; font-weight: 800; margin-top: 2px; }
+        .jheat-cell .jc-bias { font-size: 7px; font-weight: 700; margin-top: 1px; opacity: 0.85; }
+        .jheat-cell.jh-tier-none  { background: var(--cream); color: var(--muted); }
+        .jheat-cell.jh-tier-red    { background: var(--bear-lt); color: var(--bear); border-color: var(--bear); }
+        .jheat-cell.jh-tier-orange { background: var(--wb-med-bg); color: var(--wb-med); border-color: var(--wb-med); }
+        .jheat-cell.jh-tier-lgreen { background: var(--wb-high-bg); color: var(--wb-high); border-color: var(--wb-high); }
+        .jheat-cell.jh-tier-dgreen { background: var(--bull); color: #fff; border-color: var(--bull); }
+        .jheat-week-col {
+            grid-column: span 1;
+            background: var(--cream);
+            border: 1.5px solid var(--border);
+            border-radius: 4px;
+            padding: 6px 5px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            font-family: var(--font-mono);
+        }
+        .jheat-week-col .jwc-label { font-size: 7px; color: var(--muted); font-weight: 700; }
+        .jheat-week-col .jwc-score { font-size: 12px; font-weight: 800; margin-top: 2px; }
+        .jheat-month-cell {
+            border-radius: 5px; padding: 10px 8px; min-height: 64px; border: 1px solid var(--border);
+            font-family: var(--font-mono); display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .jheat-month-cell .jm-label { font-size: 9px; font-weight: 700; }
+        .jheat-month-cell .jm-pct { font-size: 15px; font-weight: 800; margin-top: 4px; }
+
         /* ── DASHBOARD ── */
         .dash-stats {
             display: grid;
@@ -5136,6 +5231,25 @@
                         </button>
                     </div>
 
+                    <!-- Journaling Heatmap — daily/weekly bias entry consistency -->
+                    <div class="jheat-card">
+                        <div class="jheat-head">
+                            <div class="jheat-title">Journaling Consistency</div>
+                            <div class="jheat-nav">
+                                <button onclick="jheatNav(-1)">‹</button>
+                                <div class="jheat-label" id="jheatLabel">—</div>
+                                <button onclick="jheatNav(1)">›</button>
+                            </div>
+                            <div class="jheat-view-toggle" id="jheatViewToggle">
+                                <button data-v="week" onclick="jheatSetView('week')">Week</button>
+                                <button data-v="month" onclick="jheatSetView('month')">Month</button>
+                                <button data-v="year" onclick="jheatSetView('year')">Year</button>
+                            </div>
+                            <div class="jheat-total" id="jheatTotal">—</div>
+                        </div>
+                        <div id="jheatGrid"></div>
+                    </div>
+
                     <div class="seg-btns" id="insightsModeBtns" style="max-width:220px;margin-bottom:12px;">
                         <button class="seg-btn sel-bull" onclick="setInsightsMode('live',this)">LIVE</button>
                         <button class="seg-btn" onclick="setInsightsMode('combined',this)">COMBINED</button>
@@ -6053,6 +6167,12 @@
                             <button class="seg-btn" onclick="cmClearSkip(this)">CLEAR</button>
                         </div>
                     </div>
+                </div>
+                <div class="field">
+                    <label>PnL Tracker Account <span style="font-size:7px;color:var(--muted);font-weight:400;">(optional — links this trade for $ P&amp;L tracking)</span></label>
+                    <select id="cmAccountSelect" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);font-family:var(--font-sans);font-size:13px;">
+                        <option value="">— None —</option>
+                    </select>
                 </div>
                 <div class="field-row">
                     <div class="field"><label>Entry Price</label><input type="number" step="any" id="cmEntry" placeholder="0.00000" oninput="updateCmAutoResult()"></div>
@@ -7040,6 +7160,15 @@
             syncStatus: 'idle',
             serverLastMod: null,      // ISO timestamp from sync_meta.last_modified
             serverLastDevice: null,   // UUID from sync_meta.last_device
+            // PnL Tracker linking — accounts fetched read-only from the same Supabase
+            // project's 'accounts' table; trade_account_map is owned by the tracker
+            // but written here too on trade close, per the confirmed linking design.
+            pnlAccounts: [],
+            tradeAccountMap: {},      // trade_id -> account_id
+            cmSelectedAccountId: null,
+            // Journaling heatmap view state
+            jheatView: 'month',       // 'week' | 'month' | 'year'
+            jheatRefDate: new Date(), // anchor date for current view window
             ideaTags: [],
             wbTags: ['weekly'],
             intraTags: ['intraday'],
@@ -8356,9 +8485,54 @@
             };
         }
 
+        // ── PnL Tracker integration: read accounts, read+write trade_account_map ──
+        // Same Supabase project as the tracker (_sb client already configured above).
+        // Accounts are owned/created by the tracker app; this Journal only reads them
+        // for the close-modal dropdown and writes the assignment on trade close.
+        async function loadPnlAccounts() {
+            if (!_currentUser) return;
+            try {
+                const [{ data: accts, error: acctErr }, { data: maps, error: mapErr }] = await Promise.all([
+                    _sb.from('accounts').select('id,name,account_kind,is_paper,status')
+                        .eq('user_id', _currentUser.id).order('created_at', { ascending: true }),
+                    _sb.from('trade_account_map').select('trade_id,account_id')
+                        .eq('user_id', _currentUser.id)
+                ]);
+                if (acctErr) throw acctErr;
+                if (mapErr) throw mapErr;
+                S.pnlAccounts = accts || [];
+                S.tradeAccountMap = {};
+                (maps || []).forEach(m => { S.tradeAccountMap[m.trade_id] = m.account_id; });
+            } catch (e) {
+                // Non-fatal — the Journal works fine without the tracker; just log it.
+                console.warn('PnL accounts load failed (tracker may be unreachable):', e.message);
+            }
+        }
+
+        async function assignTradeAccount(tradeId, accountId) {
+            if (!_currentUser) return;
+            try {
+                if (!accountId) {
+                    await _sb.from('trade_account_map').delete()
+                        .eq('trade_id', tradeId).eq('user_id', _currentUser.id);
+                    delete S.tradeAccountMap[tradeId];
+                } else {
+                    await _sb.from('trade_account_map').upsert({
+                        trade_id: tradeId, user_id: _currentUser.id, account_id: accountId,
+                        assigned_at: new Date().toISOString()
+                    }, { onConflict: 'trade_id' });
+                    S.tradeAccountMap[tradeId] = accountId;
+                }
+            } catch (e) {
+                showToast('Account link failed: ' + e.message, 'warn');
+            }
+        }
+
+
         async function loadAllData(force) {
             if (!_currentUser) return;
             setSyncStatus('syncing');
+            loadPnlAccounts(); // fire-and-forget — non-blocking, non-fatal if tracker unreachable
             try {
                 const { data: meta, error: metaErr } = await _sb.from('sync_meta').select('last_modified,last_device').eq('user_id',
                     _currentUser.id).maybeSingle();
@@ -12572,8 +12746,26 @@
                 autoPlayedEl.style.color = autoPlayed === 'BULLISH' ? 'var(--bull)' : 'var(--bear)';
             }
             S.cmData.biasPlayed = autoPlayed;
+            populateCmAccountSelect(t);
             document.getElementById('closeModal').classList.add('open');
             setTimeout(() => updateCmAutoResult(), 50);
+        }
+
+        // Filters PnL Tracker accounts to match the trade's paper/live status —
+        // a paper trade should only ever link to a paper account, and vice versa.
+        function populateCmAccountSelect(t) {
+            const sel = document.getElementById('cmAccountSelect');
+            if (!sel) return;
+            const isPaper = !!t.isPaper;
+            const matching = (S.pnlAccounts || []).filter(a => !!a.is_paper === isPaper);
+            const currentAssignment = S.tradeAccountMap[t.id] || '';
+            const kindLabel = k => k === 'prop' ? 'Prop' : 'Personal';
+            sel.innerHTML = '<option value="">— None —</option>' + matching.map(a =>
+                `<option value="${a.id}" ${a.id === currentAssignment ? 'selected' : ''}>${a.name} (${isPaper?'Paper ':''}${kindLabel(a.account_kind)})</option>`
+            ).join('');
+            if (!matching.length) {
+                sel.innerHTML += `<option value="" disabled>No ${isPaper?'paper':'live'} accounts set up yet</option>`;
+            }
         }
 
         function closeModalHide() { document.getElementById('closeModal').classList.remove('open'); }
@@ -12677,6 +12869,10 @@
             await loadTradeScreenshots(t.id);
             t.eodScreenshots = [...(t.eodScreenshots || []), ...S.cmSS];
             t._ssLoaded = true;
+
+            const _selectedAccountEl = document.getElementById('cmAccountSelect');
+            const _selectedAccountId = _selectedAccountEl ? _selectedAccountEl.value : '';
+            assignTradeAccount(t.id, _selectedAccountId || null); // fire-and-forget, non-blocking
 
             if (t.isIntraday) {
                 t.intraScores = computeHiddenScores(t);
@@ -13732,7 +13928,200 @@
         }
 
         // ── renderDashboard ──
+        // ── JOURNALING HEATMAP ──
+        // Tracks how many of the 4 traded pairs got a daily idea logged each day
+        // (Mon-Fri), plus weekly bias completion folded into Monday's cell.
+        const JHEAT_PAIRS = ['EURUSD', 'GBPUSD', 'USDCHF', 'XAUUSD'];
+        function jheatNormalizePair(raw) {
+            if (!raw) return null;
+            const v = raw.toUpperCase().replace(/[^A-Z]/g, '');
+            if (v.includes('XAU') || v.includes('GOLD')) return 'XAUUSD';
+            if (v.includes('EUR') && v.includes('USD')) return 'EURUSD';
+            if (v.includes('GBP') && v.includes('USD')) return 'GBPUSD';
+            if (v.includes('USD') && v.includes('CHF')) return 'USDCHF';
+            return null;
+        }
+        function jheatTier(count) {
+            if (count >= 4) return 'dgreen';
+            if (count === 3) return 'lgreen';
+            if (count === 2) return 'orange';
+            return 'red'; // 0 or 1
+        }
+        function jheatMondayOf(d) {
+            const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            const day = x.getDay(); // 0=Sun..6=Sat
+            const diff = day === 0 ? -6 : 1 - day; // move back to Monday
+            x.setDate(x.getDate() + diff);
+            return x;
+        }
+        function jheatDateKey(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+        // Returns { dateKey: Set of normalized pairs logged that day } from S.trades (idea date, any status)
+        function jheatDailyPairSets() {
+            const map = {};
+            S.trades.forEach(t => {
+                if (!t.date) return;
+                const p = jheatNormalizePair(t.pair);
+                if (!p) return;
+                if (!map[t.date]) map[t.date] = new Set();
+                map[t.date].add(p);
+            });
+            return map;
+        }
+        // Returns { mondayKey: Set of normalized pairs } from S.weeklies, grouped by the
+        // Monday of the week each weekly-bias entry's date falls in.
+        function jheatWeeklyBiasSets() {
+            const map = {};
+            S.weeklies.forEach(w => {
+                if (!w.date) return;
+                const p = jheatNormalizePair(w.pair);
+                if (!p) return;
+                const mondayKey = jheatDateKey(jheatMondayOf(new Date(w.date + 'T00:00:00')));
+                if (!map[mondayKey]) map[mondayKey] = new Set();
+                map[mondayKey].add(p);
+            });
+            return map;
+        }
+
+        function jheatSetView(view) {
+            S.jheatView = view;
+            renderJournalHeatmap();
+        }
+        function jheatNav(dir) {
+            const d = new Date(S.jheatRefDate);
+            if (S.jheatView === 'week') d.setDate(d.getDate() + dir * 7);
+            else if (S.jheatView === 'month') d.setMonth(d.getMonth() + dir);
+            else d.setFullYear(d.getFullYear() + dir);
+            S.jheatRefDate = d;
+            renderJournalHeatmap();
+        }
+
+        function renderJournalHeatmap() {
+            const toggle = document.getElementById('jheatViewToggle');
+            if (toggle) toggle.querySelectorAll('button').forEach(b =>
+                b.classList.toggle('sel', b.dataset.v === S.jheatView));
+
+            const dailySets = jheatDailyPairSets();
+            const weeklySets = jheatWeeklyBiasSets();
+            const gridEl = document.getElementById('jheatGrid');
+            const labelEl = document.getElementById('jheatLabel');
+            const totalEl = document.getElementById('jheatTotal');
+
+            if (S.jheatView === 'week') {
+                const monday = jheatMondayOf(S.jheatRefDate);
+                const days = [];
+                for (let i = 0; i < 5; i++) {
+                    const d = new Date(monday); d.setDate(d.getDate() + i);
+                    days.push(d);
+                }
+                const mondayKey = jheatDateKey(monday);
+                const biasCount = (weeklySets[mondayKey] || new Set()).size;
+                let weekSum = 0;
+                const dowNames = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+                let html = '<div class="jheat-grid jheat-week-mode">';
+                days.forEach((d, i) => {
+                    const key = jheatDateKey(d);
+                    const count = (dailySets[key] || new Set()).size;
+                    weekSum += count;
+                    const tier = jheatTier(count);
+                    html += `<div class="jheat-dow">${dowNames[i]}</div>`;
+                });
+                days.forEach((d, i) => {
+                    const key = jheatDateKey(d);
+                    const count = (dailySets[key] || new Set()).size;
+                    const tier = jheatTier(count);
+                    const biasLine = i === 0 ? `<div class="jc-bias">Bias ${biasCount}/4</div>` : '';
+                    html += `<div class="jheat-cell jh-tier-${tier}"><div class="jc-date">${d.getDate()}</div><div class="jc-count">${count}/4</div>${biasLine}</div>`;
+                });
+                html += `<div class="jheat-week-col" style="grid-column:span 1;"><div class="jwc-label">WEEK</div><div class="jwc-score">${weekSum+biasCount}/24</div></div>`;
+                html += '</div>';
+                gridEl.innerHTML = html;
+                labelEl.textContent = monday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' – ' +
+                    days[4].toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                totalEl.textContent = `${weekSum + biasCount}/24 this week`;
+
+            } else if (S.jheatView === 'month') {
+                const ref = S.jheatRefDate;
+                const firstOfMonth = new Date(ref.getFullYear(), ref.getMonth(), 1);
+                const firstMonday = jheatMondayOf(firstOfMonth);
+                const lastOfMonth = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+                let cursor = new Date(firstMonday);
+                let monthTotal = 0;
+                const dowNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+                let html = '<div class="jheat-grid" style="grid-template-columns:repeat(8,1fr);">';
+                // Header row: Sun..Sat + Weekly
+                dowNames.forEach(n => html += `<div class="jheat-dow">${n}</div>`);
+                html += '<div class="jheat-dow">WEEKLY</div>';
+
+                while (cursor <= lastOfMonth || cursor.getDay() !== 1) {
+                    let weekSum = 0, weekBias = 0, weekMondayKey = null;
+                    const weekCells = [];
+                    for (let i = 0; i < 7; i++) {
+                        const d = new Date(cursor);
+                        const inMonth = d.getMonth() === ref.getMonth();
+                        const isWeekday = d.getDay() >= 1 && d.getDay() <= 5;
+                        if (i === 0) weekMondayKey = jheatDateKey(d);
+                        if (inMonth && isWeekday) {
+                            const key = jheatDateKey(d);
+                            const count = (dailySets[key] || new Set()).size;
+                            weekSum += count;
+                            monthTotal += count;
+                            const tier = jheatTier(count);
+                            const biasCount = (i === 0) ? (weeklySets[weekMondayKey] || new Set()).size : 0;
+                            if (i === 0) weekBias = biasCount;
+                            const biasLine = (i === 0) ? `<div class="jc-bias">B ${biasCount}/4</div>` : '';
+                            weekCells.push(`<div class="jheat-cell jh-tier-${tier}"><div class="jc-date">${d.getDate()}</div><div class="jc-count">${count}/4</div>${biasLine}</div>`);
+                        } else if (inMonth && !isWeekday) {
+                            weekCells.push(`<div class="jheat-cell jheat-empty"></div>`);
+                        } else {
+                            weekCells.push(`<div class="jheat-cell jheat-empty"></div>`);
+                        }
+                        cursor.setDate(cursor.getDate() + 1);
+                    }
+                    weekCells.forEach(c => html += c);
+                    html += `<div class="jheat-week-col"><div class="jwc-label">WK</div><div class="jwc-score">${weekSum+weekBias}/24</div></div>`;
+                }
+                html += '</div>';
+                gridEl.innerHTML = html;
+                labelEl.textContent = ref.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                totalEl.textContent = `${monthTotal} ideas logged this month`;
+
+            } else { // year
+                const ref = S.jheatRefDate;
+                let yearTotal = 0;
+                let html = '<div class="jheat-grid jheat-year-mode">';
+                for (let m = 0; m < 12; m++) {
+                    const monthStart = new Date(ref.getFullYear(), m, 1);
+                    const monthEnd = new Date(ref.getFullYear(), m + 1, 0);
+                    let possibleSlots = 0, actualCount = 0;
+                    for (let d = new Date(monthStart); d <= monthEnd; d.setDate(d.getDate() + 1)) {
+                        if (d.getDay() >= 1 && d.getDay() <= 5) {
+                            possibleSlots += 4;
+                            const key = jheatDateKey(d);
+                            actualCount += (dailySets[key] || new Set()).size;
+                            if (d.getDay() === 1) {
+                                const bs = weeklySets[jheatDateKey(d)];
+                                possibleSlots += 4;
+                                actualCount += bs ? bs.size : 0;
+                            }
+                        }
+                    }
+                    yearTotal += actualCount;
+                    const pct = possibleSlots > 0 ? Math.round(actualCount / possibleSlots * 100) : 0;
+                    const tier = pct >= 90 ? 'dgreen' : pct >= 65 ? 'lgreen' : pct >= 40 ? 'orange' : 'red';
+                    const monthName = monthStart.toLocaleDateString(undefined, { month: 'short' });
+                    html += `<div class="jheat-month-cell jh-tier-${tier}"><div class="jm-label">${monthName}</div><div class="jm-pct">${pct}%</div></div>`;
+                }
+                html += '</div>';
+                gridEl.innerHTML = html;
+                labelEl.textContent = String(ref.getFullYear());
+                totalEl.textContent = `${yearTotal} ideas logged this year`;
+            }
+        }
+
         function renderDashboard() {
+            renderJournalHeatmap();
             // Use getDashboardTotals() so stat boxes always show all-time cumulative
             // figures even after archival removes old trades from S.trades.
             const totals = getDashboardTotals();
