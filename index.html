@@ -858,11 +858,46 @@
         }
         .jheat-grid {
             display: grid;
-            grid-template-columns: repeat(6, 1fr);
             gap: 5px;
+            /* Mon-Fri (5) | Weekend (narrow) | Weekly | R */
+            grid-template-columns: repeat(5, 1fr) 30px 56px 46px;
         }
-        .jheat-grid.jheat-week-mode { grid-template-columns: repeat(6, 1fr); }
+        .jheat-grid.jheat-week-mode {
+            /* Mon-Fri (5) | Weekend (narrow) | R */
+            grid-template-columns: repeat(5, 1fr) 30px 46px;
+        }
         .jheat-grid.jheat-year-mode { grid-template-columns: repeat(4, 1fr); }
+        .jheat-wkd-col {
+            background: var(--cream); border: 1px solid var(--border); border-radius: 4px;
+            display: flex; align-items: center; justify-content: center; min-height: 52px;
+            font-family: var(--font-mono); font-size: 6px; font-weight: 700; color: var(--muted);
+            letter-spacing: 0.3px; writing-mode: vertical-rl; text-transform: uppercase;
+        }
+        .jheat-r-col {
+            background: var(--cream); border: 1px solid var(--border); border-radius: 4px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 52px; font-family: var(--font-mono);
+        }
+        .jheat-r-col .jr-label { font-size: 6px; font-weight: 700; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase; }
+        .jheat-r-col .jr-val { font-size: 10px; font-weight: 800; margin-top: 2px; }
+        /* Year cell diagonal */
+        .jheat-month-cell {
+            border-radius: 5px; padding: 0; min-height: 72px; border: 1px solid var(--border);
+            position: relative; overflow: hidden; font-family: var(--font-mono);
+        }
+        .jheat-month-cell .jm-name {
+            position: absolute; top: 4px; left: 6px; font-size: 9px; font-weight: 700;
+            z-index: 1;
+        }
+        .jheat-month-cell .jm-r {
+            position: absolute; top: 14px; right: 6px; font-size: 10px; font-weight: 800;
+            text-align: right; z-index: 1;
+        }
+        .jheat-month-cell .jm-pct {
+            position: absolute; bottom: 6px; left: 6px; font-size: 12px; font-weight: 800;
+            z-index: 1;
+        }
+        .jheat-month-cell svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
         .jheat-dow {
             font-family: var(--font-mono); font-size: 7px; font-weight: 700; color: var(--muted);
             text-align: center; letter-spacing: 0.5px; text-transform: uppercase; padding-bottom: 2px;
@@ -895,12 +930,6 @@
         }
         .jheat-week-col .jwc-label { font-size: 7px; color: var(--muted); font-weight: 700; }
         .jheat-week-col .jwc-score { font-size: 12px; font-weight: 800; margin-top: 2px; }
-        .jheat-month-cell {
-            border-radius: 5px; padding: 10px 8px; min-height: 64px; border: 1px solid var(--border);
-            font-family: var(--font-mono); display: flex; flex-direction: column; justify-content: space-between;
-        }
-        .jheat-month-cell .jm-label { font-size: 9px; font-weight: 700; }
-        .jheat-month-cell .jm-pct { font-size: 15px; font-weight: 800; margin-top: 4px; }
 
         /* ── DASHBOARD ── */
         .dash-stats {
@@ -2633,6 +2662,7 @@
             color: var(--ink);
             outline: none;
             line-height: 1.6;
+            overflow: hidden;
         }
         .rte-body:empty:before {
             content: attr(data-placeholder);
@@ -2641,11 +2671,13 @@
         }
         .rte-body ul,
         .rte-body ol {
-            padding-left: 20px;
+            padding-left: 24px;
             margin: 4px 0;
         }
         .rte-body li {
             margin: 2px 0;
+            overflow-wrap: break-word;
+            word-break: break-word;
         }
         .rte-body b,
         .rte-body strong {
@@ -4801,127 +4833,6 @@
         /* Override shell width for news page only */
         #page-closed .shell { max-width: 100%; padding-left: 20px; padding-right: 20px; }
 
-        /* ── AI Review block ── */
-        .ai-review-block {
-            margin-top: 14px;
-            border: 1.5px solid #e0d4f7;
-            border-radius: 6px;
-            overflow: hidden;
-            background: #faf7ff;
-        }
-        .ai-review-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 12px;
-            background: #ede7fb;
-            cursor: pointer;
-            user-select: none;
-        }
-        .ai-review-header-left {
-            font-family: var(--font-mono);
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            color: #5b21b6;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .ai-review-scores {
-            display: flex;
-            gap: 10px;
-            font-family: var(--font-mono);
-            font-size: 9px;
-            color: #7c3aed;
-        }
-        .ai-review-body {
-            padding: 12px 14px;
-            display: none;
-        }
-        .ai-review-body.open { display: block; }
-        .ai-review-dim {
-            display: flex;
-            align-items: baseline;
-            justify-content: space-between;
-            padding: 5px 0;
-            border-bottom: 1px solid #ede9fe;
-            font-size: 11px;
-        }
-        .ai-review-dim:last-of-type { border-bottom: none; }
-        .ai-review-dim-label {
-            font-family: var(--font-mono);
-            font-size: 8px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            color: #7c3aed;
-            min-width: 90px;
-        }
-        .ai-review-dim-reason { color: var(--muted); font-size: 10px; flex: 1; padding: 0 10px; }
-        .ai-review-dim-score {
-            font-family: var(--font-mono);
-            font-size: 11px;
-            font-weight: 700;
-            color: #5b21b6;
-            white-space: nowrap;
-        }
-        .ai-review-feedback {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid #ede9fe;
-            display: grid;
-            gap: 6px;
-        }
-        .ai-review-fb-row { font-size: 10px; line-height: 1.5; }
-        .ai-review-fb-label {
-            font-family: var(--font-mono);
-            font-size: 8px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            color: #5b21b6;
-            display: block;
-            margin-bottom: 2px;
-        }
-        .ai-review-pending {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 14px;
-            font-family: var(--font-mono);
-            font-size: 9px;
-            color: #7c3aed;
-        }
-        .ai-review-spinner {
-            width: 12px; height: 12px;
-            border: 2px solid #ede9fe;
-            border-top-color: #7c3aed;
-            border-radius: 50%;
-            animation: ai-spin .7s linear infinite;
-            flex-shrink: 0;
-        }
-        @keyframes ai-spin { to { transform: rotate(360deg); } }
-        .ai-review-unavail {
-            padding: 10px 14px;
-            font-family: var(--font-mono);
-            font-size: 9px;
-            color: var(--muted);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .ai-retry-btn {
-            font-family: var(--font-mono);
-            font-size: 8px;
-            font-weight: 700;
-            padding: 4px 10px;
-            border: 1.5px solid #7c3aed;
-            background: transparent;
-            color: #7c3aed;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .ai-retry-btn:hover { background: #ede7fb; }
-
         /* ── Closed trades type chips ── */
         .ct-type-chips {
             display: flex;
@@ -6077,23 +5988,6 @@
                         </div>
                     </div>
 
-                    <!-- AI REVIEW — Gemini API key -->
-                    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px;">
-                        <div style="padding:10px 14px;background:#ede7fb;border-bottom:1px solid #d8b4fe;font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:#5b21b6;">🤖 AI REVIEW</div>
-                        <div style="padding:14px;">
-                            <div style="font-family:var(--font-mono);font-size:8px;color:var(--muted);line-height:1.7;margin-bottom:10px;">
-                                Uses Gemini 1.5 Flash (free tier) to independently score each daily trade close and weekly review.<br>
-                                Get a free API key at <span style="color:#5b21b6;text-decoration:underline;cursor:pointer" onclick="window.open('https://aistudio.google.com/app/apikey','_blank')">aistudio.google.com</span>
-                            </div>
-                            <div style="display:flex;gap:8px;align-items:center;">
-                                <input type="password" id="geminiKeyInput" placeholder="AIza…" autocomplete="off"
-                                    style="flex:1;font-family:var(--font-mono);font-size:10px;padding:7px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--cream);color:var(--ink);"
-                                    oninput="saveGeminiKey()">
-                                <span id="geminiKeyStatus" style="font-family:var(--font-mono);font-size:8px;color:var(--muted);white-space:nowrap;"></span>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- ARCHIVE MANAGEMENT — Phase 5 -->
                     <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px;">
                         <div style="padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);">ARCHIVE MANAGEMENT</div>
@@ -6759,8 +6653,6 @@
                 <div id="wrReviewDashboard" style="padding:8px 10px;background:var(--surface);border:1.5px solid var(--border);border-radius:4px;font-size:12px;line-height:1.8;min-height:60px;">
                     Complete all sections above to generate the final review summary.
                 </div>
-                <!-- AI Review block — populated after close -->
-                <div id="wrAiReviewContainer"></div>
             </div>
             <div class="modal-footer" style="background:#e8eaf6;flex-shrink:0;">
                 <button class="btn-ghost" onclick="closeWeeklyReview()">CANCEL</button>
@@ -7129,8 +7021,8 @@
         // ════════════════════════════════════════════════════════════════════
         // STATE — EXTENDED
         // ════════════════════════════════════════════════════════════════════
-        const APP_VERSION = 'v5';
-        const APP_VERSION_DATE = '2026-07-15 15:00 UTC';
+        const APP_VERSION = 'v5.2';
+        const APP_VERSION_DATE = '2026-07-16 12:00 UTC';
 
         const S = {
             insightsMode: 'live',
@@ -10194,9 +10086,6 @@
 
             const isClosed = w.status === 'closed' && w.weeklyReview;
             const r = isClosed ? w.weeklyReview : null;
-            // Populate AI review block if closed
-            const aiContainer = document.getElementById('wrAiReviewContainer');
-            if (aiContainer) aiContainer.innerHTML = isClosed ? renderWeeklyAiReviewBlock(w) : '';
 
             // Populate fields — from saved review if closed, or blank for new review
             const reviewFields = [
@@ -10473,10 +10362,6 @@
             renderWeekly();
             updateWeeklyBadge();
             showToast('✅ Weekly review saved — bias closed');
-            // Trigger weekly AI review (non-blocking, async)
-            if (_geminiKey()) {
-                setTimeout(() => triggerWeeklyAiReview(w.id), 500);
-            }
         }
 
         function closeWeeklyReview() {
@@ -12930,10 +12815,6 @@
             renderOpen();
             renderDashboard();
             navTo('closed');
-            // Trigger AI review for daily trades (non-blocking, async)
-            if (!t.isIntraday && _geminiKey()) {
-                setTimeout(() => triggerDailyAiReview(t.id), 500);
-            }
         }
 
         // ── EDIT OPEN / EDIT CLOSED ──
@@ -13393,7 +13274,6 @@
                 <div style="font-size:12px;line-height:1.5">${rteDisplay(n.text)}</div>
               </div>`).join('')}`:''}
             ${ssBlock(t.reviewScreenshots||[])}
-            ${!t.isIntraday && t.status === 'closed' ? renderTradeAiReviewBlock(t) : ''}
             <div style="height:8px"></div>
           `;
             renderTagsInWrap('closeTagWrap', S.closeTags, 'closed');
@@ -13997,6 +13877,51 @@
             renderJournalHeatmap();
         }
 
+        // ── R calculation helper ──
+        // Returns net R for the week starting on mondayKey, restricted to
+        // pairs that had at least one journal entry (daily idea or weekly bias) that week.
+        function jheatWeeklyR(mondayKey, journaledPairs) {
+            if (!journaledPairs || journaledPairs.size === 0) return null;
+            const monday = new Date(mondayKey + 'T00:00:00');
+            const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6);
+            let rSum = 0, hasTrades = false;
+            S.trades.forEach(t => {
+                if (!t.isIntraday || t.isPaper || t.status !== 'closed') return;
+                if (!t.closeTime) return;
+                const closeDate = new Date(t.closeTime);
+                if (closeDate < monday || closeDate > sunday) return;
+                const normPair = jheatNormalizePair(t.pair);
+                if (!normPair || !journaledPairs.has(normPair)) return;
+                const r = parseFloat(t.tp1r);
+                if (!isNaN(r)) { rSum += r; hasTrades = true; }
+            });
+            return hasTrades ? rSum : null;
+        }
+
+        // Returns the set of pairs journaled during the week starting on mondayKey
+        function jheatWeekJournaledPairs(mondayKey, dailySets, weeklySets) {
+            const monday = new Date(mondayKey + 'T00:00:00');
+            const pairs = new Set();
+            // Bias entries for this week
+            (weeklySets[mondayKey] || new Set()).forEach(p => pairs.add(p));
+            // Daily entries Mon-Fri
+            for (let i = 0; i < 5; i++) {
+                const d = new Date(monday); d.setDate(d.getDate() + i);
+                const key = jheatDateKey(d);
+                (dailySets[key] || new Set()).forEach(p => pairs.add(p));
+            }
+            return pairs;
+        }
+
+        function jheatRCell(mondayKey, dailySets, weeklySets) {
+            const pairs = jheatWeekJournaledPairs(mondayKey, dailySets, weeklySets);
+            const r = jheatWeeklyR(mondayKey, pairs);
+            if (r === null) return `<div class="jheat-r-col"><div class="jr-label">R</div><div class="jr-val" style="color:var(--muted)">—</div></div>`;
+            const color = r > 0 ? 'var(--bull)' : r < 0 ? 'var(--bear)' : 'var(--muted)';
+            const txt = (r > 0 ? '+' : '') + r.toFixed(1) + 'R';
+            return `<div class="jheat-r-col"><div class="jr-label">R</div><div class="jr-val" style="color:${color}">${txt}</div></div>`;
+        }
+
         function renderJournalHeatmap() {
             const toggle = document.getElementById('jheatViewToggle');
             if (toggle) toggle.querySelectorAll('button').forEach(b =>
@@ -14008,6 +13933,8 @@
             const labelEl = document.getElementById('jheatLabel');
             const totalEl = document.getElementById('jheatTotal');
 
+            const WKD_CELL = `<div class="jheat-wkd-col">WKD</div>`;
+
             if (S.jheatView === 'week') {
                 const monday = jheatMondayOf(S.jheatRefDate);
                 const days = [];
@@ -14018,24 +13945,27 @@
                 const mondayKey = jheatDateKey(monday);
                 const biasCount = (weeklySets[mondayKey] || new Set()).size;
                 let weekSum = 0;
+
+                // Header row: MON TUE WED THU FRI | WKD | R
                 const dowNames = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
                 let html = '<div class="jheat-grid jheat-week-mode">';
+                dowNames.forEach(n => html += `<div class="jheat-dow">${n}</div>`);
+                html += `<div class="jheat-dow"></div>`; // WKD header spacer
+                html += `<div class="jheat-dow">R</div>`;
+
+                // Day cells
                 days.forEach((d, i) => {
                     const key = jheatDateKey(d);
                     const count = (dailySets[key] || new Set()).size;
                     weekSum += count;
                     const tier = jheatTier(count);
-                    html += `<div class="jheat-dow">${dowNames[i]}</div>`;
-                });
-                days.forEach((d, i) => {
-                    const key = jheatDateKey(d);
-                    const count = (dailySets[key] || new Set()).size;
-                    const tier = jheatTier(count);
                     const biasLine = i === 0 ? `<div class="jc-bias">Bias ${biasCount}/4</div>` : '';
                     html += `<div class="jheat-cell jh-tier-${tier}"><div class="jc-date">${d.getDate()}</div><div class="jc-count">${count}/4</div>${biasLine}</div>`;
                 });
-                html += `<div class="jheat-week-col" style="grid-column:span 1;"><div class="jwc-label">WEEK</div><div class="jwc-score">${weekSum+biasCount}/24</div></div>`;
+                html += WKD_CELL;
+                html += jheatRCell(mondayKey, dailySets, weeklySets);
                 html += '</div>';
+
                 gridEl.innerHTML = html;
                 labelEl.textContent = monday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' – ' +
                     days[4].toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -14048,40 +13978,44 @@
                 const lastOfMonth = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
                 let cursor = new Date(firstMonday);
                 let monthTotal = 0;
-                const dowNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-                let html = '<div class="jheat-grid" style="grid-template-columns:repeat(8,1fr);">';
-                // Header row: Sun..Sat + Weekly
-                dowNames.forEach(n => html += `<div class="jheat-dow">${n}</div>`);
-                html += '<div class="jheat-dow">WEEKLY</div>';
+
+                // Header: MON TUE WED THU FRI | WKD | WEEKLY | R
+                let html = '<div class="jheat-grid" style="grid-template-columns:repeat(5,1fr) 30px 56px 46px;">';
+                ['MON','TUE','WED','THU','FRI'].forEach(n => html += `<div class="jheat-dow">${n}</div>`);
+                html += `<div class="jheat-dow"></div>`;
+                html += `<div class="jheat-dow">WEEKLY</div>`;
+                html += `<div class="jheat-dow">R</div>`;
 
                 while (cursor <= lastOfMonth || cursor.getDay() !== 1) {
-                    let weekSum = 0, weekBias = 0, weekMondayKey = null;
+                    let weekSum = 0, weekBias = 0;
+                    const mondayKey = jheatDateKey(cursor);
                     const weekCells = [];
-                    for (let i = 0; i < 7; i++) {
-                        const d = new Date(cursor);
+
+                    for (let i = 0; i < 5; i++) {
+                        const d = new Date(cursor); d.setDate(d.getDate() + i);
                         const inMonth = d.getMonth() === ref.getMonth();
-                        const isWeekday = d.getDay() >= 1 && d.getDay() <= 5;
-                        if (i === 0) weekMondayKey = jheatDateKey(d);
-                        if (inMonth && isWeekday) {
+                        if (inMonth) {
                             const key = jheatDateKey(d);
                             const count = (dailySets[key] || new Set()).size;
                             weekSum += count;
                             monthTotal += count;
                             const tier = jheatTier(count);
-                            const biasCount = (i === 0) ? (weeklySets[weekMondayKey] || new Set()).size : 0;
+                            const biasCount = (i === 0) ? (weeklySets[mondayKey] || new Set()).size : 0;
                             if (i === 0) weekBias = biasCount;
                             const biasLine = (i === 0) ? `<div class="jc-bias">B ${biasCount}/4</div>` : '';
                             weekCells.push(`<div class="jheat-cell jh-tier-${tier}"><div class="jc-date">${d.getDate()}</div><div class="jc-count">${count}/4</div>${biasLine}</div>`);
-                        } else if (inMonth && !isWeekday) {
-                            weekCells.push(`<div class="jheat-cell jheat-empty"></div>`);
                         } else {
                             weekCells.push(`<div class="jheat-cell jheat-empty"></div>`);
                         }
-                        cursor.setDate(cursor.getDate() + 1);
                     }
+
                     weekCells.forEach(c => html += c);
-                    html += `<div class="jheat-week-col"><div class="jwc-label">WK</div><div class="jwc-score">${weekSum+weekBias}/24</div></div>`;
+                    html += WKD_CELL;
+                    html += `<div class="jheat-week-col"><div class="jwc-label">WK</div><div class="jwc-score">${weekSum + weekBias}/24</div></div>`;
+                    html += jheatRCell(mondayKey, dailySets, weeklySets);
+                    cursor.setDate(cursor.getDate() + 7);
                 }
+
                 html += '</div>';
                 gridEl.innerHTML = html;
                 labelEl.textContent = ref.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
@@ -14091,9 +14025,12 @@
                 const ref = S.jheatRefDate;
                 let yearTotal = 0;
                 let html = '<div class="jheat-grid jheat-year-mode">';
+
                 for (let m = 0; m < 12; m++) {
                     const monthStart = new Date(ref.getFullYear(), m, 1);
                     const monthEnd = new Date(ref.getFullYear(), m + 1, 0);
+
+                    // Journal completion
                     let possibleSlots = 0, actualCount = 0;
                     for (let d = new Date(monthStart); d <= monthEnd; d.setDate(d.getDate() + 1)) {
                         if (d.getDay() >= 1 && d.getDay() <= 5) {
@@ -14110,9 +14047,34 @@
                     yearTotal += actualCount;
                     const pct = possibleSlots > 0 ? Math.round(actualCount / possibleSlots * 100) : 0;
                     const tier = pct >= 90 ? 'dgreen' : pct >= 65 ? 'lgreen' : pct >= 40 ? 'orange' : 'red';
+
+                    // Monthly R — sum across all weeks in this month
+                    let monthR = 0, hasR = false;
+                    let wCursor = new Date(jheatMondayOf(monthStart));
+                    while (wCursor <= monthEnd) {
+                        const mk = jheatDateKey(wCursor);
+                        const pairs = jheatWeekJournaledPairs(mk, dailySets, weeklySets);
+                        const r = jheatWeeklyR(mk, pairs);
+                        if (r !== null) { monthR += r; hasR = true; }
+                        wCursor.setDate(wCursor.getDate() + 7);
+                    }
+
                     const monthName = monthStart.toLocaleDateString(undefined, { month: 'short' });
-                    html += `<div class="jheat-month-cell jh-tier-${tier}"><div class="jm-label">${monthName}</div><div class="jm-pct">${pct}%</div></div>`;
+                    const rTxt = hasR ? (monthR > 0 ? '+' : '') + monthR.toFixed(1) + 'R' : '—';
+                    const rColor = monthR > 0 ? 'var(--bull)' : monthR < 0 ? 'var(--bear)' : 'var(--muted)';
+                    const pctTxt = possibleSlots > 0 ? pct + '%' : '—';
+
+                    // Diagonal SVG: bottom-left → top-right
+                    const diag = `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="0" y1="100" x2="100" y2="0" stroke="currentColor" stroke-width="1" opacity="0.2"/></svg>`;
+
+                    html += `<div class="jheat-month-cell jh-tier-${tier}">
+                        ${diag}
+                        <div class="jm-name">${monthName}</div>
+                        <div class="jm-r" style="color:${rColor}">${rTxt}</div>
+                        <div class="jm-pct">${pctTxt}</div>
+                    </div>`;
                 }
+
                 html += '</div>';
                 gridEl.innerHTML = html;
                 labelEl.textContent = String(ref.getFullYear());
@@ -15154,481 +15116,7 @@
             }
             refreshSsCacheInfo();
             populateArchiveInfo();
-            // Gemini key
-            const geminiKeyEl = document.getElementById('geminiKeyInput');
-            if (geminiKeyEl && _currentUser) {
-                geminiKeyEl.value = localStorage.getItem('ict_gemini_key_' + _currentUser.id) || '';
-                _updateGeminiKeyStatus();
-            }
         }
-
-        // ════════════════════════════════════════════════════════════════════
-        // AI REVIEW — Gemini 1.5 Flash
-        // ════════════════════════════════════════════════════════════════════
-
-        function _geminiKey() {
-            if (!_currentUser) return null;
-            return localStorage.getItem('ict_gemini_key_' + _currentUser.id) || null;
-        }
-
-        function saveGeminiKey() {
-            if (!_currentUser) return;
-            const val = (document.getElementById('geminiKeyInput')?.value || '').trim();
-            if (val) localStorage.setItem('ict_gemini_key_' + _currentUser.id, val);
-            else localStorage.removeItem('ict_gemini_key_' + _currentUser.id);
-            _updateGeminiKeyStatus();
-        }
-
-        function _updateGeminiKeyStatus() {
-            const el = document.getElementById('geminiKeyStatus');
-            if (!el) return;
-            el.textContent = _geminiKey() ? '✓ Key saved' : 'No key set';
-            el.style.color = _geminiKey() ? 'var(--bull)' : 'var(--muted)';
-        }
-
-        // ── Gemini API call ──
-
-        async function callGeminiVision(promptText, imageDataUrls) {
-            const key = _geminiKey();
-            if (!key) throw new Error('No Gemini API key set');
-
-            const parts = [{ text: promptText }];
-            for (const dataUrl of imageDataUrls) {
-                if (!dataUrl || dataUrl.startsWith('https://')) continue;
-                const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-                if (match) {
-                    parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
-                }
-            }
-
-            const body = {
-                contents: [{ parts }],
-                generationConfig: { temperature: 0.3, maxOutputTokens: 800 },
-            };
-
-            const resp = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
-                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-            );
-            if (!resp.ok) throw new Error('Gemini API error: ' + resp.status + ' ' + (await resp.text()).slice(0, 120));
-            const data = await resp.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        }
-
-        // ── Parse Gemini response ──
-
-        function _parseDailyAiResponse(text) {
-            const get = (key) => {
-                const m = text.match(new RegExp(key + ':\\s*([^\\n]+)', 'i'));
-                return m ? m[1].trim() : null;
-            };
-            const scoreAndReason = (raw) => {
-                if (!raw) return { score: null, reason: '' };
-                const m = raw.match(/^(\d+)\/\d+\s*[—–-]?\s*(.*)$/);
-                return m ? { score: parseInt(m[1]), reason: m[2].trim() } : { score: null, reason: raw };
-            };
-            const setup = scoreAndReason(get('SETUP'));
-            const exec  = scoreAndReason(get('EXECUTION'));
-            const hon   = scoreAndReason(get('HONESTY'));
-            const overall = get('OVERALL');
-            return {
-                setupScore:     setup.score,     setupReason:     setup.reason,
-                executionScore: exec.score,      executionReason: exec.reason,
-                honestyScore:   hon.score,       honestyReason:   hon.reason,
-                overallScore:   overall ? parseInt(overall) : null,
-                worked:  get('WORKED')  || '',
-                improve: get('IMPROVE') || '',
-                lesson:  get('LESSON')  || '',
-            };
-        }
-
-        function _parseWeeklyAiResponse(text) {
-            const get = (key) => {
-                const m = text.match(new RegExp(key + ':\\s*([^\\n]+)', 'i'));
-                return m ? m[1].trim() : null;
-            };
-            const scoreAndReason = (raw) => {
-                if (!raw) return { score: null, reason: '' };
-                const m = raw.match(/^(\d+)\/\d+\s*[—–-]?\s*(.*)$/);
-                return m ? { score: parseInt(m[1]), reason: m[2].trim() } : { score: null, reason: raw };
-            };
-            const bias    = scoreAndReason(get('BIAS'));
-            const acc     = scoreAndReason(get('ACCURACY'));
-            const cons    = scoreAndReason(get('CONSISTENCY'));
-            const lessons = scoreAndReason(get('LESSONS'));
-            const overall = get('OVERALL');
-            return {
-                biasScore:        bias.score,    biasReason:        bias.reason,
-                accuracyScore:    acc.score,     accuracyReason:    acc.reason,
-                consistencyScore: cons.score,    consistencyReason: cons.reason,
-                lessonScore:      lessons.score, lessonReason:      lessons.reason,
-                overallScore:     overall ? parseInt(overall) : null,
-                worked:    get('WORKED')     || '',
-                improve:   get('IMPROVE')    || '',
-                lesson:    get('LESSON')     || '',
-                nextWeek:  get('NEXT_WEEK')  || '',
-            };
-        }
-
-        // ── Resolve screenshot dataUrls (signed if storage path) ──
-
-        async function _resolveDataUrls(ssList) {
-            const urls = [];
-            for (const ss of (ssList || [])) {
-                if (!ss) continue;
-                try {
-                    if (ss.dataUrl && ss.dataUrl.startsWith('data:')) {
-                        urls.push(ss.dataUrl);
-                    } else if (ss.dataUrl) {
-                        const signed = await resolveStoragePath(ss.dataUrl);
-                        if (signed) {
-                            const r = await fetch(signed);
-                            if (r.ok) {
-                                const blob = await r.blob();
-                                const base64 = await new Promise(res => {
-                                    const fr = new FileReader();
-                                    fr.onload = () => res(fr.result);
-                                    fr.readAsDataURL(blob);
-                                });
-                                urls.push(base64);
-                            }
-                        }
-                    }
-                } catch(e) { console.warn('AI review screenshot resolve failed:', e); }
-            }
-            return urls;
-        }
-
-        // ── Build daily prompt ──
-
-        function _buildDailyPrompt(t, intra) {
-            const ans = t.checklistAnswers || {};
-            const wbv = extractWBValues ? extractWBValues(ans) : {};
-            const dispMap = { bullish: 'Bullish Structure (HH+HL)', bearish: 'Bearish Structure (LH+LL)' };
-            const locMap  = { discount: 'Discount (below 50%)', equilibrium: 'Equilibrium (50%)', premium: 'Premium (above 50%)' };
-            const dolMap  = { not_reached: 'Not Reached', partial: 'Partially Reached', reached: '✓ Reached' };
-            const phaseMap = { frontside: 'Frontside (corrective pullback)', backside: 'Backside (continuation)', range: 'Range (no clear phase)' };
-            const irlMap  = WB_DISPLAY?.irl  || {};
-            const sweepMap = WB_DISPLAY?.sweep || {};
-
-            const r = calcR(t);
-            const rDisplay = r !== null ? (r >= 0 ? '+' : '') + r.toFixed(2) + 'R' : '—';
-
-            let intraBlock = 'None — daily-only trade, no linked intraday execution.';
-            if (intra) {
-                const ex = intra.intraExData || {};
-                intraBlock = `Alignment with daily bias: ${intra.intraAlignment || '—'}
-Execution sequence:
-  Liquidity taken:        ${ex.lq === true ? 'Yes' : ex.lq === false ? 'No' : '—'}
-  Displacement:           ${ex.disp || '—'}
-  Market Structure Shift: ${ex.mss === true ? 'Yes' : ex.mss === false ? 'No' : '—'}
-  Retracement entry:      ${ex.ret === true ? 'Yes' : ex.ret === false ? 'No' : '—'}
-Result: ${intra.result || '—'}  |  R: ${(() => { const ir = calcR(intra); return ir !== null ? (ir >= 0 ? '+' : '') + ir.toFixed(2) + 'R' : '—'; })()}
-Execution notes: ${intra.ideaNotes ? intra.ideaNotes.replace(/<[^>]+>/g, '') : '—'}`;
-            }
-
-            return `You are an independent trading coach reviewing a forex trade journal entry.
-Be direct and specific. No vague feedback. Every point must reference something concrete from the checklist, chart, or notes provided.
-
-=== FRAMEWORK ===
-ICT-based approach. Daily bias set via HTF checklist. Intraday execution: liquidity taken → displacement → MSS → retracement entry.
-
-=== TRADE ===
-Pair: ${t.pair}  |  Date: ${t.date}
-Direction: ${t.biasSet || '—'}  |  Bias Played: ${t.biasPlayed || '—'}  |  Match: ${t.biasMatch || '—'}
-Result: ${t.result || '—'}  |  R: ${rDisplay}  |  TP1R: ${t.tp1r || '—'}  |  TP1.5R: ${t.tp15r || '—'}
-Entry: ${t.entryPrice || '—'}  |  Close: ${t.closePrice || '—'}  |  SL: ${t.slPrice || '—'}
-
-=== DAILY CHECKLIST ===
-01 Swing Structure:       ${dispMap[wbv.structure] || wbv.structure || '—'}
-02 Price Location:        ${locMap[wbv.location] || wbv.location || '—'}
-03 HTF Draw on Liquidity: ${dolMap[wbv.dol] || wbv.dol || '—'}
-04 Swing Phase:           ${phaseMap[wbv.phase] || wbv.phase || '—'}
-05 HTF Reaction Area:     ${irlMap[wbv.irl] || wbv.irl || '—'}
-06 External Liquidity:    ${sweepMap[wbv.sweep] || wbv.sweep || '—'}
-
-=== DAILY ANALYSIS NOTES ===
-${t.ideaNotes ? t.ideaNotes.replace(/<[^>]+>/g, '') : '—'}
-
-=== CLOSE NOTES ===
-${t.closeNotes ? t.closeNotes.replace(/<[^>]+>/g, '') : '—'}
-
-=== INTRADAY EXECUTION ===
-${intraBlock}
-
-=== SCREENSHOTS ===
-[Attached: daily idea screenshot, EOD screenshot, intraday entry screenshot if present. Review against checklist and notes above.]
-
-=== SCORE THIS TRADE ===
-DO NOT reference any journal scores. Be direct. One specific reason per score.
-
-SETUP QUALITY /10 — checklist consistency + chart confirmation
-EXECUTION QUALITY /10 — lq→disp→mss→ret visible? alignment genuine?
-POST-TRADE HONESTY /10 — were close notes and biasPlayed accurate vs chart?
-OVERALL: sum /30
-
-Respond ONLY in this exact format:
-
-SETUP: [n]/10 — [one specific reason]
-EXECUTION: [n]/10 — [one specific reason]
-HONESTY: [n]/10 — [one specific reason]
-OVERALL: [n]/30
----
-WORKED: [one specific thing done well]
-IMPROVE: [one specific actionable change]
-LESSON: [single most important takeaway]`;
-        }
-
-        // ── Build weekly prompt ──
-
-        function _buildWeeklyPrompt(w, dailySummaries) {
-            const ans = w.wbChecklistAnswers || {};
-            const v   = extractWBValues ? extractWBValues(ans) : {};
-            const result = w.wbChecklistAnswers ? runWBEngine(w.wbChecklistAnswers) : null;
-            const dispMap = { bullish: 'Bullish Structure (HH+HL)', bearish: 'Bearish Structure (LH+LL)' };
-            const locMap  = { discount: 'Discount', equilibrium: 'Equilibrium', premium: 'Premium' };
-            const dolMap  = { not_reached: 'Not Reached', partial: 'Partially Reached', reached: '✓ Reached' };
-            const phaseMap = { frontside: 'Frontside', backside: 'Backside', range: 'Range' };
-            const irlMap  = WB_DISPLAY?.irl  || {};
-            const sweepMap = WB_DISPLAY?.sweep || {};
-            const r = w.weeklyReview || {};
-            const ps = r.performanceStats || {};
-
-            let dailyBlock = 'No individual trade AI reviews available. Score consistency from performance stats only.';
-            if (dailySummaries && dailySummaries.length > 0) {
-                dailyBlock = dailySummaries.map((d, i) =>
-                    `Trade ${i+1}: ${d.date} — ${d.result} ${d.rDisplay}\n  Setup: ${d.setupScore??'—'}/10  Execution: ${d.executionScore??'—'}/10  Honesty: ${d.honestyScore??'—'}/10  Overall: ${d.overallScore??'—'}/30\n  Lesson: ${d.lesson || '—'}`
-                ).join('\n');
-            }
-
-            return `You are an independent trading coach reviewing a weekly forex bias entry.
-Be direct and specific. Reference concrete details from the checklist, screenshots, and review answers.
-
-=== FRAMEWORK ===
-ICT weekly bias system. 6-question checklist before week open. Structured close review at week end.
-
-=== WEEKLY BIAS ===
-Pair: ${w.pair}  |  Week of: ${w.date}
-Bias Set: ${w.bias || '—'}
-Derived bias: ${result?.meta?.label || '—'}
-Derived environment: ${result?.envData?.envLabel || '—'} (${result?.confidence || '—'} confidence)
-
-Checklist:
-01 Swing Structure:       ${dispMap[v.structure] || v.structure || '—'}
-02 Price Location:        ${locMap[v.location] || v.location || '—'}
-03 HTF Draw on Liquidity: ${dolMap[v.dol] || v.dol || '—'}
-04 Swing Phase:           ${phaseMap[v.phase] || v.phase || '—'}
-05 HTF Reaction Area:     ${irlMap[v.irl] || v.irl || '—'}
-06 External Liquidity:    ${sweepMap[v.sweep] || v.sweep || '—'}
-
-Weekly notes: ${w.notes ? w.notes.replace(/<[^>]+>/g, '') : '—'}
-
-=== SCREENSHOTS ===
-[Attached: weekly idea screenshot(s), mid-week update screenshot(s), end-of-week screenshot. Review against checklist and close answers.]
-
-=== END OF WEEK CLOSE REVIEW ===
-Actual environment delivered:  ${r.actualEnvironment || '—'}
-Dominant directional outcome:  ${r.dominantOutcome || '—'}
-What happened to structure:    ${r.structureOutcome || '—'}
-Liquidity objective reached:   ${r.liquidityReached || '—'}
-Swing phase evolution:         ${r.phaseEvolved || '—'}
-Actual opportunity quality:    ${r.opportunityQuality || '—'}
-Bias alignment with trades:    ${r.biasAlignment || '—'}
-
-=== WEEK PERFORMANCE ===
-Trades: ${ps.count ?? '—'}  |  WR: ${ps.winRate != null ? ps.winRate.toFixed(1) + '%' : '—'}  |  Net R: ${ps.netR != null ? (ps.netR >= 0 ? '+' : '') + ps.netR.toFixed(2) + 'R' : '—'}  |  Avg R: ${ps.avgR != null ? ps.avgR.toFixed(2) + 'R' : '—'}
-
-=== DAILY TRADE REVIEWS THIS WEEK ===
-${dailyBlock}
-
-=== WEEKLY LESSONS ===
-What worked:       ${r.lessons?.worked || '—'}
-What failed:       ${r.lessons?.failed || '—'}
-What surprised:    ${r.lessons?.surprised || '—'}
-Next week focus:   ${r.lessons?.focus || '—'}
-
-=== SCORE THIS WEEK ===
-DO NOT reference journal accuracy engine results. Be direct. One specific reason per score.
-
-BIAS QUALITY /10 — checklist logic + chart confirmation
-WEEK ACCURACY /10 — honesty of close review vs actual chart
-DAILY CONSISTENCY /10 — did daily trades honour the weekly bias?
-LESSON QUALITY /10 — specific, honest, actionable lessons?
-OVERALL: sum /40
-
-Respond ONLY in this exact format:
-
-BIAS: [n]/10 — [one specific reason]
-ACCURACY: [n]/10 — [one specific reason]
-CONSISTENCY: [n]/10 — [one specific reason]
-LESSONS: [n]/10 — [one specific reason]
-OVERALL: [n]/40
----
-WORKED: [one specific thing done well]
-IMPROVE: [one specific actionable change]
-LESSON: [single most important takeaway]
-NEXT_WEEK: [one concrete focus tied to this week's observations]`;
-        }
-
-        // ── Orchestrators ──
-
-        async function triggerDailyAiReview(tradeId) {
-            const t = S.trades.find(t => idEq(t.id, tradeId));
-            if (!t || t.isIntraday) return;
-            const intra = S.trades.find(it => it.isIntraday && idEq(it.weeklyLinkId, t.id));
-            // Ensure screenshots loaded
-            await loadTradeScreenshots(t.id);
-            if (intra) await loadTradeScreenshots(intra.id);
-            // Collect images: daily idea + EOD + intra entry
-            const imageSets = [
-                ...(t.screenshots || []),
-                ...(t.eodScreenshots || []),
-                ...(intra ? (intra.screenshots || []) : []),
-            ];
-            const imageUrls = await _resolveDataUrls(imageSets);
-            const prompt = _buildDailyPrompt(t, intra || null);
-            try {
-                const raw = await callGeminiVision(prompt, imageUrls);
-                t.aiReview = {
-                    ..._parseDailyAiResponse(raw),
-                    generatedAt: new Date().toISOString(),
-                    model: 'gemini-1.5-flash',
-                    error: null,
-                };
-            } catch(e) {
-                console.warn('[AI Review] Daily failed:', e);
-                t.aiReview = { error: e.message, generatedAt: new Date().toISOString() };
-            }
-            saveTrade(t);
-            renderClosed(); // refresh closed table
-        }
-
-        async function triggerWeeklyAiReview(weeklyId) {
-            const w = S.weeklies.find(w => idEq(w.id, weeklyId));
-            if (!w || !w.weeklyReview) return;
-            // Collect daily AI summaries for this week
-            const weekTrades = getWeekTrades(w.date).filter(t => !t.isIntraday && t.status === 'closed');
-            const dailySummaries = weekTrades
-                .filter(t => t.aiReview && !t.aiReview.error)
-                .map(t => {
-                    const r = calcR(t);
-                    return {
-                        date: t.date,
-                        result: t.result,
-                        rDisplay: r !== null ? (r >= 0 ? '+' : '') + r.toFixed(2) + 'R' : '—',
-                        setupScore:     t.aiReview.setupScore,
-                        executionScore: t.aiReview.executionScore,
-                        honestyScore:   t.aiReview.honestyScore,
-                        overallScore:   t.aiReview.overallScore,
-                        lesson:         t.aiReview.lesson,
-                    };
-                });
-            // Collect screenshots: w.screenshots + updates screenshots
-            const allSS = [
-                ...(w.screenshots || []),
-                ...((w.updates || []).flatMap(u => u.screenshots || [])),
-            ];
-            const imageUrls = await _resolveDataUrls(allSS);
-            const prompt = _buildWeeklyPrompt(w, dailySummaries);
-            try {
-                const raw = await callGeminiVision(prompt, imageUrls);
-                w.weeklyReview.aiReview = {
-                    ..._parseWeeklyAiResponse(raw),
-                    dailyCount: dailySummaries.length,
-                    generatedAt: new Date().toISOString(),
-                    model: 'gemini-1.5-flash',
-                    error: null,
-                };
-            } catch(e) {
-                console.warn('[AI Review] Weekly failed:', e);
-                w.weeklyReview.aiReview = { error: e.message, generatedAt: new Date().toISOString() };
-            }
-            saveWeekly(w);
-            renderWeekly();
-            // Refresh the review modal if still open
-            const aiContainer = document.getElementById('wrAiReviewContainer');
-            if (aiContainer && S.wrEditId && idEq(S.wrEditId, weeklyId)) {
-                aiContainer.innerHTML = renderWeeklyAiReviewBlock(w);
-            }
-        }
-
-        // ── Render helpers ──
-
-        
-        function renderTradeAiReviewBlock(t) {
-            if (!_geminiKey()) {
-                return `<div class="ai-review-block"><div class="ai-review-unavail" style="font-size:9px;color:var(--muted);padding:10px 14px;">🤖 AI review disabled — add Gemini API key in <span style="text-decoration:underline;cursor:pointer;color:#5b21b6" onclick="navTo('settings')">Settings</span></div></div>`;
-            }
-            if (!t.aiReview) {
-                return `<div class="ai-review-block"><div class="ai-review-pending"><div class="ai-review-spinner"></div>AI review pending — will appear shortly…<button class="ai-retry-btn" onclick="triggerDailyAiReview('${t.id}')">↻ Run now</button></div></div>`;
-            }
-            if (t.aiReview.error) {
-                return `<div class="ai-review-block"><div class="ai-review-unavail">🤖 AI review unavailable<span style="color:var(--muted);font-size:8px;margin-left:6px;">${t.aiReview.error.slice(0,60)}</span><button class="ai-retry-btn" onclick="triggerDailyAiReview('${t.id}')">↻ Retry</button></div></div>`;
-            }
-            const ai = t.aiReview;
-            const overall = ai.overallScore ?? '—';
-            return `<div class="ai-review-block">
-              <div class="ai-review-header" onclick="this.nextElementSibling.classList.toggle('open')">
-                <div class="ai-review-header-left">🤖 AI INDEPENDENT REVIEW
-                  <span style="font-weight:400;color:#7c3aed;letter-spacing:0">${ai.model || 'gemini'}</span>
-                </div>
-                <div class="ai-review-scores">
-                  <span>${overall}/30</span>
-                  <span style="color:var(--muted)">▾</span>
-                </div>
-              </div>
-              <div class="ai-review-body">
-                <div class="ai-review-dim"><span class="ai-review-dim-label">SETUP</span><span class="ai-review-dim-reason">${ai.setupReason||''}</span><span class="ai-review-dim-score">${ai.setupScore??'—'}/10${_aiScoreBar(ai.setupScore,10)}</span></div>
-                <div class="ai-review-dim"><span class="ai-review-dim-label">EXECUTION</span><span class="ai-review-dim-reason">${ai.executionReason||''}</span><span class="ai-review-dim-score">${ai.executionScore??'—'}/10${_aiScoreBar(ai.executionScore,10)}</span></div>
-                <div class="ai-review-dim"><span class="ai-review-dim-label">HONESTY</span><span class="ai-review-dim-reason">${ai.honestyReason||''}</span><span class="ai-review-dim-score">${ai.honestyScore??'—'}/10${_aiScoreBar(ai.honestyScore,10)}</span></div>
-                <div class="ai-review-feedback">
-                  ${ai.worked  ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">✓ WORKED</span>${ai.worked}</div>` : ''}
-                  ${ai.improve ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">△ IMPROVE</span>${ai.improve}</div>` : ''}
-                  ${ai.lesson  ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">💡 LESSON</span>${ai.lesson}</div>` : ''}
-                </div>
-                <div style="font-family:var(--font-mono);font-size:7px;color:var(--muted);margin-top:8px;text-align:right">${ai.generatedAt ? new Date(ai.generatedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}</div>
-              </div>
-            </div>`;
-        }
-
-        function renderWeeklyAiReviewBlock(w) {
-            if (!_geminiKey()) {
-                return `<div class="ai-review-block" style="margin-top:10px"><div class="ai-review-unavail" style="font-size:9px;color:var(--muted);padding:10px 14px;">🤖 AI review disabled — add Gemini API key in <span style="text-decoration:underline;cursor:pointer;color:#5b21b6" onclick="navTo('settings')">Settings</span></div></div>`;
-            }
-            const ai = w.weeklyReview?.aiReview;
-            if (!ai) {
-                return `<div class="ai-review-block" style="margin-top:10px"><div class="ai-review-pending"><div class="ai-review-spinner"></div>AI review pending…<button class="ai-retry-btn" onclick="triggerWeeklyAiReview('${w.id}')">↻ Run now</button></div></div>`;
-            }
-            if (ai.error) {
-                return `<div class="ai-review-block" style="margin-top:10px"><div class="ai-review-unavail">🤖 AI review unavailable<span style="color:var(--muted);font-size:8px;margin-left:6px;">${ai.error.slice(0,60)}</span><button class="ai-retry-btn" onclick="triggerWeeklyAiReview('${w.id}')">↻ Retry</button></div></div>`;
-            }
-            const overall = ai.overallScore ?? '—';
-            return `<div class="ai-review-block" style="margin-top:10px">
-              <div class="ai-review-header" onclick="this.nextElementSibling.classList.toggle('open')">
-                <div class="ai-review-header-left">🤖 AI INDEPENDENT REVIEW
-                  <span style="font-weight:400;color:#7c3aed;letter-spacing:0">${ai.model || 'gemini'} · ${ai.dailyCount ?? 0} daily review${ai.dailyCount !== 1 ? 's' : ''} used</span>
-                </div>
-                <div class="ai-review-scores"><span>${overall}/40</span><span style="color:var(--muted)">▾</span></div>
-              </div>
-              <div class="ai-review-body">
-                <div class="ai-review-dim"><span class="ai-review-dim-label">BIAS</span><span class="ai-review-dim-reason">${ai.biasReason||''}</span><span class="ai-review-dim-score">${ai.biasScore??'—'}/10${_aiScoreBar(ai.biasScore,10)}</span></div>
-                <div class="ai-review-dim"><span class="ai-review-dim-label">ACCURACY</span><span class="ai-review-dim-reason">${ai.accuracyReason||''}</span><span class="ai-review-dim-score">${ai.accuracyScore??'—'}/10${_aiScoreBar(ai.accuracyScore,10)}</span></div>
-                <div class="ai-review-dim"><span class="ai-review-dim-label">CONSISTENCY</span><span class="ai-review-dim-reason">${ai.consistencyReason||''}</span><span class="ai-review-dim-score">${ai.consistencyScore??'—'}/10${_aiScoreBar(ai.consistencyScore,10)}</span></div>
-                <div class="ai-review-dim"><span class="ai-review-dim-label">LESSONS</span><span class="ai-review-dim-reason">${ai.lessonReason||''}</span><span class="ai-review-dim-score">${ai.lessonScore??'—'}/10${_aiScoreBar(ai.lessonScore,10)}</span></div>
-                <div class="ai-review-feedback">
-                  ${ai.worked   ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">✓ WORKED</span>${ai.worked}</div>` : ''}
-                  ${ai.improve  ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">△ IMPROVE</span>${ai.improve}</div>` : ''}
-                  ${ai.lesson   ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">💡 LESSON</span>${ai.lesson}</div>` : ''}
-                  ${ai.nextWeek ? `<div class="ai-review-fb-row"><span class="ai-review-fb-label">🎯 NEXT WEEK</span>${ai.nextWeek}</div>` : ''}
-                </div>
-                <div style="font-family:var(--font-mono);font-size:7px;color:var(--muted);margin-top:8px;text-align:right">${ai.generatedAt ? new Date(ai.generatedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}</div>
-              </div>
-            </div>`;
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        // END AI REVIEW
-        // ════════════════════════════════════════════════════════════════════
 
         async function settingsForceSync(btn) {
             if (btn) { btn.textContent = 'Syncing…';
