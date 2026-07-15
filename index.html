@@ -12751,11 +12751,13 @@
             setTimeout(() => updateCmAutoResult(), 50);
         }
 
-        // Filters PnL Tracker accounts to match the trade's paper/live status —
-        // a paper trade should only ever link to a paper account, and vice versa.
+        // Only show account dropdown for intraday trades — daily/weekly don't impact P&L tracker
         function populateCmAccountSelect(t) {
+            const container = document.getElementById('cmAccountSelect')?.closest('.field');
             const sel = document.getElementById('cmAccountSelect');
-            if (!sel) return;
+            if (!sel || !container) return;
+            if (!t.isIntraday) { container.style.display = 'none'; return; }
+            container.style.display = '';
             const isPaper = !!t.isPaper;
             const matching = (S.pnlAccounts || []).filter(a => !!a.is_paper === isPaper);
             const currentAssignment = S.tradeAccountMap[t.id] || '';
@@ -12763,9 +12765,7 @@
             sel.innerHTML = '<option value="">— None —</option>' + matching.map(a =>
                 `<option value="${a.id}" ${a.id === currentAssignment ? 'selected' : ''}>${a.name} (${isPaper?'Paper ':''}${kindLabel(a.account_kind)})</option>`
             ).join('');
-            if (!matching.length) {
-                sel.innerHTML += `<option value="" disabled>No ${isPaper?'paper':'live'} accounts set up yet</option>`;
-            }
+            if (!matching.length) sel.innerHTML += `<option value="" disabled>No ${isPaper?'paper':'live'} accounts set up yet</option>`;
         }
 
         function closeModalHide() { document.getElementById('closeModal').classList.remove('open'); }
