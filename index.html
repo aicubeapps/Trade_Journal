@@ -859,27 +859,21 @@
         .jheat-grid {
             display: grid;
             gap: 5px;
-            /* Mon-Fri (5) | Weekend (narrow) | Weekly | R */
-            grid-template-columns: repeat(5, 1fr) 30px 56px 46px;
+            /* Mon-Fri (5) | Weekly | R */
+            grid-template-columns: repeat(5, 1fr) 52px 38px;
         }
         .jheat-grid.jheat-week-mode {
-            /* Mon-Fri (5) | Weekend (narrow) | R */
-            grid-template-columns: repeat(5, 1fr) 30px 46px;
+            /* Mon-Fri (5) | R only — no redundant weekly col in week view */
+            grid-template-columns: repeat(5, 1fr) 38px;
         }
         .jheat-grid.jheat-year-mode { grid-template-columns: repeat(4, 1fr); }
-        .jheat-wkd-col {
-            background: var(--cream); border: 1px solid var(--border); border-radius: 4px;
-            display: flex; align-items: center; justify-content: center; min-height: 52px;
-            font-family: var(--font-mono); font-size: 6px; font-weight: 700; color: var(--muted);
-            letter-spacing: 0.3px; writing-mode: vertical-rl; text-transform: uppercase;
-        }
         .jheat-r-col {
             background: var(--cream); border: 1px solid var(--border); border-radius: 4px;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            min-height: 52px; font-family: var(--font-mono);
+            min-height: 52px; font-family: var(--font-mono); padding: 2px;
         }
         .jheat-r-col .jr-label { font-size: 6px; font-weight: 700; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase; }
-        .jheat-r-col .jr-val { font-size: 10px; font-weight: 800; margin-top: 2px; }
+        .jheat-r-col .jr-val { font-size: 9px; font-weight: 800; margin-top: 2px; }
         /* Year cell diagonal */
         .jheat-month-cell {
             border-radius: 5px; padding: 0; min-height: 72px; border: 1px solid var(--border);
@@ -2662,7 +2656,8 @@
             color: var(--ink);
             outline: none;
             line-height: 1.6;
-            overflow: hidden;
+            overflow-x: hidden;  /* wrap long lines, don't clip markers */
+            word-break: break-word;
         }
         .rte-body:empty:before {
             content: attr(data-placeholder);
@@ -2671,8 +2666,9 @@
         }
         .rte-body ul,
         .rte-body ol {
-            padding-left: 24px;
+            padding-left: 20px;
             margin: 4px 0;
+            list-style-position: outside;  /* markers stay within padding box */
         }
         .rte-body li {
             margin: 2px 0;
@@ -13933,7 +13929,7 @@
             const labelEl = document.getElementById('jheatLabel');
             const totalEl = document.getElementById('jheatTotal');
 
-            const WKD_CELL = `<div class="jheat-wkd-col">WKD</div>`;
+            const WKD_CELL = ''; // Weekend column dropped — no trading days, not needed
 
             if (S.jheatView === 'week') {
                 const monday = jheatMondayOf(S.jheatRefDate);
@@ -13946,11 +13942,10 @@
                 const biasCount = (weeklySets[mondayKey] || new Set()).size;
                 let weekSum = 0;
 
-                // Header row: MON TUE WED THU FRI | WKD | R
+                // Header row: MON TUE WED THU FRI | R
                 const dowNames = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
                 let html = '<div class="jheat-grid jheat-week-mode">';
                 dowNames.forEach(n => html += `<div class="jheat-dow">${n}</div>`);
-                html += `<div class="jheat-dow"></div>`; // WKD header spacer
                 html += `<div class="jheat-dow">R</div>`;
 
                 // Day cells
@@ -13979,10 +13974,9 @@
                 let cursor = new Date(firstMonday);
                 let monthTotal = 0;
 
-                // Header: MON TUE WED THU FRI | WKD | WEEKLY | R
-                let html = '<div class="jheat-grid" style="grid-template-columns:repeat(5,1fr) 30px 56px 46px;">';
+                // Header: MON TUE WED THU FRI | WEEKLY | R
+                let html = '<div class="jheat-grid" style="grid-template-columns:repeat(5,1fr) 52px 38px;">';
                 ['MON','TUE','WED','THU','FRI'].forEach(n => html += `<div class="jheat-dow">${n}</div>`);
-                html += `<div class="jheat-dow"></div>`;
                 html += `<div class="jheat-dow">WEEKLY</div>`;
                 html += `<div class="jheat-dow">R</div>`;
 
