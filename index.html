@@ -2082,8 +2082,21 @@
             line-height: 1.6;
             color: var(--ink);
             margin-bottom: 8px;
-            white-space: pre-wrap;
         }
+        .wb-notes ul,
+        .wb-notes ol {
+            padding-left: 20px;
+            margin: 4px 0;
+            list-style-position: outside;
+        }
+        .wb-notes li {
+            margin: 2px 0;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+        .wb-notes b, .wb-notes strong { font-weight: 700; }
+        .wb-notes i, .wb-notes em    { font-style: italic; }
+        .wb-notes u                  { text-decoration: underline; }
         .wb-actions {
             display: flex;
             gap: 6px;
@@ -4937,29 +4950,22 @@
             .news-right-col { order:3; }
             #page-news .shell { max-width:100%; }
 
-            /* EC calendar: make the body scrollable and collapse columns on mobile */
+            /* EC calendar: make body scrollable on mobile so all 7 columns
+               are reachable via swipe — no columns hidden, no data lost */
             #ecCalBody {
                 overflow-x:auto;
                 -webkit-overflow-scrolling:touch;
             }
+            /* Compact all 7 columns; user can swipe horizontally for overflow */
             .ec-hdr,
             .ec-row {
-                /* Shrink to 5 columns: drop Forecast + Previous on narrow screens */
-                grid-template-columns:55px 36px 10px 1fr 58px;
-                min-width:0;
+                grid-template-columns:48px 32px 10px 1fr 44px 44px 44px;
+                min-width:276px;
             }
-            /* Hide Forecast (col 6) and Previous (col 5) — keep only Actual (col 7) */
-            .ec-hdr div:nth-child(5),
-            .ec-hdr div:nth-child(6),
-            .ec-row  > *:nth-child(5),
-            .ec-row  > *:nth-child(6) {
-                display:none;
-            }
-            /* Slightly smaller text so content fits at ~380px */
-            .ec-name { font-size:10px; }
+            .ec-name { font-size:9px; }
             .ec-val  { font-size:8px; }
-            .ec-time { font-size:8px; }
-            .ec-ccy  { font-size:9px; }
+            .ec-time { font-size:7px; }
+            .ec-ccy  { font-size:8px; font-weight:700; }
         }
     </style>
 </head>
@@ -6205,6 +6211,12 @@
                             <button class="seg-btn" onclick="ecClearSkip(this)">CLEAR</button>
                         </div>
                     </div>
+                </div>
+                <div class="field" id="ecAccountField" style="display:none;">
+                    <label>PnL Tracker Account <span style="font-size:7px;color:var(--muted);font-weight:400;">(optional — links this trade for $ P&amp;L tracking)</span></label>
+                    <select id="ecAccountSelect" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);font-family:var(--font-sans);font-size:13px;">
+                        <option value="">— None —</option>
+                    </select>
                 </div>
                 <div class="field-row">
                     <div class="field"><label>Entry Price</label><input type="number" step="any" id="ecEntry" placeholder="0.00000" oninput="updateEcAutoResult()"></div>
@@ -10490,7 +10502,7 @@
                 <div class="mono-label-blue">NOTES TIMELINE</div>
                 ${[...w.updates].reverse().map(u => `<div style="margin-bottom:8px;padding:8px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da">
                   <div class="mono-ts">${formatTsWithNY(u.at)}</div>
-                  <div style="font-size:12px;line-height:1.6;white-space:pre-wrap">${rteDisplay(u.text)||''}</div>
+                  <div class="wb-notes rte-body" style="min-height:auto;font-size:12px;padding:0;">${rteDisplay(u.text)||''}</div>
                   ${(u.screenshots||[]).length>0?`<div id="wb-uss-${w.id}-${u.at.replace(/[^0-9]/g,'')}" class="wb-ss-lazy"><span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);letter-spacing:1px;cursor:pointer;text-decoration:underline" onclick="toggleWbUpdateScreenshots('${w.id}','${u.at}')">📷 ${(u.screenshots||[]).length} screenshot${(u.screenshots||[]).length>1?'s':''} — tap to load</span></div>`:''}
                 </div>`).join('')}
               </div>` : '';
@@ -10541,7 +10553,7 @@
               </div>
               <div class="wb-body">
                 ${dashHtml}
-                ${w.notes?`<div class="wb-notes" style="margin-top:8px;">${rteDisplay(w.notes)}</div>`:''}
+                ${w.notes?`<div class="wb-notes rte-body" style="min-height:auto;margin-top:8px;">${rteDisplay(w.notes)}</div>`:''}
                 ${ssHtml?`<div class="ss-grid" style="margin-bottom:8px">${ssHtml}</div>`:''}
                 ${updatesHtml}
                 ${intraHtml}
@@ -12892,6 +12904,22 @@
             document.getElementById('ecSL').value = t.slPrice || '';
             rteSet('ecFollowup', t.followupNotes || '');
             document.getElementById('ecSsGrid').innerHTML = '';
+            // Populate account select for intraday trades only
+            const ecAccField = document.getElementById('ecAccountField');
+            const ecAccSel   = document.getElementById('ecAccountSelect');
+            if (t.isIntraday && ecAccField && ecAccSel) {
+                ecAccField.style.display = '';
+                const isPaper = !!t.isPaper;
+                const matching = (S.pnlAccounts || []).filter(a => !!a.is_paper === isPaper);
+                const currentAssignment = S.tradeAccountMap[t.id] || '';
+                const kindLabel = k => k === 'prop' ? 'Prop' : 'Personal';
+                ecAccSel.innerHTML = '<option value="">— None —</option>' + matching.map(a =>
+                    `<option value="${a.id}" ${a.id === currentAssignment ? 'selected' : ''}>${a.name} (${isPaper?'Paper ':''}${kindLabel(a.account_kind)})</option>`
+                ).join('');
+                if (!matching.length) ecAccSel.innerHTML += `<option value="" disabled>No ${isPaper?'paper':'live'} accounts set up yet</option>`;
+            } else if (ecAccField) {
+                ecAccField.style.display = 'none';
+            }
             document.getElementById('editClosedModal').classList.add('open');
             setTimeout(() => updateEcAutoResult(), 50);
         }
@@ -12962,6 +12990,8 @@
             t.biasMatch = (t.biasSet && t.biasPlayed && t.biasSet === t.biasPlayed) ? 'YES' : 'NO';
             if (t.isIntraday) {
                 t.intraScores = computeHiddenScores(t);
+                const ecAccSel = document.getElementById('ecAccountSelect');
+                if (ecAccSel) assignTradeAccount(t.id, ecAccSel.value || null);
             }
             saveTrade(t);
             document.getElementById('editClosedModal').classList.remove('open');
@@ -18477,13 +18507,14 @@
                 const now = new Date();
                 const todayNy = _nyDateStr(now);
                 const nyH = _nyHour(now);
-                // If cached on a previous day AND it's now past 5pm NY → fetch
-                if (cache.fetchedNyDate < todayNy && nyH >= 17) return true;
-                // If cached before 5pm today and it's now past 5pm → fetch
+                // Always re-fetch if cache is from a different day
+                if (cache.fetchedNyDate < todayNy) return true;
+                // During trading hours (7am–5pm NY), refresh every 30 min so
+                // released actuals appear without needing a manual refresh
                 const cachedAt = new Date(cache.fetchedAt);
-                const cachedNyH = _nyHour(cachedAt);
-                if (cache.fetchedNyDate === todayNy && cachedNyH < 17 && nyH >= 17) return true;
-                // Otherwise use cache
+                const ageMs = now - cachedAt;
+                if (nyH >= 7 && nyH < 17 && ageMs > 30 * 60 * 1000) return true;
+                // Outside trading hours use cache freely
                 return false;
             }
 
