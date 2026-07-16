@@ -438,6 +438,8 @@
 
         #navitem-news.active,   #navitem-news:hover   { border-left-color: #a78bfa; }
         #navitem-news.active .ni-icon                 { filter: drop-shadow(0 0 4px #a78bfaaa); }
+        #navitem-discord.active, #navitem-discord:hover { border-left-color: #5865f2; }
+        #navitem-discord.active .ni-icon              { filter: drop-shadow(0 0 4px #5865f2aa); }
 
         #navitem-settings.active, #navitem-settings:hover { border-left-color: #6ee7b7; }
         #navitem-settings.active .ni-icon             { filter: drop-shadow(0 0 4px #6ee7b7aa); }
@@ -4950,6 +4952,237 @@
             .news-right-col { order:3; }
             #page-news .shell { max-width:100%; }
 
+        /* ── Discord Page ── */
+        #page-discord { padding:0; overflow:hidden; }
+        .dc-layout {
+            display:flex;
+            height:calc(100vh - 56px); /* subtract topbar */
+            overflow:hidden;
+        }
+        .dc-sidebar {
+            width:180px;
+            flex-shrink:0;
+            background:#1a1f2e;
+            display:flex;
+            flex-direction:column;
+            border-right:1px solid #2d3348;
+            overflow:hidden;
+        }
+        .dc-sidebar-head {
+            font-family:var(--font-mono);
+            font-size:8px;
+            font-weight:700;
+            letter-spacing:2px;
+            color:#72767d;
+            padding:16px 12px 8px;
+            text-transform:uppercase;
+        }
+        .dc-sidebar-list {
+            flex:1;
+            overflow-y:auto;
+            padding:4px 0;
+        }
+        .dc-ch-item {
+            display:flex;
+            align-items:center;
+            gap:6px;
+            padding:7px 12px;
+            cursor:pointer;
+            border-left:3px solid transparent;
+            font-size:13px;
+            color:#72767d;
+            transition:all .12s;
+        }
+        .dc-ch-item:hover { background:rgba(255,255,255,.06); color:#dcddde; }
+        .dc-ch-item.active {
+            background:rgba(88,101,242,.2);
+            border-left-color:#5865f2;
+            color:#fff;
+        }
+        .dc-ch-dot {
+            width:7px; height:7px;
+            border-radius:50%;
+            flex-shrink:0;
+            background:#72767d;
+        }
+        .dc-ch-dot.ok  { background:#57f287; }
+        .dc-ch-dot.err { background:#ed4245; }
+        .dc-ch-name { font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .dc-sidebar-foot {
+            padding:10px 12px;
+            border-top:1px solid #2d3348;
+        }
+        .dc-sidebar-config {
+            font-family:var(--font-mono);
+            font-size:8px;
+            font-weight:700;
+            letter-spacing:.5px;
+            color:#72767d;
+            background:transparent;
+            border:1.5px solid #2d3348;
+            border-radius:4px;
+            padding:5px 10px;
+            cursor:pointer;
+            width:100%;
+        }
+        .dc-sidebar-config:hover { color:#dcddde; border-color:#5865f2; }
+        .dc-main {
+            flex:1;
+            display:flex;
+            flex-direction:column;
+            overflow:hidden;
+            background:var(--paper);
+        }
+        .dc-main-head {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            padding:10px 16px;
+            border-bottom:1.5px solid var(--border);
+            font-family:var(--font-mono);
+            font-size:10px;
+            background:var(--surface);
+            flex-shrink:0;
+        }
+        .dc-refresh-btn {
+            font-family:var(--font-mono);
+            font-size:8px;
+            font-weight:700;
+            padding:3px 10px;
+            border:1.5px solid var(--border);
+            border-radius:4px;
+            background:transparent;
+            color:var(--muted);
+            cursor:pointer;
+        }
+        .dc-refresh-btn:hover { border-color:#5865f2; color:#5865f2; }
+        .dc-messages-panel {
+            flex:1;
+            overflow-y:auto;
+            padding:12px 16px;
+            display:flex;
+            flex-direction:column;
+            gap:2px;
+        }
+        .dc-msg {
+            display:flex;
+            gap:10px;
+            padding:4px 4px 4px 0;
+            border-radius:4px;
+        }
+        .dc-msg:hover { background:var(--cream); }
+        .dc-msg-avatar {
+            width:32px; height:32px;
+            border-radius:50%;
+            object-fit:cover;
+            flex-shrink:0;
+            margin-top:1px;
+        }
+        .dc-msg-avatar-placeholder {
+            width:32px; height:32px;
+            border-radius:50%;
+            background:#5865f2;
+            flex-shrink:0;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:13px;
+            font-weight:700;
+            color:#fff;
+            margin-top:1px;
+        }
+        .dc-msg-body { flex:1; min-width:0; }
+        .dc-msg-meta {
+            display:flex;
+            align-items:baseline;
+            gap:8px;
+            margin-bottom:2px;
+        }
+        .dc-msg-author {
+            font-weight:700;
+            font-size:13px;
+            color:var(--ink);
+        }
+        .dc-msg-time {
+            font-family:var(--font-mono);
+            font-size:9px;
+            color:var(--muted);
+        }
+        .dc-msg-text {
+            font-size:13px;
+            color:var(--ink);
+            line-height:1.5;
+            word-break:break-word;
+            white-space:pre-wrap;
+        }
+        .dc-msg-img {
+            max-width:100%;
+            max-height:280px;
+            border-radius:4px;
+            margin-top:6px;
+            display:block;
+        }
+        .dc-embed {
+            border-left:3px solid #5865f2;
+            padding:6px 10px;
+            margin-top:6px;
+            background:var(--cream);
+            border-radius:0 4px 4px 0;
+            font-size:12px;
+        }
+        .dc-embed-title { font-weight:700; color:var(--ink); margin-bottom:3px; }
+        .dc-embed-desc  { color:var(--muted); line-height:1.4; }
+        .dc-load-more-btn {
+            flex-shrink:0;
+            font-family:var(--font-mono);
+            font-size:9px;
+            font-weight:700;
+            padding:8px;
+            border:1.5px solid var(--border);
+            border-radius:4px;
+            background:transparent;
+            color:var(--muted);
+            cursor:pointer;
+            margin:8px 16px;
+        }
+        .dc-load-more-btn:hover { border-color:#5865f2; color:#5865f2; }
+        .dc-empty {
+            color:var(--muted);
+            font-size:13px;
+            text-align:center;
+            padding:40px 20px;
+        }
+        .dc-date-sep {
+            font-family:var(--font-mono);
+            font-size:8px;
+            font-weight:700;
+            color:var(--muted);
+            letter-spacing:1px;
+            text-align:center;
+            padding:8px 0 4px;
+            position:relative;
+        }
+        .dc-date-sep::before, .dc-date-sep::after {
+            content:'';position:absolute;top:50%;
+            width:calc(50% - 50px);height:1px;background:var(--border);
+        }
+        .dc-date-sep::before { left:0; }
+        .dc-date-sep::after  { right:0; }
+        @media (max-width:600px) {
+            .dc-layout { flex-direction:column; }
+            .dc-sidebar {
+                width:100%; height:auto;
+                flex-direction:row;
+                border-right:none;
+                border-bottom:1px solid #2d3348;
+            }
+            .dc-sidebar-head { display:none; }
+            .dc-sidebar-list { display:flex; flex-direction:row; overflow-x:auto; padding:4px 8px; flex:1; }
+            .dc-ch-item { flex-direction:row; border-left:none; border-bottom:3px solid transparent; padding:8px 10px; white-space:nowrap; }
+            .dc-ch-item.active { border-left:none; border-bottom-color:#5865f2; }
+            .dc-sidebar-foot { display:none; }
+        }
+
             /* EC calendar: make body scrollable on mobile so all 7 columns
                are reachable via swipe — no columns hidden, no data lost */
             #ecCalBody {
@@ -5056,6 +5289,10 @@
             <button class="nav-item" id="navitem-news" onclick="navTo('news')">
                 <span class="ni-icon">📰</span>
                 <span class="ni-label">News</span>
+            </button>
+            <button class="nav-item" id="navitem-discord" onclick="navTo('discord')">
+                <span class="ni-icon">💬</span>
+                <span class="ni-label">Discord</span>
             </button>
             <button class="nav-item" id="navitem-settings" onclick="navTo('settings')">
                 <span class="ni-icon">⚙️</span>
@@ -5830,6 +6067,33 @@
             </div>
 
             <!-- ══ NEWS (v3) ══ -->
+            <!-- ══ DISCORD ══ -->
+            <div class="page" id="page-discord">
+                <div class="dc-layout">
+                    <!-- Sidebar: channel list -->
+                    <div class="dc-sidebar">
+                        <div class="dc-sidebar-head">CHANNELS</div>
+                        <div id="dcSidebarList" class="dc-sidebar-list"></div>
+                        <div class="dc-sidebar-foot">
+                            <button onclick="navTo('settings')" class="dc-sidebar-config">⚙ Manage Channels</button>
+                        </div>
+                    </div>
+                    <!-- Main: messages panel -->
+                    <div class="dc-main">
+                        <div class="dc-main-head">
+                            <span id="dcActiveLabel" style="font-weight:700;"># —</span>
+                            <button onclick="DC.refreshActive()" class="dc-refresh-btn">⟳ REFRESH</button>
+                        </div>
+                        <div id="dcMessagesPanel" class="dc-messages-panel">
+                            <div class="dc-empty">Select a channel to view messages.</div>
+                        </div>
+                        <button id="dcLoadMoreBtn" onclick="DC.loadMoreActive()" class="dc-load-more-btn" style="display:none;">
+                            ↑ Load older messages
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="page" id="page-news">
                 <div class="shell">
                     <div class="sec-head">
@@ -5900,49 +6164,6 @@
                             </button>
 
                         </div><!-- /news-left-col -->
-
-                        <!-- RIGHT column: Discord -->
-                        <div class="news-right-col">
-
-                            <!-- Discord Feed header -->
-                            <div class="discord-panel-main">
-                                <div class="discord-panel-head">
-                                    &#128172; DISCORD FEED
-                                </div>
-                                <div class="discord-stub-body" id="dcFeedStatus">
-                                    Loading&hellip;
-                                </div>
-                            </div>
-
-                            <!-- Discord Channel 1 -->
-                            <div class="discord-channel-card" id="dcCard1">
-                                <div class="discord-channel-head">
-                                    <span style="color:var(--muted);">#</span>
-                                    <span id="dcTitle1">Channel</span>
-                                </div>
-                                <div class="discord-channel-body" id="dcBody1">
-                                    <div class="discord-stub-body">Loading&hellip;</div>
-                                </div>
-                                <button class="discord-load-more" id="dcMore1" onclick="DC.loadMore(0)" style="display:none;">
-                                    LOAD MORE
-                                </button>
-                            </div>
-
-                            <!-- Discord Channel 2 -->
-                            <div class="discord-channel-card" id="dcCard2">
-                                <div class="discord-channel-head">
-                                    <span style="color:var(--muted);">#</span>
-                                    <span id="dcTitle2">Channel</span>
-                                </div>
-                                <div class="discord-channel-body" id="dcBody2">
-                                    <div class="discord-stub-body">Loading&hellip;</div>
-                                </div>
-                                <button class="discord-load-more" id="dcMore2" onclick="DC.loadMore(1)" style="display:none;">
-                                    LOAD MORE
-                                </button>
-                            </div>
-
-                        </div><!-- /news-right-col -->
 
                     </div><!-- /news-layout-grid -->
                 </div>
@@ -18710,13 +18931,13 @@
         })();
 
         // ══════════════════════════════════════════════════════════
-        // DISCORD MODULE (DC)
-        // Reads Discord channel feeds via the Cloudflare Worker proxy (/discord-messages).
-        // Channel IDs and labels are user-configurable via Settings → Discord Channels
-        // and stored in localStorage (no secrets in the app — token lives in the Worker).
+        // ── DISCORD MODULE (DC) ──────────────────────────────────────────────────
+        // Dedicated Discord page: channel sidebar + scrollable chronological chat panel.
+        // Channels configurable in Settings. Token stored as Worker secret — never in app.
         const DC = (() => {
-            const CF_WORKER  = 'https://pnl-worker.aicube-apps.workers.dev';
+            const CF_WORKER   = 'https://pnl-worker.aicube-apps.workers.dev';
             const STORAGE_KEY = 'dc_channels_v1';
+            const PREFS_KEY   = 'dc_prefs_v1';
             const PAGE_SIZE   = 25;
 
             const DEFAULT_CHANNELS = [
@@ -18724,155 +18945,184 @@
                 { id: '854287081453912064',  label: 'market-analysis' },
             ];
 
-            let _channels = [];
-            let _state    = [];
+            let _channels   = [];
+            let _state      = [];   // per-channel: { messages, before, fetching, hasMore, status }
+            let _activeIdx  = 0;
 
             function _loadChannels() {
-                try {
-                    const raw = localStorage.getItem(STORAGE_KEY);
-                    if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length) return p; }
-                } catch(e) {}
+                try { const r = localStorage.getItem(STORAGE_KEY); if (r) { const p = JSON.parse(r); if (Array.isArray(p) && p.length) return p; } } catch(e) {}
                 return DEFAULT_CHANNELS;
             }
+            function _saveChannels(c) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)); } catch(e) {} }
+            function _loadActiveIdx() { try { return parseInt(localStorage.getItem(PREFS_KEY + '_idx') || '0', 10) || 0; } catch(e) { return 0; } }
+            function _saveActiveIdx(i) { try { localStorage.setItem(PREFS_KEY + '_idx', String(i)); } catch(e) {} }
 
-            function _saveChannels(channels) {
-                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(channels)); } catch(e) {}
-            }
-
-            function _esc(s) {
-                return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-            }
-
+            function _esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
             function _timeAgo(ts) {
                 const m = Math.floor((Date.now() - new Date(ts)) / 60000);
-                if (m < 1) return 'just now';
-                if (m < 60) return m + 'm ago';
-                const h = Math.floor(m / 60);
-                return h < 24 ? h + 'h ago' : Math.floor(h / 24) + 'd ago';
+                if (m < 1) return 'just now'; if (m < 60) return m + 'm ago';
+                const h = Math.floor(m/60); return h < 24 ? h+'h ago' : Math.floor(h/24)+'d ago';
+            }
+            function _dateLabel(ts) {
+                const d = new Date(ts);
+                const today = new Date(); today.setHours(0,0,0,0);
+                const msgDay = new Date(d); msgDay.setHours(0,0,0,0);
+                const diff = Math.round((today - msgDay) / 86400000);
+                if (diff === 0) return 'Today';
+                if (diff === 1) return 'Yesterday';
+                return d.toLocaleDateString('en-GB', { weekday:'long', day:'2-digit', month:'short', year:'numeric' });
             }
 
-            function _renderMessages(idx) {
-                const st     = _state[idx];
-                const bodyEl = document.getElementById(`dcBody${idx+1}`);
-                const moreEl = document.getElementById(`dcMore${idx+1}`);
-                if (!bodyEl) return;
-                if (!st || !st.messages.length) {
-                    bodyEl.innerHTML = `<div class="discord-stub-body">No messages yet.</div>`;
-                    if (moreEl) moreEl.style.display = 'none';
-                    return;
-                }
-                const html = st.messages.map(m => {
-                    const av     = m.author?.avatar || null;
-                    const avHtml = av
-                        ? `<img src="${_esc(av)}" style="width:18px;height:18px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'" />`
-                        : `<span style="width:18px;height:18px;border-radius:50%;background:var(--border);display:inline-block;flex-shrink:0;"></span>`;
-                    const imgs = (m.attachments||[])
-                        .filter(a => (a.content_type||'').startsWith('image/'))
-                        .map(a => `<img class="discord-msg-img" src="${_esc(a.url)}" alt="${_esc(a.filename)}" loading="lazy" />`)
-                        .join('');
-                    const embeds = (m.embeds||[])
-                        .filter(e => e.description || e.title)
-                        .map(e => `<div style="border-left:3px solid #5865f2;padding:4px 8px;margin-top:4px;font-size:10px;color:var(--muted);background:var(--cream);border-radius:2px;">
-                            ${e.title ? `<div style="font-weight:700;color:var(--ink);margin-bottom:2px;">${_esc(e.title)}</div>` : ''}
-                            ${e.description ? `<div>${_esc(e.description.slice(0,200))}${e.description.length>200?'…':''}</div>` : ''}
-                        </div>`).join('');
-                    return `<div class="discord-msg">
-                        <div class="discord-msg-meta">
-                            ${avHtml}
-                            <span class="discord-msg-author">${_esc(m.author?.display_name || m.author?.username || 'Unknown')}</span>
-                            <span>${_timeAgo(m.timestamp)}</span>
-                        </div>
-                        ${m.content ? `<div class="discord-msg-content">${_esc(m.content)}</div>` : ''}
-                        ${embeds}
-                        ${imgs}
+            // ── Sidebar ───────────────────────────────────────────────────────
+            function _renderSidebar() {
+                const list = document.getElementById('dcSidebarList');
+                if (!list) return;
+                list.innerHTML = _channels.map((ch, i) => {
+                    const st     = _state[i];
+                    const dotCls = !st ? '' : st.status === 'ok' ? 'ok' : st.status === 'err' ? 'err' : '';
+                    return `<div class="dc-ch-item ${i === _activeIdx ? 'active' : ''}" onclick="DC.selectChannel(${i})">
+                        <div class="dc-ch-dot ${dotCls}"></div>
+                        <span class="dc-ch-name"># ${_esc(ch.label || ch.id)}</span>
                     </div>`;
                 }).join('');
-                bodyEl.innerHTML = html;
-                if (moreEl) moreEl.style.display = st.hasMore ? 'block' : 'none';
             }
 
-            function _setStatus(msg) {
-                const el = document.getElementById('dcFeedStatus');
-                if (el) el.innerHTML = msg;
+            // ── Messages panel ────────────────────────────────────────────────
+            function _renderMessages(idx) {
+                if (idx !== _activeIdx) return;
+                const panel  = document.getElementById('dcMessagesPanel');
+                const moreBtn= document.getElementById('dcLoadMoreBtn');
+                const headLbl= document.getElementById('dcActiveLabel');
+                if (!panel) return;
+
+                const st = _state[idx];
+                const ch = _channels[idx];
+                if (headLbl) headLbl.textContent = '# ' + _esc(ch?.label || ch?.id || '—');
+
+                if (!st || !st.messages.length) {
+                    panel.innerHTML = `<div class="dc-empty">${st?.status === 'err' ? '⚠ Could not load messages.' : 'No messages yet.'}</div>`;
+                    if (moreBtn) moreBtn.style.display = 'none';
+                    return;
+                }
+
+                // Chronological order (oldest first) with date separators
+                const msgs = [...st.messages].reverse();
+                let lastDay = '';
+                let html = '';
+                msgs.forEach(m => {
+                    const dayLabel = _dateLabel(m.timestamp);
+                    if (dayLabel !== lastDay) {
+                        html += `<div class="dc-date-sep">${_esc(dayLabel)}</div>`;
+                        lastDay = dayLabel;
+                    }
+                    const av = m.author?.avatar;
+                    const avEl = av
+                        ? `<img class="dc-msg-avatar" src="${_esc(av)}" onerror="this.style.display=\'none\'" />`
+                        : `<div class="dc-msg-avatar-placeholder">${_esc((m.author?.display_name||m.author?.username||'?')[0].toUpperCase())}</div>`;
+
+                    const imgs = (m.attachments||[])
+                        .filter(a => (a.content_type||'').startsWith('image/'))
+                        .map(a => `<img class="dc-msg-img" src="${_esc(a.url)}" loading="lazy" />`)
+                        .join('');
+
+                    const embeds = (m.embeds||[]).filter(e => e.title||e.description).map(e =>
+                        `<div class="dc-embed">
+                            ${e.title    ? `<div class="dc-embed-title">${_esc(e.title)}</div>` : ''}
+                            ${e.description ? `<div class="dc-embed-desc">${_esc(e.description.slice(0,300))}${e.description.length>300?'…':''}</div>` : ''}
+                        </div>`).join('');
+
+                    const timeStr = new Date(m.timestamp).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', hour12:false });
+
+                    html += `<div class="dc-msg">
+                        ${avEl}
+                        <div class="dc-msg-body">
+                            <div class="dc-msg-meta">
+                                <span class="dc-msg-author">${_esc(m.author?.display_name||m.author?.username||'Unknown')}</span>
+                                <span class="dc-msg-time">${timeStr} · ${_timeAgo(m.timestamp)}</span>
+                            </div>
+                            ${m.content ? `<div class="dc-msg-text">${_esc(m.content)}</div>` : ''}
+                            ${embeds}${imgs}
+                        </div>
+                    </div>`;
+                });
+
+                panel.innerHTML = html;
+                if (moreBtn) moreBtn.style.display = st.hasMore ? 'block' : 'none';
+                // Scroll to bottom (newest)
+                panel.scrollTop = panel.scrollHeight;
             }
 
+            // ── Fetch ─────────────────────────────────────────────────────────
             async function _fetchChannel(idx, before = null) {
                 if (!_state[idx]) return;
-                const st  = _state[idx];
-                const ch  = _channels[idx];
+                const st = _state[idx];
+                const ch = _channels[idx];
                 if (!ch || st.fetching) return;
                 st.fetching = true;
-
-                const titleEl = document.getElementById(`dcTitle${idx+1}`);
-                if (titleEl) titleEl.textContent = ch.label || ch.id;
-
-                const bodyEl = document.getElementById(`dcBody${idx+1}`);
-                if (!st.messages.length && bodyEl) {
-                    bodyEl.innerHTML = `<div class="discord-stub-body">Loading…</div>`;
-                }
+                _renderSidebar();
 
                 try {
                     let url = `${CF_WORKER}/discord-messages?channel=${ch.id}&limit=${PAGE_SIZE}`;
                     if (before) url += `&before=${before}`;
                     const r = await fetch(url);
-                    if (!r.ok) {
-                        const err = await r.json().catch(() => ({ error: 'HTTP ' + r.status }));
-                        throw new Error(err.error || 'HTTP ' + r.status);
-                    }
+                    if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error||'HTTP '+r.status); }
                     const msgs = await r.json();
                     if (before) { st.messages = [...st.messages, ...msgs]; }
                     else { st.messages = msgs; }
-                    st.lastFetched = Date.now();
-                    st.hasMore     = msgs.length === PAGE_SIZE;
+                    st.hasMore = msgs.length === PAGE_SIZE;
                     if (msgs.length) st.before = msgs[msgs.length-1].id;
+                    st.status = 'ok';
                 } catch(err) {
-                    console.error(`[DC] Channel ${idx} error:`, err);
-                    if (!st.messages.length && bodyEl) {
-                        bodyEl.innerHTML = `<div class="discord-stub-body">⚠ ${_esc(err.message)}</div>`;
-                    }
+                    console.error('[DC] Channel', idx, err.message);
+                    st.status = 'err';
                 } finally {
                     st.fetching = false;
+                    _renderSidebar();
                     _renderMessages(idx);
                 }
             }
 
-            function _buildChannelCards() {
-                const mainPanel = document.querySelector('.discord-panel-main');
-                if (!mainPanel) return;
-                // Remove old dynamic cards (keep the header)
-                mainPanel.querySelectorAll('.discord-channel-card').forEach(el => el.remove());
-                _channels.forEach((ch, i) => {
-                    const card = document.createElement('div');
-                    card.className = 'discord-channel-card';
-                    card.id = `dcCard${i+1}`;
-                    card.innerHTML = `
-                        <div class="discord-channel-head">
-                            <span id="dcTitle${i+1}"># ${_esc(ch.label || ch.id)}</span>
-                            <button onclick="DC.refresh(${i})" style="font-family:var(--font-mono);font-size:8px;padding:2px 8px;border:1.5px solid var(--border);border-radius:3px;background:transparent;color:var(--muted);cursor:pointer;">⟳</button>
-                        </div>
-                        <div class="discord-channel-body" id="dcBody${i+1}">
-                            <div class="discord-stub-body">Loading…</div>
-                        </div>
-                        <button class="discord-load-more" id="dcMore${i+1}" onclick="DC.loadMore(${i})" style="display:none;">
-                            Load older messages
-                        </button>`;
-                    mainPanel.appendChild(card);
-                });
+            // ── Public API ────────────────────────────────────────────────────
+            function selectChannel(idx) {
+                _activeIdx = idx;
+                _saveActiveIdx(idx);
+                _renderSidebar();
+                _renderMessages(idx);
+                if (!_state[idx]?.messages.length) _fetchChannel(idx);
             }
 
-            // ── Settings UI helpers ───────────────────────────────────────────
+            async function init() {
+                _channels  = _loadChannels();
+                _state     = _channels.map(() => ({ messages:[], before:null, fetching:false, hasMore:false, status:null }));
+                _activeIdx = Math.min(_loadActiveIdx(), _channels.length - 1);
+                _renderSidebar();
+                _renderMessages(_activeIdx);
+                // Fetch the active channel immediately, others lazily when selected
+                await _fetchChannel(_activeIdx);
+                // Auto-refresh every 2 min while on Discord page
+                setInterval(() => { if (S.currentPage === 'discord') _fetchChannel(_activeIdx); }, 2 * 60 * 1000);
+            }
+
+            function refreshActive() {
+                if (!_state[_activeIdx]) return;
+                _state[_activeIdx].messages = [];
+                _state[_activeIdx].before   = null;
+                _fetchChannel(_activeIdx);
+            }
+
+            function loadMoreActive() { _fetchChannel(_activeIdx, _state[_activeIdx]?.before); }
+
+            // ── Settings UI helpers (unchanged) ───────────────────────────────
             function _renderChannelRows() {
                 const el = document.getElementById('dcChannelRows');
                 if (!el) return;
                 const saved = _loadChannels();
                 el.innerHTML = saved.map((ch, i) => `
                     <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
-                        <input value="${_esc(ch.id)}" placeholder="Channel ID (18-digit number)"
-                            id="dcRowId${i}" autocomplete="off"
+                        <input value="${_esc(ch.id)}" placeholder="Channel ID" id="dcRowId${i}" autocomplete="off"
                             style="flex:1;font-family:var(--font-mono);font-size:10px;padding:6px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
-                        <input value="${_esc(ch.label)}" placeholder="Label (e.g. signals)"
-                            id="dcRowLabel${i}" autocomplete="off"
-                            style="width:110px;font-family:var(--font-mono);font-size:10px;padding:6px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
+                        <input value="${_esc(ch.label)}" placeholder="Label" id="dcRowLabel${i}" autocomplete="off"
+                            style="width:100px;font-family:var(--font-mono);font-size:10px;padding:6px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
                         <button onclick="DC.removeChannelRow(${i})"
                             style="font-family:var(--font-mono);font-size:10px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;background:transparent;color:var(--bear);cursor:pointer;">✕</button>
                     </div>`).join('');
@@ -18881,16 +19131,16 @@
             function addChannelRow() {
                 const el = document.getElementById('dcChannelRows');
                 if (!el) return;
-                const rows = el.querySelectorAll('div[style]');
+                const rows = el.querySelectorAll('div');
                 if (rows.length >= 5) { showToast('Maximum 5 channels', 'warn'); return; }
                 const i = rows.length;
                 const row = document.createElement('div');
                 row.style.cssText = 'display:flex;gap:6px;margin-bottom:8px;align-items:center;';
                 row.innerHTML = `
-                    <input value="" placeholder="Channel ID (18-digit number)" id="dcRowId${i}" autocomplete="off"
+                    <input value="" placeholder="Channel ID" id="dcRowId${i}" autocomplete="off"
                         style="flex:1;font-family:var(--font-mono);font-size:10px;padding:6px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
-                    <input value="" placeholder="Label (e.g. signals)" id="dcRowLabel${i}" autocomplete="off"
-                        style="width:110px;font-family:var(--font-mono);font-size:10px;padding:6px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
+                    <input value="" placeholder="Label" id="dcRowLabel${i}" autocomplete="off"
+                        style="width:100px;font-family:var(--font-mono);font-size:10px;padding:6px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
                     <button onclick="DC.removeChannelRow(${i})"
                         style="font-family:var(--font-mono);font-size:10px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;background:transparent;color:var(--bear);cursor:pointer;">✕</button>`;
                 el.appendChild(row);
@@ -18899,12 +19149,11 @@
             function removeChannelRow(i) {
                 const el = document.getElementById('dcChannelRows');
                 if (!el) return;
-                const rows = el.querySelectorAll('div');
+                const rows = [...el.querySelectorAll('div')];
                 if (rows[i]) rows[i].remove();
-                // Re-index remaining rows
                 el.querySelectorAll('div').forEach((row, ni) => {
-                    const idEl = row.querySelector(`input[id^="dcRowId"]`);
-                    const lbEl = row.querySelector(`input[id^="dcRowLabel"]`);
+                    const idEl = row.querySelector(`[id^="dcRowId"]`);
+                    const lbEl = row.querySelector(`[id^="dcRowLabel"]`);
                     const btn  = row.querySelector('button');
                     if (idEl) idEl.id = `dcRowId${ni}`;
                     if (lbEl) lbEl.id = `dcRowLabel${ni}`;
@@ -18918,40 +19167,27 @@
                 const count = el.querySelectorAll('div').length;
                 const saved = [];
                 for (let i = 0; i < count; i++) {
-                    const id  = (document.getElementById(`dcRowId${i}`)?.value || '').trim();
-                    const lbl = (document.getElementById(`dcRowLabel${i}`)?.value || '').trim();
-                    if (id && /^\d+$/.test(id)) saved.push({ id, label: lbl || id });
+                    const id  = (document.getElementById(`dcRowId${i}`)?.value||'').trim();
+                    const lbl = (document.getElementById(`dcRowLabel${i}`)?.value||'').trim();
+                    if (id && /^\d+$/.test(id)) saved.push({ id, label: lbl||id });
                 }
                 if (!saved.length) { showToast('Add at least one valid channel ID', 'warn'); return; }
                 _saveChannels(saved);
-                _channels = saved;
-                _state = _channels.map(() => ({ messages:[], lastFetched:null, before:null, fetching:false, hasMore:false }));
-                _buildChannelCards();
-                Promise.all(_channels.map((_, i) => _fetchChannel(i)));
-                showToast(`✓ ${saved.length} channel${saved.length !== 1 ? 's' : ''} saved`);
+                _channels  = saved;
+                _state     = _channels.map(() => ({ messages:[], before:null, fetching:false, hasMore:false, status:null }));
+                _activeIdx = 0;
+                _renderSidebar();
+                _renderMessages(0);
+                _fetchChannel(0);
+                showToast(`✓ ${saved.length} channel${saved.length!==1?'s':''} saved`);
             }
 
-            async function init() {
-                _channels = _loadChannels();
-                _state    = _channels.map(() => ({ messages:[], lastFetched:null, before:null, fetching:false, hasMore:false }));
-                _setStatus('💬 Live feed from Discord');
-                _buildChannelCards();
-                await Promise.all(_channels.map((_, i) => _fetchChannel(i)));
-                setInterval(() => {
-                    if (S.currentPage === 'news') {
-                        _channels.forEach((_, i) => _fetchChannel(i));
-                    }
-                }, 2 * 60 * 1000);
-            }
-
-            function refresh(idx) { if (_state[idx]) { _state[idx].messages = []; _state[idx].before = null; } _fetchChannel(idx); }
-            function loadMore(idx) { _fetchChannel(idx, _state[idx]?.before); }
-
-            return { init, loadMore, refresh, addChannelRow, removeChannelRow, saveChannels, renderChannelRows: _renderChannelRows };
+            return { init, selectChannel, refreshActive, loadMoreActive,
+                     loadMore: (i) => _fetchChannel(i, _state[i]?.before),
+                     refresh:  (i) => { if (_state[i]) { _state[i].messages=[]; _state[i].before=null; } _fetchChannel(i); },
+                     addChannelRow, removeChannelRow, saveChannels,
+                     renderChannelRows: _renderChannelRows };
         })();
-            const PAGE_SIZE  = 25;
-            const CACHE_MS   = 2 * 60 * 1000;
-
 
         // ── INIT ──
         document.getElementById('ideaDate').value = new Date().toISOString().split('T')[0];
