@@ -6014,6 +6014,20 @@
                         </div>
                     </div>
 
+                    <!-- DISCORD CHANNELS -->
+                    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px;">
+                        <div style="padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);">DISCORD CHANNELS</div>
+                        <div style="padding:14px;">
+                            <div style="font-family:var(--font-mono);font-size:8px;color:var(--muted);margin-bottom:12px;line-height:1.7;">
+                                Enter up to 5 Discord channel IDs to display in the News feed.<br>
+                                <span style="color:var(--gold);">How to get a channel ID:</span> Enable Developer Mode in Discord (Settings → Advanced), then right-click a channel → Copy Channel ID.
+                            </div>
+                            <div id="dcChannelRows"></div>
+                            <button onclick="DC.addChannelRow()" style="font-family:var(--font-mono);font-size:8px;font-weight:700;padding:5px 12px;border:1.5px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;margin-bottom:10px;">+ ADD CHANNEL</button>
+                            <button onclick="DC.saveChannels()" style="font-family:var(--font-mono);font-size:8px;font-weight:700;padding:7px 16px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:4px;cursor:pointer;width:100%;">SAVE &amp; REFRESH FEED</button>
+                        </div>
+                    </div>
+
                     <!-- ARCHIVE MANAGEMENT — Phase 5 -->
                     <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px;">
                         <div style="padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);">ARCHIVE MANAGEMENT</div>
@@ -15130,6 +15144,7 @@
         async function populateSettingsPage() {
             const vEl = document.getElementById('aboutVersion');
             if (vEl) vEl.textContent = APP_VERSION + ' · ' + APP_VERSION_DATE;
+            DC.renderChannelRows();
             const emailEl = document.getElementById('settingsUserEmail');
             const deviceEl = document.getElementById('settingsDeviceId');
             if (emailEl) emailEl.textContent = _currentUser?.email || '—';
@@ -18696,24 +18711,33 @@
 
         // ══════════════════════════════════════════════════════════
         // DISCORD MODULE (DC)
-        // Two channels via Cloudflare Worker proxy
-        // ══════════════════════════════════════════════════════════
+        // Reads Discord channel feeds via the Cloudflare Worker proxy (/discord-messages).
+        // Channel IDs and labels are user-configurable via Settings → Discord Channels
+        // and stored in localStorage (no secrets in the app — token lives in the Worker).
         const DC = (() => {
-            const CF_WORKER  = 'pnl-worker.aicube-apps.workers.dev';
-            const CHANNELS   = [
+            const CF_WORKER  = 'https://pnl-worker.aicube-apps.workers.dev';
+            const STORAGE_KEY = 'dc_channels_v1';
+            const PAGE_SIZE   = 25;
+
+            const DEFAULT_CHANNELS = [
                 { id: '1386659520000036956', label: 'trading-signals' },
                 { id: '854287081453912064',  label: 'market-analysis' },
             ];
-            const PAGE_SIZE  = 25;
-            const CACHE_MS   = 2 * 60 * 1000;
 
-            let _state = CHANNELS.map(() => ({
-                messages:    [],
-                lastFetched: null,
-                before:      null,
-                fetching:    false,
-                hasMore:     false,
-            }));
+            let _channels = [];
+            let _state    = [];
+
+            function _loadChannels() {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length) return p; }
+                } catch(e) {}
+                return DEFAULT_CHANNELS;
+            }
+
+            function _saveChannels(channels) {
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(channels)); } catch(e) {}
+            }
 
             function _esc(s) {
                 return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -18723,58 +18747,46 @@
                 const m = Math.floor((Date.now() - new Date(ts)) / 60000);
                 if (m < 1) return 'just now';
                 if (m < 60) return m + 'm ago';
-                const h = Math.floor(m/60);
-                return h < 24 ? h + 'h ago' : Math.floor(h/24) + 'd ago';
-            }
-
-            function _avatarUrl(author) {
-                if (!author?.avatar) return null;
-                return `https://cdn.discordapp.com/avatars/${author.id}/${author.avatar}.png?size=32`;
+                const h = Math.floor(m / 60);
+                return h < 24 ? h + 'h ago' : Math.floor(h / 24) + 'd ago';
             }
 
             function _renderMessages(idx) {
-                const st    = _state[idx];
+                const st     = _state[idx];
                 const bodyEl = document.getElementById(`dcBody${idx+1}`);
                 const moreEl = document.getElementById(`dcMore${idx+1}`);
                 if (!bodyEl) return;
-
-                if (!st.messages.length) {
+                if (!st || !st.messages.length) {
                     bodyEl.innerHTML = `<div class="discord-stub-body">No messages yet.</div>`;
                     if (moreEl) moreEl.style.display = 'none';
                     return;
                 }
-
                 const html = st.messages.map(m => {
-                    const av     = _avatarUrl(m.author);
+                    const av     = m.author?.avatar || null;
                     const avHtml = av
                         ? `<img src="${_esc(av)}" style="width:18px;height:18px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'" />`
                         : `<span style="width:18px;height:18px;border-radius:50%;background:var(--border);display:inline-block;flex-shrink:0;"></span>`;
-
-                    // Attachments (images)
                     const imgs = (m.attachments||[])
                         .filter(a => (a.content_type||'').startsWith('image/'))
                         .map(a => `<img class="discord-msg-img" src="${_esc(a.url)}" alt="${_esc(a.filename)}" loading="lazy" />`)
                         .join('');
-
-                    // Reply reference
-                    const reply = m.referenced_message
-                        ? `<div style="padding:3px 8px;border-left:2px solid var(--border);margin-bottom:3px;font-size:10px;color:var(--muted);">
-                               ↩ <strong>${_esc(m.referenced_message.author?.username||'')}</strong>: ${_esc((m.referenced_message.content||'').slice(0,80))}
-                           </div>`
-                        : '';
-
+                    const embeds = (m.embeds||[])
+                        .filter(e => e.description || e.title)
+                        .map(e => `<div style="border-left:3px solid #5865f2;padding:4px 8px;margin-top:4px;font-size:10px;color:var(--muted);background:var(--cream);border-radius:2px;">
+                            ${e.title ? `<div style="font-weight:700;color:var(--ink);margin-bottom:2px;">${_esc(e.title)}</div>` : ''}
+                            ${e.description ? `<div>${_esc(e.description.slice(0,200))}${e.description.length>200?'…':''}</div>` : ''}
+                        </div>`).join('');
                     return `<div class="discord-msg">
                         <div class="discord-msg-meta">
                             ${avHtml}
-                            <span class="discord-msg-author">${_esc(m.author?.global_name || m.author?.username || 'Unknown')}</span>
+                            <span class="discord-msg-author">${_esc(m.author?.display_name || m.author?.username || 'Unknown')}</span>
                             <span>${_timeAgo(m.timestamp)}</span>
                         </div>
-                        ${reply}
                         ${m.content ? `<div class="discord-msg-content">${_esc(m.content)}</div>` : ''}
+                        ${embeds}
                         ${imgs}
                     </div>`;
                 }).join('');
-
                 bodyEl.innerHTML = html;
                 if (moreEl) moreEl.style.display = st.hasMore ? 'block' : 'none';
             }
@@ -18785,41 +18797,38 @@
             }
 
             async function _fetchChannel(idx, before = null) {
+                if (!_state[idx]) return;
                 const st  = _state[idx];
-                const ch  = CHANNELS[idx];
-                if (st.fetching) return;
+                const ch  = _channels[idx];
+                if (!ch || st.fetching) return;
                 st.fetching = true;
 
-                // Update title
                 const titleEl = document.getElementById(`dcTitle${idx+1}`);
-                if (titleEl) titleEl.textContent = ch.label;
+                if (titleEl) titleEl.textContent = ch.label || ch.id;
 
                 const bodyEl = document.getElementById(`dcBody${idx+1}`);
                 if (!st.messages.length && bodyEl) {
-                    bodyEl.innerHTML = `<div class="discord-stub-body"><span class="nspin">&#x27F3;</span> Loading&hellip;</div>`;
+                    bodyEl.innerHTML = `<div class="discord-stub-body">Loading…</div>`;
                 }
 
                 try {
-                    let url = `${CF_WORKER}/discord/${ch.id}?limit=${PAGE_SIZE}`;
+                    let url = `${CF_WORKER}/discord-messages?channel=${ch.id}&limit=${PAGE_SIZE}`;
                     if (before) url += `&before=${before}`;
                     const r = await fetch(url);
                     if (!r.ok) {
-                        const err = await r.json().catch(()=>({error:'Unknown error'}));
+                        const err = await r.json().catch(() => ({ error: 'HTTP ' + r.status }));
                         throw new Error(err.error || 'HTTP ' + r.status);
                     }
                     const msgs = await r.json();
-                    if (before) {
-                        st.messages = [...st.messages, ...msgs];
-                    } else {
-                        st.messages = msgs;
-                    }
+                    if (before) { st.messages = [...st.messages, ...msgs]; }
+                    else { st.messages = msgs; }
                     st.lastFetched = Date.now();
                     st.hasMore     = msgs.length === PAGE_SIZE;
                     if (msgs.length) st.before = msgs[msgs.length-1].id;
                 } catch(err) {
                     console.error(`[DC] Channel ${idx} error:`, err);
                     if (!st.messages.length && bodyEl) {
-                        bodyEl.innerHTML = `<div class="discord-stub-body">&#9888; ${_esc(err.message)}</div>`;
+                        bodyEl.innerHTML = `<div class="discord-stub-body">⚠ ${_esc(err.message)}</div>`;
                     }
                 } finally {
                     st.fetching = false;
@@ -18827,23 +18836,122 @@
                 }
             }
 
+            function _buildChannelCards() {
+                const mainPanel = document.querySelector('.discord-panel-main');
+                if (!mainPanel) return;
+                // Remove old dynamic cards (keep the header)
+                mainPanel.querySelectorAll('.discord-channel-card').forEach(el => el.remove());
+                _channels.forEach((ch, i) => {
+                    const card = document.createElement('div');
+                    card.className = 'discord-channel-card';
+                    card.id = `dcCard${i+1}`;
+                    card.innerHTML = `
+                        <div class="discord-channel-head">
+                            <span id="dcTitle${i+1}"># ${_esc(ch.label || ch.id)}</span>
+                            <button onclick="DC.refresh(${i})" style="font-family:var(--font-mono);font-size:8px;padding:2px 8px;border:1.5px solid var(--border);border-radius:3px;background:transparent;color:var(--muted);cursor:pointer;">⟳</button>
+                        </div>
+                        <div class="discord-channel-body" id="dcBody${i+1}">
+                            <div class="discord-stub-body">Loading…</div>
+                        </div>
+                        <button class="discord-load-more" id="dcMore${i+1}" onclick="DC.loadMore(${i})" style="display:none;">
+                            Load older messages
+                        </button>`;
+                    mainPanel.appendChild(card);
+                });
+            }
+
+            // ── Settings UI helpers ───────────────────────────────────────────
+            function _renderChannelRows() {
+                const el = document.getElementById('dcChannelRows');
+                if (!el) return;
+                const saved = _loadChannels();
+                el.innerHTML = saved.map((ch, i) => `
+                    <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
+                        <input value="${_esc(ch.id)}" placeholder="Channel ID (18-digit number)"
+                            id="dcRowId${i}" autocomplete="off"
+                            style="flex:1;font-family:var(--font-mono);font-size:10px;padding:6px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
+                        <input value="${_esc(ch.label)}" placeholder="Label (e.g. signals)"
+                            id="dcRowLabel${i}" autocomplete="off"
+                            style="width:110px;font-family:var(--font-mono);font-size:10px;padding:6px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
+                        <button onclick="DC.removeChannelRow(${i})"
+                            style="font-family:var(--font-mono);font-size:10px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;background:transparent;color:var(--bear);cursor:pointer;">✕</button>
+                    </div>`).join('');
+            }
+
+            function addChannelRow() {
+                const el = document.getElementById('dcChannelRows');
+                if (!el) return;
+                const rows = el.querySelectorAll('div[style]');
+                if (rows.length >= 5) { showToast('Maximum 5 channels', 'warn'); return; }
+                const i = rows.length;
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;gap:6px;margin-bottom:8px;align-items:center;';
+                row.innerHTML = `
+                    <input value="" placeholder="Channel ID (18-digit number)" id="dcRowId${i}" autocomplete="off"
+                        style="flex:1;font-family:var(--font-mono);font-size:10px;padding:6px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
+                    <input value="" placeholder="Label (e.g. signals)" id="dcRowLabel${i}" autocomplete="off"
+                        style="width:110px;font-family:var(--font-mono);font-size:10px;padding:6px 10px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);outline:none;" />
+                    <button onclick="DC.removeChannelRow(${i})"
+                        style="font-family:var(--font-mono);font-size:10px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;background:transparent;color:var(--bear);cursor:pointer;">✕</button>`;
+                el.appendChild(row);
+            }
+
+            function removeChannelRow(i) {
+                const el = document.getElementById('dcChannelRows');
+                if (!el) return;
+                const rows = el.querySelectorAll('div');
+                if (rows[i]) rows[i].remove();
+                // Re-index remaining rows
+                el.querySelectorAll('div').forEach((row, ni) => {
+                    const idEl = row.querySelector(`input[id^="dcRowId"]`);
+                    const lbEl = row.querySelector(`input[id^="dcRowLabel"]`);
+                    const btn  = row.querySelector('button');
+                    if (idEl) idEl.id = `dcRowId${ni}`;
+                    if (lbEl) lbEl.id = `dcRowLabel${ni}`;
+                    if (btn)  btn.setAttribute('onclick', `DC.removeChannelRow(${ni})`);
+                });
+            }
+
+            function saveChannels() {
+                const el = document.getElementById('dcChannelRows');
+                if (!el) return;
+                const count = el.querySelectorAll('div').length;
+                const saved = [];
+                for (let i = 0; i < count; i++) {
+                    const id  = (document.getElementById(`dcRowId${i}`)?.value || '').trim();
+                    const lbl = (document.getElementById(`dcRowLabel${i}`)?.value || '').trim();
+                    if (id && /^\d+$/.test(id)) saved.push({ id, label: lbl || id });
+                }
+                if (!saved.length) { showToast('Add at least one valid channel ID', 'warn'); return; }
+                _saveChannels(saved);
+                _channels = saved;
+                _state = _channels.map(() => ({ messages:[], lastFetched:null, before:null, fetching:false, hasMore:false }));
+                _buildChannelCards();
+                Promise.all(_channels.map((_, i) => _fetchChannel(i)));
+                showToast(`✓ ${saved.length} channel${saved.length !== 1 ? 's' : ''} saved`);
+            }
+
             async function init() {
-                _setStatus('&#128172; Live feed from Discord');
-                // Fetch both channels in parallel
-                await Promise.all([_fetchChannel(0), _fetchChannel(1)]);
-                // Auto-refresh every 2 min when on news page
+                _channels = _loadChannels();
+                _state    = _channels.map(() => ({ messages:[], lastFetched:null, before:null, fetching:false, hasMore:false }));
+                _setStatus('💬 Live feed from Discord');
+                _buildChannelCards();
+                await Promise.all(_channels.map((_, i) => _fetchChannel(i)));
                 setInterval(() => {
                     if (S.currentPage === 'news') {
-                        _fetchChannel(0);
-                        _fetchChannel(1);
+                        _channels.forEach((_, i) => _fetchChannel(i));
                     }
                 }, 2 * 60 * 1000);
             }
 
-            function loadMore(idx) { _fetchChannel(idx, _state[idx].before); }
+            function refresh(idx) { if (_state[idx]) { _state[idx].messages = []; _state[idx].before = null; } _fetchChannel(idx); }
+            function loadMore(idx) { _fetchChannel(idx, _state[idx]?.before); }
 
-            return { init, loadMore };
+            return { init, loadMore, refresh, addChannelRow, removeChannelRow, saveChannels, renderChannelRows: _renderChannelRows };
         })();
+            const PAGE_SIZE  = 25;
+            const CACHE_MS   = 2 * 60 * 1000;
+
 
         // ── INIT ──
         document.getElementById('ideaDate').value = new Date().toISOString().split('T')[0];
