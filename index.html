@@ -5424,8 +5424,9 @@
                         <div id="jheatGrid"></div>
                     </div>
 
-                    <div class="seg-btns" id="insightsModeBtns" style="max-width:220px;margin-bottom:12px;">
+                    <div class="seg-btns" id="insightsModeBtns" style="max-width:320px;margin-bottom:12px;">
                         <button class="seg-btn sel-bull" onclick="setInsightsMode('live',this)">LIVE</button>
+                        <button class="seg-btn" onclick="setInsightsMode('paper',this)">PAPER</button>
                         <button class="seg-btn" onclick="setInsightsMode('combined',this)">COMBINED</button>
                     </div>
 
@@ -5817,12 +5818,14 @@
                     <div class="sec-head">
                         <h2>CLOSED TRADES</h2>
                     </div>
-                    <!-- Type filter chips -->
+                    <!-- Type filter chips (multi-select) -->
                     <div class="ct-type-chips" id="closedTypeChips">
-                        <button class="ct-type-chip active" onclick="setClosedTypeFilter('all',this)">ALL</button>
-                        <button class="ct-type-chip" onclick="setClosedTypeFilter('daily',this)">📋 DAILY</button>
-                        <button class="ct-type-chip" onclick="setClosedTypeFilter('intraday',this)">⚡ INTRADAY</button>
-                        <button class="ct-type-chip" onclick="setClosedTypeFilter('weekly',this)">📅 WEEKLY</button>
+                        <button class="ct-type-chip" onclick="toggleClosedChip('all',this)">ALL</button>
+                        <button class="ct-type-chip active" onclick="toggleClosedChip('live',this)">LIVE</button>
+                        <button class="ct-type-chip" onclick="toggleClosedChip('paper',this)">📝 PAPER</button>
+                        <button class="ct-type-chip" onclick="toggleClosedChip('weekly',this)">📅 WEEKLY</button>
+                        <button class="ct-type-chip" onclick="toggleClosedChip('daily',this)">📋 DAILY</button>
+                        <button class="ct-type-chip" onclick="toggleClosedChip('intraday',this)">⚡ INTRADAY</button>
                     </div>
                     <!-- Trade filters (hidden in weekly mode) -->
                     <div id="closedTradeFilters">
@@ -5837,9 +5840,6 @@
                         <select class="filter-sel" id="filterCloseTag" onchange="renderClosed()">
                             <option value="">All categories</option>
                         </select>
-                        <label style="display:flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:9px;color:var(--muted);cursor:pointer;">
-                            <input type="checkbox" id="closedShowPaper" checked onchange="renderClosed()"> Show Paper
-                        </label>
                     </div>
                     </div>
                     <!-- Weekly search (shown only in weekly mode) -->
@@ -5881,8 +5881,9 @@
                         <p>Why did it happen? — Process analytics built from your trade data</p>
                         <span id="combinedBannerPage" style="display:none;position:absolute;top:0;right:0;font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;padding:4px 9px;border-radius:10px;background:#f3e5f5;color:#7b1fa2;border:1.5px solid #ce93d8;animation:combinedPulse 1.4s ease-in-out infinite;">⚠ COMBINED VIEW</span>
                     </div>
-                    <div class="seg-btns" id="insightsModeBtnsPage" style="max-width:220px;margin-bottom:14px;">
+                    <div class="seg-btns" id="insightsModeBtnsPage" style="max-width:320px;margin-bottom:14px;">
                         <button class="seg-btn sel-bull" onclick="setInsightsMode('live',this)">LIVE</button>
+                        <button class="seg-btn" onclick="setInsightsMode('paper',this)">PAPER</button>
                         <button class="seg-btn" onclick="setInsightsMode('combined',this)">COMBINED</button>
                     </div>
 
@@ -7293,7 +7294,7 @@
 
         const S = {
             insightsMode: 'live',
-            closedTypeFilter: 'all',
+            closedActiveChips: ['live'],
             answers: {},
             kills: {},
             killOpen: false,
@@ -9304,14 +9305,14 @@
         function getDashboardTotals() {
             const cs = S.cumulativeStats;
             const archivedThrough = cs?.archivedThrough || null;
-            const combined = S.insightsMode === 'combined';
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
 
             // Live trades (those not yet archived)
             const closed = S.trades.filter(t => {
                 if (t.status !== 'closed') return false;
                 if (t.isIntraday && t.weeklyLinkId) return false;
                 if (archivedThrough && t.closeTime && t.closeTime <= archivedThrough) return false;
-                if (!combined && t.isPaper) return false;
+                if ((paperOnly && !t.isPaper) || (!combined && !paperOnly && t.isPaper)) return false;
                 return true;
             });
 
@@ -9339,7 +9340,7 @@
                     totalBiasMatch: liveBM, totalBiasTotal: liveBT, sumR: liveSumR,
                     wins2r: liveWins2r, wins15r: liveWins15r, wins1r: liveWins1r,
                     be: liveBe, loss05: liveLoss05, loss1: liveLoss1, totalR: liveTotalR,
-                    openCount: S.trades.filter(t => t.status === 'open' && (!t.isIntraday || !t.weeklyLinkId) && (combined || !t.isPaper)).length,
+                    openCount: S.trades.filter(t => t.status === 'open' && (!t.isIntraday || !t.weeklyLinkId) && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper))).length,
                 };
             }
 
@@ -9366,7 +9367,7 @@
                 loss05:         archived.loss05         + liveLoss05,
                 loss1:          archived.loss1          + liveLoss1,
                 totalR:         archived.totalR         + liveTotalR,
-                openCount: S.trades.filter(t => t.status === 'open' && (!t.isIntraday || !t.weeklyLinkId) && (combined || !t.isPaper)).length,
+                openCount: S.trades.filter(t => t.status === 'open' && (!t.isIntraday || !t.weeklyLinkId) && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper))).length,
             };
         }
 
@@ -10814,7 +10815,7 @@
                 html += `<div style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:18px 0 8px;padding:6px 0;border-top:1px solid var(--border)">
                     ✓ CLOSED ENTRIES (${closedList.length})
                     <span style="font-weight:400;letter-spacing:0;text-transform:none;margin-left:10px;">
-                        — <span style="text-decoration:underline;cursor:pointer;color:var(--ink);" onclick="setClosedTypeFilter('weekly');navTo('closed')">View in Closed Trades ↗</span>
+                        — <span style="text-decoration:underline;cursor:pointer;color:var(--ink);" onclick="S.closedActiveChips=['weekly'];navTo('closed')">View in Closed Trades ↗</span>
                     </span>
                 </div>`;
             }
@@ -11493,7 +11494,8 @@
                 if (!wrap) return;
                 wrap.querySelectorAll('.seg-btn').forEach(b => {
                     b.className = b.className.replace(/sel-\w+/g, '').trim();
-                    if (b.textContent.trim() === 'LIVE' && mode === 'live') b.classList.add('sel-bull');
+                    if (b.textContent.trim() === 'LIVE'     && mode === 'live')     b.classList.add('sel-bull');
+                    if (b.textContent.trim() === 'PAPER'    && mode === 'paper')    b.classList.add('sel-bear');
                     if (b.textContent.trim() === 'COMBINED' && mode === 'combined') b.classList.add('sel-bear');
                 });
             });
@@ -13237,13 +13239,40 @@
         }
 
         // ── CLOSED TRADES ──
-        function setClosedTypeFilter(type, el) {
-            S.closedTypeFilter = type;
-            // Update chip active state
-            document.querySelectorAll('.ct-type-chip').forEach(b => b.classList.remove('active'));
-            if (el) el.classList.add('active');
-            // Toggle filter visibility
-            const isWeekly = type === 'weekly';
+        function toggleClosedChip(key, el) {
+            let chips = S.closedActiveChips.slice();
+
+            if (key === 'all') {
+                // ALL clears everything
+                chips = ['all'];
+            } else if (key === 'weekly') {
+                // WEEKLY is mutually exclusive with all other chips
+                if (chips.includes('weekly')) {
+                    chips = ['live']; // deselect weekly → fall back to live
+                } else {
+                    chips = ['weekly'];
+                }
+            } else {
+                // Trade-type or paper chip toggled — remove 'all' and 'weekly'
+                chips = chips.filter(c => c !== 'all' && c !== 'weekly');
+                if (chips.includes(key)) {
+                    chips = chips.filter(c => c !== key);
+                    if (chips.length === 0) chips = ['live']; // never leave empty
+                } else {
+                    chips.push(key);
+                }
+            }
+
+            S.closedActiveChips = chips;
+
+            // Sync chip active states
+            document.querySelectorAll('.ct-type-chip').forEach(b => {
+                const match = b.getAttribute('onclick').match(/toggleClosedChip\('(\w+)'/);
+                if (match) b.classList.toggle('active', chips.includes(match[1]));
+            });
+
+            // Show/hide trade vs weekly panels
+            const isWeekly = chips.includes('weekly');
             const tradeFilters = document.getElementById('closedTradeFilters');
             const weeklyFilters = document.getElementById('closedWeeklyFilters');
             const tradesTable = document.getElementById('closedTradesTable');
@@ -13256,10 +13285,10 @@
         }
 
         function renderClosed() {
-            const type = S.closedTypeFilter || 'all';
+            const chips = S.closedActiveChips || ['live'];
 
             // ── Weekly mode — different data source and renderer ──
-            if (type === 'weekly') {
+            if (chips.includes('weekly')) {
                 const search = (document.getElementById('closedWeeklySearch')?.value || '').toLowerCase();
                 const closedWeeklies = S.weeklies.filter(w => {
                     if (w.status !== 'closed') return false;
@@ -13311,19 +13340,31 @@
                 return;
             }
 
-            // ── Trade mode (all / daily / intraday) ──
+            // ── Trade mode (multi-select chips) ──
             const search = (document.getElementById('closedSearch')?.value || '').toLowerCase();
             const fr = document.getElementById('filterResult')?.value || '';
             const fg = document.getElementById('filterGrade')?.value || '';
             const ft = document.getElementById('filterCloseTag')?.value || '';
-            const showPaper = document.getElementById('closedShowPaper')?.checked !== false;
+
+            // Derive paper and type intent from active chips
+            const wantAll      = chips.includes('all');
+            const wantLive     = chips.includes('live');
+            const wantPaper    = chips.includes('paper');
+            const wantDaily    = chips.includes('daily');
+            const wantIntraday = chips.includes('intraday');
 
             const closedAll = S.trades.filter(t => {
                 if (t.status !== 'closed') return false;
-                if (!showPaper && t.isPaper) return false;
-                if (type === 'daily')    return !t.isIntraday;
-                if (type === 'intraday') return t.isIntraday;
-                // 'all' — include daily, linked intraday, and scalps
+                // Paper filter: only live → exclude paper; only paper → exclude live; both/all → include all
+                if (!wantAll) {
+                    if (wantLive  && !wantPaper && t.isPaper)  return false;
+                    if (wantPaper && !wantLive  && !t.isPaper) return false;
+                }
+                // Type filter: restrict only when a type chip is active
+                if (wantDaily || wantIntraday) {
+                    if (wantDaily    && !wantIntraday && t.isIntraday)  return false;
+                    if (wantIntraday && !wantDaily    && !t.isIntraday) return false;
+                }
                 return true;
             });
 
@@ -13634,9 +13675,8 @@
         // ════════════════════════════════════════════════════════════════════
 
         function computeProcessAverages() {
-            const combined = S.insightsMode === 'combined';
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined ||
-                !t.isPaper));
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
             if (intra.length === 0) return null;
             const ctx = intra.reduce((s, t) => s + (t.intraScores?.contextScore || 0), 0) / intra.length;
             const setup = intra.reduce((s, t) => s + (t.intraScores?.setupScore || 0), 0) / intra.length;
@@ -13646,9 +13686,8 @@
 
         function computeGradePerformance() {
             // Include daily bias (non-intraday) graded by checklist engine
-            const combined = S.insightsMode === 'combined';
-            const swingClosed = S.trades.filter(t => !t.isIntraday && t.status === 'closed' && t.grade && (combined ||
-                !t.isPaper));
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
+            const swingClosed = S.trades.filter(t => !t.isIntraday && t.status === 'closed' && t.grade && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
             const grades = ['A+', 'A', 'B', 'Invalid'];
             return grades.map(g => {
                 const trades = swingClosed.filter(t => {
@@ -13683,8 +13722,8 @@
         // both numerator and denominator — they have no recorded prediction to
         // evaluate accuracy against.
         function _canonicalModelStats(snapMP) {
-            const combined = S.insightsMode === 'combined';
-            const closed = S.trades.filter(t => t.status === 'closed' && !t.isIntraday && (combined || !t.isPaper));
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
+            const closed = S.trades.filter(t => t.status === 'closed' && !t.isIntraday && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
 
             // Weekly
             const weeklyClosed = S.weeklies.filter(w => w.status === 'closed' && w.weeklyReview);
@@ -13918,9 +13957,8 @@
             const list = document.getElementById('opportunityDistList');
             const totalEl = document.getElementById('odTotalTrades');
             if (!list) return;
-            const combined = S.insightsMode === 'combined';
-            const closed = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined ||
-                !t.isPaper));
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
+            const closed = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
             const total = closed.length;
             if (totalEl) totalEl.textContent = total + ' trade' + (total !== 1 ? 's' : '');
             const grades = ['A+', 'A', 'B', 'Invalid'];
@@ -13958,10 +13996,9 @@
         function renderAdditionalInsights() {
             const grid = document.getElementById('additionalInsightsGrid');
             if (!grid) return;
-            const combined = S.insightsMode === 'combined';
-            const closed = S.trades.filter(t => t.status === 'closed' && !t.isIntraday && (combined || !t.isPaper));
-            const intraClosed = S.trades.filter(t => t.isIntraday && t.status === 'closed' && (combined || !t
-                .isPaper));
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
+            const closed = S.trades.filter(t => t.status === 'closed' && !t.isIntraday && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
+            const intraClosed = S.trades.filter(t => t.isIntraday && t.status === 'closed' && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
             const snapAI = S.insightSnapshot?.additionalInsights || {};
 
             // ── Best session ──
@@ -14370,8 +14407,8 @@
             // Use getDashboardTotals() so stat boxes always show all-time cumulative
             // figures even after archival removes old trades from S.trades.
             const totals = getDashboardTotals();
-            const combinedMode = S.insightsMode === 'combined';
-            const open = S.trades.filter(t => t.status === 'open' && (!t.isIntraday || !t.weeklyLinkId) && (combinedMode || !t.isPaper));
+            const combinedMode = S.insightsMode === 'combined'; const paperOnlyMode = S.insightsMode === 'paper';
+            const open = S.trades.filter(t => t.status === 'open' && (!t.isIntraday || !t.weeklyLinkId) && (combinedMode || (!paperOnlyMode && !t.isPaper) || (paperOnlyMode && t.isPaper)));
 
             const wins    = totals.totalWins;
             const losses  = totals.totalLosses;
@@ -16452,9 +16489,8 @@
 
         // ── Section 1: Opportunity Quality Analysis ──
         function computeOpportunityQualityAnalysis() {
-            const combined = S.insightsMode === 'combined';
-            const closed = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (
-                combined || !t.isPaper));
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
+            const closed = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
             const grades = ['A+', 'A', 'B', 'Invalid'];
             return grades.map(g => {
                 const trades = closed.filter(t => t.intraScores?.grade === g);
@@ -16516,8 +16552,8 @@
 
         // ── Section 2: Alignment Analysis ──
         function computeAlignmentAnalysis() {
-            const combined = S.insightsMode === 'combined';
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && (combined || !t.isPaper));
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
             const groups = ['Strong', 'Moderate', 'Conflict'];
             return groups.map(g => {
                 const trades = intra.filter(t => t.intraAlignment === g);
@@ -16590,9 +16626,8 @@
 
         // ── Section 3: Context Analysis ──
         function computeContextAnalysis() {
-            const combined = S.insightsMode === 'combined';
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined ||
-                !t.isPaper));
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
             const ranges = [
                 { min: 90, max: 100, label: '90–100' },
                 { min: 80, max: 89, label: '80–89' },
@@ -16670,9 +16705,8 @@
 
         // ── Section 4: Setup Analysis ──
         function computeSetupAnalysis() {
-            const combined = S.insightsMode === 'combined';
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined ||
-                !t.isPaper));
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
             const ranges = [
                 { min: 90, max: 100, label: '90–100' },
                 { min: 80, max: 89, label: '80–89' },
@@ -16747,9 +16781,8 @@
 
         // ── Section 5: Execution Analysis ──
         function computeExecutionAnalysis() {
-            const combined = S.insightsMode === 'combined';
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined ||
-                !t.isPaper));
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraScores && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
             const ranges = [
                 { min: 90, max: 100, label: '90–100' },
                 { min: 80, max: 89, label: '80–89' },
@@ -16823,9 +16856,8 @@
 
         // ── Section 6: Setup Component Analysis ──
         function computeSetupComponentAnalysis() {
-            const combined = S.insightsMode === 'combined';
-            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraExData && (combined ||
-                !t.isPaper));
+            const _im = S.insightsMode; const combined = _im === 'combined'; const paperOnly = _im === 'paper';
+            const intra = S.trades.filter(t => t.isIntraday && t.status === 'closed' && t.intraExData && (combined || (!paperOnly && !t.isPaper) || (paperOnly && t.isPaper)));
             const components = [
                 { id: 'lq', label: 'Liquidity Event', present: (t) => t.intraExData?.lq === true },
                 { id: 'disp', label: 'Displacement (Strong)', present: (t) => t.intraExData?.disp === 'Strong' },
