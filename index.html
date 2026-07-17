@@ -441,6 +441,8 @@
         #navitem-discord.active, #navitem-discord:hover { border-left-color: #5865f2; }
         #navitem-discord.active .ni-icon              { filter: drop-shadow(0 0 4px #5865f2aa); }
 
+        #navitem-pnl.active,      #navitem-pnl:hover      { border-left-color: #34d399; }
+        #navitem-pnl.active .ni-icon                  { filter: drop-shadow(0 0 4px #34d399aa); }
         #navitem-settings.active, #navitem-settings:hover { border-left-color: #6ee7b7; }
         #navitem-settings.active .ni-icon             { filter: drop-shadow(0 0 4px #6ee7b7aa); }
         .nav-item .ni-badge {
@@ -4840,6 +4842,40 @@
         .news-load-more:hover { border-color:var(--ink); color:var(--ink); }
         .news-load-more:disabled { opacity:.4; cursor:default; }
 
+        /* ── PnL Tracker embedded page ── */
+        #page-pnl { padding: 0; overflow: hidden; display: none; flex-direction: column; height: calc(100vh - 52px); }
+        #page-pnl.active { display: flex; }
+        .pnl-topbar {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 14px; background: var(--surface);
+            border-bottom: 1.5px solid var(--border); flex-shrink: 0;
+        }
+        .pnl-topbar-title {
+            font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+            letter-spacing: 1.5px; color: var(--ink); text-transform: uppercase; flex: 1;
+        }
+        .pnl-topbar-url {
+            font-family: var(--font-mono); font-size: 8px; color: var(--muted);
+        }
+        .pnl-topbar-btn {
+            font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+            padding: 5px 10px; border-radius: 4px; border: 1.5px solid var(--border);
+            background: var(--cream); color: var(--ink); cursor: pointer;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .pnl-topbar-btn:hover { border-color: var(--ink); }
+        .pnl-iframe {
+            flex: 1; border: none; width: 100%; display: block;
+        }
+        .pnl-fallback {
+            display: none; flex: 1; align-items: center; justify-content: center;
+            flex-direction: column; gap: 12px; font-family: var(--font-mono);
+            font-size: 11px; color: var(--muted); text-align: center;
+        }
+        .pnl-fallback a {
+            color: var(--bull); font-weight: 700; text-decoration: underline; cursor: pointer;
+        }
+
         /* ══ NEWS LAYOUT GRID (v3) ══ */
         /* Override shell width for news page only */
         #page-closed .shell { max-width: 100%; padding-left: 20px; padding-right: 20px; }
@@ -5293,6 +5329,10 @@
             <button class="nav-item" id="navitem-discord" onclick="navTo('discord')">
                 <span class="ni-icon">💬</span>
                 <span class="ni-label">Discord</span>
+            </button>
+            <button class="nav-item" id="navitem-pnl" onclick="navTo('pnl')">
+                <span class="ni-icon">💰</span>
+                <span class="ni-label">PnL</span>
             </button>
             <button class="nav-item" id="navitem-settings" onclick="navTo('settings')">
                 <span class="ni-icon">⚙️</span>
@@ -6167,6 +6207,27 @@
                         </div><!-- /news-left-col -->
 
                     </div><!-- /news-layout-grid -->
+                </div>
+            </div>
+
+            <!-- ══ PNL TRACKER ══ -->
+            <div class="page" id="page-pnl">
+                <div class="pnl-topbar">
+                    <span class="pnl-topbar-title">💰 PnL Tracker</span>
+                    <span class="pnl-topbar-url">profit-tracker-35v.pages.dev</span>
+                    <button class="pnl-topbar-btn" onclick="document.getElementById('pnlFrame').src=document.getElementById('pnlFrame').src">⟳ Reload</button>
+                    <button class="pnl-topbar-btn" onclick="window.open('https://profit-tracker-35v.pages.dev/','_blank')">↗ Open</button>
+                </div>
+                <iframe
+                    id="pnlFrame"
+                    class="pnl-iframe"
+                    src="https://profit-tracker-35v.pages.dev/"
+                    title="PnL Tracker"
+                    onload="document.getElementById('pnlFallback').style.display='none';this.style.display='block';"
+                ></iframe>
+                <div class="pnl-fallback" id="pnlFallback" style="display:none;">
+                    <div>⚠️ PnL Tracker couldn't be embedded.</div>
+                    <a onclick="window.open('https://profit-tracker-35v.pages.dev/','_blank')">Open PnL Tracker in new tab ↗</a>
                 </div>
             </div>
 
@@ -9699,6 +9760,7 @@
             }
             if (page === 'notes') renderNotes();
             if (page === 'news') NR.init();
+            if (page === 'pnl') { /* iframe loads itself */ }
             if (page === 'closed') renderClosed();
         }
 
