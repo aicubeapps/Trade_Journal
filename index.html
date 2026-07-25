@@ -6346,6 +6346,30 @@
                         </div>
                     </div>
 
+                    <!-- EBP TRACKER INTEGRATION -->
+                    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px;">
+                        <div style="padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);">EBP TRACKER INTEGRATION</div>
+                        <div style="padding:14px;">
+                            <div style="font-family:var(--font-mono);font-size:8px;color:var(--muted);margin-bottom:12px;line-height:1.7;">Connect to your EBP Tracker to link signal IDs at trade closure.</div>
+                            <div class="field" style="margin-bottom:10px;">
+                                <label style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;color:var(--muted);">WORKER URL</label>
+                                <input type="text" id="ebpWorkerUrl" placeholder="https://ebp-tracker-worker.aicube-apps.workers.dev" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);font-family:var(--font-mono);font-size:11px;box-sizing:border-box;">
+                            </div>
+                            <div class="field" style="margin-bottom:12px;">
+                                <label style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1px;color:var(--muted);">API SECRET</label>
+                                <div style="display:flex;gap:6px;align-items:center;">
+                                    <input type="password" id="ebpSecret" placeholder="••••••••••••••••••••••••" style="flex:1;padding:8px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);font-family:var(--font-mono);font-size:11px;">
+                                    <button onclick="ebpToggleSecret(this)" style="font-family:var(--font-mono);font-size:9px;padding:7px 10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);border-radius:4px;cursor:pointer;">👁</button>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <button onclick="ebpSaveSettings()" style="font-family:var(--font-mono);font-size:8px;font-weight:700;padding:7px 14px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:4px;cursor:pointer;">SAVE</button>
+                                <button onclick="ebpTestConnection(this)" style="font-family:var(--font-mono);font-size:8px;font-weight:700;padding:7px 14px;border:1.5px solid var(--border);background:transparent;color:var(--ink);border-radius:4px;cursor:pointer;">TEST CONNECTION</button>
+                                <span id="ebpTestResult" style="font-family:var(--font-mono);font-size:9px;color:var(--muted);"></span>
+                            </div>
+                        </div>
+                    </div>
+
                     <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:30px;">
                         <div style="padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);">ABOUT</div>
                         <div style="padding:14px;">
@@ -6430,6 +6454,25 @@
                         </div>
                         <div class="rte-body" id="cmNotes" contenteditable="true" data-placeholder="What happened? Lessons learned…" data-rte="true"></div>
                     </div></div>
+                <!-- SIGNAL-BASED TRADE SECTION -->
+                <div style="border-top:1.5px solid var(--border);margin-top:14px;padding-top:14px;">
+                    <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px;">SIGNAL-BASED TRADE?</div>
+                    <div style="display:flex;gap:16px;margin-bottom:10px;">
+                        <label style="display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;cursor:pointer;">
+                            <input type="radio" name="cmSignalRadio" value="no" checked onchange="cmSignalToggle(this.value)"> No
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;cursor:pointer;">
+                            <input type="radio" name="cmSignalRadio" value="yes" onchange="cmSignalToggle(this.value)"> Yes
+                        </label>
+                    </div>
+                    <div id="cmSignalSection" style="display:none;">
+                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                            <input type="text" id="cmSignalId" placeholder="e.g. T3-EURUSD-A001" style="flex:1;padding:8px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);color:var(--ink);font-family:var(--font-mono);font-size:12px;text-transform:uppercase;">
+                            <button onclick="cmFetchSignal()" style="font-family:var(--font-mono);font-size:8px;font-weight:700;padding:8px 14px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:4px;cursor:pointer;white-space:nowrap;">FETCH →</button>
+                        </div>
+                        <div id="cmSignalResult" style="display:none;background:var(--cream);border:1.5px solid var(--border);border-radius:5px;padding:10px 12px;font-family:var(--font-mono);font-size:9px;line-height:1.9;"></div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn-ghost" onclick="closeModalHide()">CANCEL</button>
@@ -8577,6 +8620,15 @@
                 }));
             }
             if (t.lotSize != null) row.lot_size = t.lotSize;
+            row.signal_id        = t.signalId        || null;
+            row.signal_template  = t.signalTemplate  || null;
+            row.signal_htf       = t.signalHtf       || null;
+            row.signal_ltf       = t.signalLtf       || null;
+            row.signal_direction = t.signalDirection  || null;
+            row.signal_fired_at  = t.signalFiredAt   || null;
+            row.signal_price     = t.signalPrice      != null ? t.signalPrice : null;
+            row.signal_htf_bias  = t.signalHtfBias   || null;
+            row.signal_session   = t.signalSession    || null;
             return row;
         }
 
@@ -8628,6 +8680,15 @@
                 intraScores: r.intra_scores || null,
                 reviewNotes: r.review_notes || [],
                 reviewScreenshots: r.review_screenshots || [],
+                signalId:        r.signal_id        || null,
+                signalTemplate:  r.signal_template  || null,
+                signalHtf:       r.signal_htf       || null,
+                signalLtf:       r.signal_ltf       || null,
+                signalDirection: r.signal_direction  || null,
+                signalFiredAt:   r.signal_fired_at  || null,
+                signalPrice:     r.signal_price      != null ? r.signal_price : null,
+                signalHtfBias:   r.signal_htf_bias  || null,
+                signalSession:   r.signal_session    || null,
             };
         }
 
@@ -12984,7 +13045,100 @@
             if (!matching.length) sel.innerHTML += `<option value="" disabled>No ${isPaper?'paper':'live'} accounts set up yet</option>`;
         }
 
-        function closeModalHide() { document.getElementById('closeModal').classList.remove('open'); }
+        function closeModalHide() {
+            document.getElementById('closeModal').classList.remove('open');
+            const radios = document.querySelectorAll('input[name="cmSignalRadio"]');
+            radios.forEach(r => { r.checked = r.value === 'no'; });
+            document.getElementById('cmSignalSection').style.display = 'none';
+            document.getElementById('cmSignalId').value = '';
+            document.getElementById('cmSignalResult').style.display = 'none';
+            document.getElementById('cmSignalResult').innerHTML = '';
+            S._cmSignalData = null;
+        }
+
+        function cmSignalToggle(val) {
+            document.getElementById('cmSignalSection').style.display = val === 'yes' ? 'block' : 'none';
+            if (val === 'no') {
+                document.getElementById('cmSignalId').value = '';
+                document.getElementById('cmSignalResult').style.display = 'none';
+                document.getElementById('cmSignalResult').innerHTML = '';
+                S._cmSignalData = null;
+            }
+        }
+
+        async function cmFetchSignal() {
+            const workerUrl = localStorage.getItem('ict_ebp_worker_url') || '';
+            const secret    = localStorage.getItem('ict_ebp_secret') || '';
+            const signalId  = (document.getElementById('cmSignalId').value || '').trim().toUpperCase();
+            const resultEl  = document.getElementById('cmSignalResult');
+            if (!workerUrl || !secret) {
+                resultEl.style.display = 'block';
+                resultEl.innerHTML = '<span style="color:var(--bear);">⚠ Configure EBP integration in Settings first</span>';
+                return;
+            }
+            if (!signalId) {
+                resultEl.style.display = 'block';
+                resultEl.innerHTML = '<span style="color:var(--bear);">⚠ Enter a Signal ID</span>';
+                return;
+            }
+            resultEl.style.display = 'block';
+            resultEl.innerHTML = 'Fetching…';
+            try {
+                const res = await fetch(`${workerUrl}/signals/${encodeURIComponent(signalId)}`, {
+                    headers: { 'X-Journal-Secret': secret }
+                });
+                if (res.status === 401) { resultEl.innerHTML = '<span style="color:var(--bear);">✕ Unauthorised — check API secret in Settings</span>'; S._cmSignalData = null; return; }
+                if (res.status === 404) { resultEl.innerHTML = '<span style="color:var(--bear);">✕ Signal not found — check the ID</span>'; S._cmSignalData = null; return; }
+                if (!res.ok) { resultEl.innerHTML = '<span style="color:var(--bear);">✕ Worker error (' + res.status + ')</span>'; S._cmSignalData = null; return; }
+                const sig = await res.json();
+                S._cmSignalData = sig;
+                const firedStr = sig.fired_at ? new Date(sig.fired_at).toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', timeZone:'UTC' }) + ' UTC' : '—';
+                resultEl.innerHTML =
+                    `<span style="color:var(--bull-lt);background:var(--bull);padding:2px 7px;border-radius:3px;font-weight:700;margin-right:6px;">${sig.template_type || '—'}</span>` +
+                    `<b>${sig.symbol || '—'}</b> · ${(sig.direction || '—').toUpperCase()}<br>` +
+                    `HTF: ${sig.htf_tf || '—'} → LTF: ${sig.ltf_tf || '—'} · HTF Bias: ${(sig.htf_bias || '—').toUpperCase()}<br>` +
+                    `Session: ${sig.session || '—'} · Price: ${sig.price_at_signal ?? '—'}<br>` +
+                    `Fired: ${firedStr}`;
+            } catch (e) {
+                resultEl.innerHTML = '<span style="color:var(--bear);">✕ Cannot reach EBP Worker</span>';
+                S._cmSignalData = null;
+            }
+        }
+
+        function ebpToggleSecret(btn) {
+            const inp = document.getElementById('ebpSecret');
+            const show = inp.type === 'password';
+            inp.type = show ? 'text' : 'password';
+            btn.textContent = show ? '🙈' : '👁';
+        }
+
+        function ebpSaveSettings() {
+            const url = (document.getElementById('ebpWorkerUrl').value || '').trim();
+            const sec = (document.getElementById('ebpSecret').value || '').trim();
+            if (url) localStorage.setItem('ict_ebp_worker_url', url);
+            if (sec) localStorage.setItem('ict_ebp_secret', sec);
+            showToast('EBP settings saved ✓');
+        }
+
+        async function ebpTestConnection(btn) {
+            const workerUrl = localStorage.getItem('ict_ebp_worker_url') || (document.getElementById('ebpWorkerUrl').value || '').trim();
+            const secret    = localStorage.getItem('ict_ebp_secret')    || (document.getElementById('ebpSecret').value || '').trim();
+            const resultEl  = document.getElementById('ebpTestResult');
+            if (!workerUrl || !secret) { resultEl.textContent = '⚠ Enter URL and secret first'; resultEl.style.color = 'var(--gold)'; return; }
+            btn.textContent = 'Testing…';
+            btn.disabled = true;
+            try {
+                const res = await fetch(`${workerUrl}/signals/TEST`, { headers: { 'X-Journal-Secret': secret } });
+                if (res.status === 404) { resultEl.textContent = '✓ Connected'; resultEl.style.color = 'var(--bull)'; }
+                else if (res.status === 401) { resultEl.textContent = '✕ Wrong secret'; resultEl.style.color = 'var(--bear)'; }
+                else { resultEl.textContent = '✕ Unexpected response (' + res.status + ')'; resultEl.style.color = 'var(--bear)'; }
+            } catch (e) {
+                resultEl.textContent = '✕ Cannot reach Worker';
+                resultEl.style.color = 'var(--bear)';
+            }
+            btn.textContent = 'TEST CONNECTION';
+            btn.disabled = false;
+        }
 
         function cmSeg(el, field, val, cls) {
             S.cmData[field] = val;
@@ -13081,6 +13235,31 @@
             t.closePrice = closeVal;
             t.slPrice = slVal;
             t.closeNotes = rteGet('cmNotes').trim();
+            const _sigRadio = document.querySelector('input[name="cmSignalRadio"]:checked');
+            if (_sigRadio && _sigRadio.value === 'yes' && S._cmSignalData) {
+                const _sig = S._cmSignalData;
+                t.signalId        = _sig.signal_id        || null;
+                t.signalTemplate  = _sig.template_type    || null;
+                t.signalHtf       = _sig.htf_tf           || null;
+                t.signalLtf       = _sig.ltf_tf           || null;
+                t.signalDirection = _sig.direction         || null;
+                t.signalFiredAt   = _sig.fired_at         || null;
+                t.signalPrice     = _sig.price_at_signal  != null ? _sig.price_at_signal : null;
+                t.signalHtfBias   = _sig.htf_bias         || null;
+                t.signalSession   = _sig.session          || null;
+                (async () => {
+                    try {
+                        const _wu = localStorage.getItem('ict_ebp_worker_url');
+                        const _ws = localStorage.getItem('ict_ebp_secret');
+                        if (_wu && _ws && t.signalId) {
+                            await fetch(`${_wu}/signals/${encodeURIComponent(t.signalId)}/traded`, {
+                                method: 'PATCH',
+                                headers: { 'X-Journal-Secret': _ws }
+                            });
+                        }
+                    } catch (e) { /* non-blocking */ }
+                })();
+            }
             t.closeTime = new Date().toISOString();
             await loadTradeScreenshots(t.id);
             t.eodScreenshots = [...(t.eodScreenshots || []), ...S.cmSS];
@@ -15499,6 +15678,12 @@
             }
             refreshSsCacheInfo();
             populateArchiveInfo();
+            const ebpUrl = localStorage.getItem('ict_ebp_worker_url');
+            const ebpSec = localStorage.getItem('ict_ebp_secret');
+            const ebpUrlEl = document.getElementById('ebpWorkerUrl');
+            const ebpSecEl = document.getElementById('ebpSecret');
+            if (ebpUrlEl && ebpUrl) ebpUrlEl.value = ebpUrl;
+            if (ebpSecEl && ebpSec) ebpSecEl.value = ebpSec;
         }
 
         async function settingsForceSync(btn) {
