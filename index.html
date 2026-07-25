@@ -6214,20 +6214,20 @@
             <div class="page" id="page-pnl">
                 <div class="pnl-topbar">
                     <span class="pnl-topbar-title">💰 PnL Tracker</span>
-                    <span class="pnl-topbar-url">profit-tracker-35v.pages.dev</span>
+                    <span class="pnl-topbar-url" id="pnlTopbarUrl"></span>
                     <button class="pnl-topbar-btn" onclick="document.getElementById('pnlFrame').src=document.getElementById('pnlFrame').src">⟳ Reload</button>
-                    <button class="pnl-topbar-btn" onclick="window.open('https://profit-tracker-35v.pages.dev/','_blank')">↗ Open</button>
+                    <button class="pnl-topbar-btn" id="pnlOpenBtn">↗ Open</button>
                 </div>
                 <iframe
                     id="pnlFrame"
                     class="pnl-iframe"
-                    src="https://profit-tracker-35v.pages.dev/"
+                    src=""
                     title="PnL Tracker"
                     onload="document.getElementById('pnlFallback').style.display='none';this.style.display='block';"
                 ></iframe>
                 <div class="pnl-fallback" id="pnlFallback" style="display:none;">
                     <div>⚠️ PnL Tracker couldn't be embedded.</div>
-                    <a onclick="window.open('https://profit-tracker-35v.pages.dev/','_blank')">Open PnL Tracker in new tab ↗</a>
+                    <a id="pnlFallbackLink">Open PnL Tracker in new tab ↗</a>
                 </div>
             </div>
 
@@ -7167,12 +7167,34 @@
         function idEq(a, b) { return a != null && b != null && String(a) === String(b); }
 
         // ════════════════════════════════════════════════════════════════════
+        // BUYER CONFIGURATION
+        // All hardcoded deployment values live here.
+        // The configurator page replaces %%TOKENS%% for buyer downloads.
+        // ════════════════════════════════════════════════════════════════════
+        const CONFIG = {
+            SUPA_URL:      'https://klgibccfziktzvlomwve.supabase.co',
+            SUPA_KEY:      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsZ2liY2NmemlrdHp2bG9td3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNDY2MTYsImV4cCI6MjA5NTgyMjYxNn0.BdmDWJWJGjytVSTTQYEAeLiYtJCFX4GaGeHpDEvbHEM',
+            CF_WORKER:     'https://pnl-worker.aicube-apps.workers.dev',
+            PNL_URL:       'https://profit-tracker-35v.pages.dev',
+            DEFAULT_PAIRS: ['EURUSD', 'GBPUSD', 'USDCHF', 'XAUUSD'],
+        };
+        // ════════════════════════════════════════════════════════════════════
+
+        function _renderNeedsConfig(containerId) {
+            const el = document.getElementById(containerId);
+            if (!el) return;
+            el.innerHTML =
+                '<div style="padding:32px;text-align:center;font-family:var(--font-mono);' +
+                'font-size:11px;color:var(--muted);line-height:2;">' +
+                '⚙️ Needs additional configuration<br>' +
+                '<span style="font-size:9px;">Set up your CF Worker in Settings to enable this feature.</span>' +
+                '</div>';
+        }
+
+        // ════════════════════════════════════════════════════════════════════
         // SUPABASE CLIENT
         // ════════════════════════════════════════════════════════════════════
-        const SUPA_URL = 'https://klgibccfziktzvlomwve.supabase.co';
-        const SUPA_KEY =
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsZ2liY2NmemlrdHp2bG9td3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNDY2MTYsImV4cCI6MjA5NTgyMjYxNn0.BdmDWJWJGjytVSTTQYEAeLiYtJCFX4GaGeHpDEvbHEM';
-        const _sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+        const _sb = supabase.createClient(CONFIG.SUPA_URL, CONFIG.SUPA_KEY);
         let _currentUser = null;
         let _pendingUploadTradeId = null; // tracks active upload context trade ID
 
@@ -9747,6 +9769,7 @@
 
             if (page === 'home') renderDashboard();
             if (page === 'settings') populateSettingsPage();
+            if (page === 'pnl') initPnlPage();
             if (page === 'insights') renderDeeperInsights();
             if (page === 'idea') {
                 renderBiasCards();
@@ -14374,7 +14397,7 @@
         // ── JOURNALING HEATMAP ──
         // Tracks how many of the 4 traded pairs got a daily idea logged each day
         // (Mon-Fri), plus weekly bias completion folded into Monday's cell.
-        const JHEAT_PAIRS = ['EURUSD', 'GBPUSD', 'USDCHF', 'XAUUSD'];
+        const JHEAT_PAIRS = CONFIG.DEFAULT_PAIRS;
         function jheatNormalizePair(raw) {
             if (!raw) return null;
             const v = raw.toUpperCase().replace(/[^A-Z]/g, '');
@@ -15684,6 +15707,28 @@
             const ebpSecEl = document.getElementById('ebpSecret');
             if (ebpUrlEl && ebpUrl) ebpUrlEl.value = ebpUrl;
             if (ebpSecEl && ebpSec) ebpSecEl.value = ebpSec;
+        }
+
+        function initPnlPage() {
+            const url = CONFIG.PNL_URL ? CONFIG.PNL_URL.replace(/\/$/, '') : '';
+            const frame   = document.getElementById('pnlFrame');
+            const urlSpan = document.getElementById('pnlTopbarUrl');
+            const openBtn = document.getElementById('pnlOpenBtn');
+            const fallbackLink = document.getElementById('pnlFallbackLink');
+            const fallback = document.getElementById('pnlFallback');
+            if (!url) {
+                if (frame)   { frame.style.display = 'none'; }
+                if (fallback){ fallback.style.display = 'block'; }
+                if (urlSpan) urlSpan.textContent = 'Not configured';
+                if (fallbackLink) fallbackLink.onclick = null;
+                if (openBtn) openBtn.onclick = null;
+                return;
+            }
+            const fullUrl = url.endsWith('/') ? url : url + '/';
+            if (frame)        { frame.src = fullUrl; frame.style.display = 'block'; }
+            if (urlSpan)      urlSpan.textContent = url.replace('https://', '');
+            if (openBtn)      openBtn.onclick = () => window.open(fullUrl, '_blank');
+            if (fallbackLink) fallbackLink.onclick = () => window.open(fullUrl, '_blank');
         }
 
         async function settingsForceSync(btn) {
@@ -18978,7 +19023,9 @@
         const EC = (() => {
             const CACHE_KEY  = 'ec_ff_cache_v1';
             const PREFS_KEY  = 'ec_ff_prefs_v1';
-            const FF_URL     = 'https://pnl-worker.aicube-apps.workers.dev/ff-calendar';
+            const FF_URL     = CONFIG.CF_WORKER
+                                 ? CONFIG.CF_WORKER + '/ff-calendar'
+                                 : null;
             const NY_TZ      = 'America/New_York';
             const LOCAL_TZ   = Intl.DateTimeFormat().resolvedOptions().timeZone;
             const SHOW_LOCAL = LOCAL_TZ !== NY_TZ;
@@ -19165,6 +19212,10 @@
                 }
 
                 _setStatus('Fetching latest data from Forex Factory…');
+                if (!FF_URL) {
+                    _renderNeedsConfig('ecCalBody');
+                    return;
+                }
                 try {
                     const r = await fetch(FF_URL, { cache: 'no-store' });
                     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -19214,15 +19265,12 @@
         // Dedicated Discord page: channel sidebar + scrollable chronological chat panel.
         // Channels configurable in Settings. Token stored as Worker secret — never in app.
         const DC = (() => {
-            const CF_WORKER   = 'https://pnl-worker.aicube-apps.workers.dev';
+            const CF_WORKER   = CONFIG.CF_WORKER || null;
             const STORAGE_KEY = 'dc_channels_v1';
             const PREFS_KEY   = 'dc_prefs_v1';
             const PAGE_SIZE   = 25;
 
-            const DEFAULT_CHANNELS = [
-                { id: '1386659520000036956', label: 'trading-signals' },
-                { id: '854287081453912064',  label: 'market-analysis' },
-            ];
+            const DEFAULT_CHANNELS = [];
 
             let _channels   = [];
             let _state      = [];   // per-channel: { messages, before, fetching, hasMore, status }
@@ -19337,6 +19385,10 @@
                 const st = _state[idx];
                 const ch = _channels[idx];
                 if (!ch || st.fetching) return;
+                if (!CF_WORKER) {
+                    _renderNeedsConfig('dcMessagesPanel');
+                    return;
+                }
                 st.fetching = true;
                 _renderSidebar();
 
