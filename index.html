@@ -7418,6 +7418,18 @@
             } catch (e) { console.warn('sync_meta update failed', e); }
         }
 
+        async function saveDiscordChannels(channels) {
+            if (!_currentUser) return;
+            try {
+                await _sb.from('sync_meta').upsert(
+                    { user_id: _currentUser.id, discord_channels: channels },
+                    { onConflict: 'user_id' }
+                );
+            } catch (e) {
+                console.warn('saveDiscordChannels failed:', e);
+            }
+        }
+
         // ── IndexedDB screenshot cache ──
         const _ssDB = (function() {
             const DB_NAME = 'ict_ss_cache';
@@ -9001,12 +9013,15 @@
             setSyncStatus('syncing');
             loadPnlAccounts(); // fire-and-forget — non-blocking, non-fatal if tracker unreachable
             try {
-                const { data: meta, error: metaErr } = await _sb.from('sync_meta').select('last_modified,last_device').eq('user_id',
+                const { data: meta, error: metaErr } = await _sb.from('sync_meta').select('last_modified,last_device,discord_channels').eq('user_id',
                     _currentUser.id).maybeSingle();
                 if (metaErr) throw metaErr;
                 const serverLastMod = meta ? meta.last_modified : null;
                 if (serverLastMod) S.serverLastMod = serverLastMod;
                 if (meta?.last_device) S.serverLastDevice = meta.last_device;
+                if (meta?.discord_channels && Array.isArray(meta.discord_channels) && meta.discord_channels.length) {
+                    DC.setChannels(meta.discord_channels);
+                }
                 const cachedLastMod = getCachedLastMod();
                 if (!force && serverLastMod && serverLastMod === cachedLastMod && loadLocalCache()) {
                     setSyncStatus('synced');
@@ -19903,6 +19918,14 @@ NEXT_WEEK: [one concrete focus tied to this week's observations]`;
                 try { const r = localStorage.getItem(STORAGE_KEY); if (r) { const p = JSON.parse(r); if (Array.isArray(p) && p.length) return p; } } catch(e) {}
                 return DEFAULT_CHANNELS;
             }
+            function setChannels(channels) {
+                _channels  = channels;
+                _state     = _channels.map(() => ({ messages:[], before:null, fetching:false, hasMore:false, status:null }));
+                _activeIdx = 0;
+                _renderSidebar();
+                _renderMessages(0);
+                if (S.currentPage === 'discord') _fetchChannel(0);
+            }
             function _saveChannels(c) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)); } catch(e) {} }
             function _loadActiveIdx() { try { return parseInt(localStorage.getItem(PREFS_KEY + '_idx') || '0', 10) || 0; } catch(e) { return 0; } }
             function _saveActiveIdx(i) { try { localStorage.setItem(PREFS_KEY + '_idx', String(i)); } catch(e) {} }
@@ -20127,6 +20150,7 @@ NEXT_WEEK: [one concrete focus tied to this week's observations]`;
                 }
                 if (!saved.length) { showToast('Add at least one valid channel ID', 'warn'); return; }
                 _saveChannels(saved);
+                saveDiscordChannels(saved); // persist to Supabase — fire and forget
                 _channels  = saved;
                 _state     = _channels.map(() => ({ messages:[], before:null, fetching:false, hasMore:false, status:null }));
                 _activeIdx = 0;
@@ -20140,6 +20164,7 @@ NEXT_WEEK: [one concrete focus tied to this week's observations]`;
                      loadMore: (i) => _fetchChannel(i, _state[i]?.before),
                      refresh:  (i) => { if (_state[i]) { _state[i].messages=[]; _state[i].before=null; } _fetchChannel(i); },
                      addChannelRow, removeChannelRow, saveChannels,
+                     setChannels,
                      renderChannelRows: _renderChannelRows };
         })();
 
