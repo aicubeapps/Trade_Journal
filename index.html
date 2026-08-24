@@ -7044,6 +7044,7 @@
             </div>
             <div style="overflow-y:auto;flex:1;padding:14px 16px;background:var(--paper);">
                 <div id="wrSection1"></div>
+                <div id="wrChecklistSnapshot" style="margin-bottom:14px;"></div>
                 <hr class="review-divider">
                 <div class="review-section-title gold">2. ACTUAL MARKET OUTCOME</div>
                 <div class="field-row" style="margin-bottom:4px;">
@@ -10149,6 +10150,24 @@
             el.focus();
         }
 
+        // Reflects live cursor formatting state onto the rich-text toolbar buttons
+        // (.rte-btn.active was defined in CSS but never applied by any JS before this).
+        document.addEventListener('selectionchange', function () {
+            const active = document.activeElement;
+            if (!active || active.dataset.rte !== 'true') return;
+            const wrap = active.closest('.rte-wrap');
+            if (!wrap) return;
+            const cmds = ['bold', 'italic', 'underline', 'insertUnorderedList', 'insertOrderedList'];
+            cmds.forEach(cmd => {
+                let state = false;
+                try { state = document.queryCommandState(cmd); } catch (e) {}
+                wrap.querySelectorAll('.rte-btn').forEach(btn => {
+                    const attr = btn.getAttribute('onmousedown') || '';
+                    if (attr.includes(`'${cmd}'`)) btn.classList.toggle('active', state);
+                });
+            });
+        });
+
         function rteClear(id) {
             const el = document.getElementById(id);
             if (!el) return;
@@ -10764,6 +10783,40 @@
             `;
                 S.wrData.performanceStats = stats;
             }, 50);
+
+            // Render read-only checklist snapshot — the checklist itself only lives on the
+            // edit modal (weeklyModal); closed weeklies only ever open this review modal,
+            // so without this block the recorded OMAR checklist answers were never visible
+            // once a weekly bias was closed.
+            const wrChecklistEl = document.getElementById('wrChecklistSnapshot');
+            if (wrChecklistEl) {
+                if (w.wbChecklistAnswers && Object.keys(w.wbChecklistAnswers).length > 0) {
+                    const ans = w.wbChecklistAnswers;
+                    const readOnlyCards = BIAS_CARDS_WEEKLY.map(card => {
+                        return `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;margin-bottom:8px;overflow:hidden;">
+                          <div style="padding:8px 10px;background:var(--cream);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+                            <span style="font-family:var(--font-mono);font-size:9px;font-weight:700;background:var(--muted);color:#fff;padding:1px 6px;border-radius:3px;">${card.num}</span>
+                            <span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--ink);">${card.title}</span>
+                            <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);margin-left:auto">${card.tf}</span>
+                          </div>
+                          <div style="padding:8px 10px;">
+                            ${card.questions.map(q => {
+                                const cur = ans[q.id] ? ans[q.id].val : '—';
+                                const opt = q.options.find(o => o.val === cur);
+                                const label = opt ? opt.label : (cur || '—');
+                                return `<div style="margin-bottom:4px;display:flex;gap:8px;align-items:baseline;">
+                                  <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);min-width:120px;">${q.label}</span>
+                                  <span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:${cur&&cur!=='—'?'#283593':'var(--muted)'};">${label}</span>
+                                </div>`;
+                            }).join('')}
+                          </div>
+                        </div>`;
+                    }).join('');
+                    wrChecklistEl.innerHTML = `<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:#283593;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #9fa8da;">WEEKLY BIAS CHECKLIST — READ ONLY</div>${readOnlyCards}`;
+                } else {
+                    wrChecklistEl.innerHTML = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);padding:10px 0;">No checklist answers recorded for this week.</div>`;
+                }
+            }
 
             document.getElementById('weeklyReviewModal').classList.add('open');
         }
@@ -12405,6 +12458,8 @@
             S.tradeType = t.tradeType || 'BUY';
             S.ideaModel = t.checklistModel || 'omar';
             S.wbEntryId = t.wbEntryId || null;
+            S.ideaTags = [...(t.tags || [])];
+            rteSet('ideaNotes', t.ideaNotes || '');
             S.checklistMode = 'edit';
             navTo('idea');
         }
@@ -12416,6 +12471,7 @@
             t.checklistKills = { ...S.kills };
             const wbSel = document.getElementById('wbEntryDropdown');
             if (wbSel) t.wbEntryId = wbSel.value || null;
+            t.ideaNotes = rteGet('ideaNotes').trim();
             saveTrade(t);
             S.checklistMode = null;
             S.checklistEditId = null;
