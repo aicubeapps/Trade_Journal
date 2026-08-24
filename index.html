@@ -7045,6 +7045,7 @@
             <div style="overflow-y:auto;flex:1;padding:14px 16px;background:var(--paper);">
                 <div id="wrSection1"></div>
                 <div id="wrChecklistSnapshot" style="margin-bottom:14px;"></div>
+                <div id="wrNotesTimeline" style="margin-top:14px;"></div>
                 <hr class="review-divider">
                 <div class="review-section-title gold">2. ACTUAL MARKET OUTCOME</div>
                 <div class="field-row" style="margin-bottom:4px;">
@@ -10815,6 +10816,33 @@
                     wrChecklistEl.innerHTML = `<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:#283593;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #9fa8da;">WEEKLY BIAS CHECKLIST — READ ONLY</div>${readOnlyCards}`;
                 } else {
                     wrChecklistEl.innerHTML = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);padding:10px 0;">No checklist answers recorded for this week.</div>`;
+                }
+            }
+
+            // --- BUG-03 FIX: Render mid-week notes timeline ---
+            const wrNotesEl = document.getElementById('wrNotesTimeline');
+            if (wrNotesEl) {
+                const updates = w.updates || [];
+                if (updates.length > 0) {
+                    const noteRows = [...updates].sort((a, b) => new Date(a.at) - new Date(b.at)).map(u => {
+                        const ssHtml = (u.screenshots || []).length > 0
+                            ? `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;">
+                                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">📷 ${u.screenshots.length} screenshot${u.screenshots.length > 1 ? 's' : ''} (open weekly bias card to view)</span>
+                              </div>`
+                            : '';
+                        return `<div style="margin-bottom:8px;padding:8px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da;">
+                          <div style="font-family:var(--font-mono);font-size:8px;color:var(--muted);letter-spacing:0.5px;margin-bottom:4px;">${formatTsWithNY(u.at)}</div>
+                          <div style="font-size:12px;line-height:1.5;color:var(--ink);">${rteDisplay(u.text) || ''}</div>
+                          ${ssHtml}
+                        </div>`;
+                    }).join('');
+                    wrNotesEl.innerHTML = `
+                      <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:1.5px;color:#283593;margin-bottom:10px;padding-bottom:6px;border-bottom:1.5px solid #9fa8da;">
+                        📝 MID-WEEK NOTES TIMELINE
+                      </div>
+                      ${noteRows}`;
+                } else {
+                    wrNotesEl.innerHTML = '';
                 }
             }
 
