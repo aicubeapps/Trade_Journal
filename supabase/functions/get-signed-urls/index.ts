@@ -20,9 +20,14 @@ function collectPaths(screenshots: unknown[]): Array<{ path: string; name: strin
     if (s && typeof s === 'object') {
       const item = s as Record<string, unknown>
       const dataUrl = item.dataUrl as string | undefined
-      if (dataUrl && typeof dataUrl === 'string' && !dataUrl.startsWith('data:')) {
-        result.push({
-          path: dataUrl,
+    if (dataUrl && typeof dataUrl === 'string' && !dataUrl.startsWith('data:')) {
+      const bucketId = '40d449c2-86e0-4bbf-88e6-0a7341bd6fc7/'
+      const path = dataUrl.startsWith(bucketId)
+        ? dataUrl.slice(bucketId.length)
+        : dataUrl
+
+  result.push({
+    path,
           name: (item.name as string) ?? '',
           label: (item.label as string) ?? '',
         })
