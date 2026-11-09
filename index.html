@@ -13071,7 +13071,9 @@
         }
 
         // Lazy load trade note screenshots
-        async function toggleNoteScreenshots(btn, noteObj) {
+        async function toggleNoteScreenshots(btn, tradeId, noteIdx) {
+            const _t = S.trades.find(t => idEq(t.id, tradeId));
+            const noteObj = (_t && _t.tradeNotes && _t.tradeNotes[noteIdx]) || {};
             const container = btn.nextElementSibling;
             if (!container) return;
             if (container.innerHTML.trim()) return;
@@ -13193,12 +13195,12 @@
               <div class="otc-body">
                 ${t.ideaNotes?`<div class="rte-body" style="min-height:auto;font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
                 ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:var(--font-mono);font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(t.updateNotes)}</div>`:''}
-                ${(t.tradeNotes&&t.tradeNotes.length>0)?`<div id="trade-notes-${t.id}" style="margin-bottom:10px;border-top:1px solid var(--cream);padding-top:8px"><div class="mono-label-blue">NOTES TIMELINE</div>${[...t.tradeNotes].reverse().map(n=>`<div style="margin-bottom:6px;padding:7px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da"><div class="mono-ts">${formatTsWithNY(n.at)}</div><div style="font-size:12px;line-height:1.6">${rteDisplay(n.text)||''}</div>${(n.screenshots&&n.screenshots.length>0)?`<span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);cursor:pointer;text-decoration:underline" onclick="toggleNoteScreenshots(this,n)">📷 ${n.screenshots.length} screenshot${n.screenshots.length>1?'s':''} — tap to load</span><div class="note-ss-lazy"></div>`:''}</div>`).join('')}</div>`:''}
+                ${(t.tradeNotes&&t.tradeNotes.length>0)?`<div id="trade-notes-${t.id}" style="margin-bottom:10px;border-top:1px solid var(--cream);padding-top:8px"><div class="mono-label-blue">NOTES TIMELINE</div>${[...t.tradeNotes].reverse().map((n,i)=>`<div style="margin-bottom:6px;padding:7px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da"><div class="mono-ts">${formatTsWithNY(n.at)}</div><div style="font-size:12px;line-height:1.6">${rteDisplay(n.text)||''}</div>${(n.screenshots&&n.screenshots.length>0)?`<span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);cursor:pointer;text-decoration:underline" onclick="toggleNoteScreenshots(this,'${t.id}',${t.tradeNotes.length-1-i})">📷 ${n.screenshots.length} screenshot${n.screenshots.length>1?'s':''} — tap to load</span><div class="note-ss-lazy"></div>`:''}</div>`).join('')}</div>`:''}
                 <div class="otc-prices" style="grid-template-columns:repeat(2,1fr)">
-                  <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${t.entryPrice||''}" onchange="patchOpen(${t.id},'entryPrice',this.value)"></div>
-                  <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
-                  <div class="otc-field"><label>TP Target</label><input type="number" step="any" placeholder="0.00000" value="${t.tpPrice||''}" onchange="patchOpen(${t.id},'tpPrice',this.value)"></div>
-                  <div class="otc-field"><label>Current / Close</label><input type="number" step="any" placeholder="0.00000" value="${t.closePrice||''}" onchange="patchOpen(${t.id},'closePrice',this.value)"></div>
+                  <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${t.entryPrice||''}" onchange="patchOpen('${t.id}','entryPrice',this.value)"></div>
+                  <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen('${t.id}','slPrice',this.value)"></div>
+                  <div class="otc-field"><label>TP Target</label><input type="number" step="any" placeholder="0.00000" value="${t.tpPrice||''}" onchange="patchOpen('${t.id}','tpPrice',this.value)"></div>
+                  <div class="otc-field"><label>Current / Close</label><input type="number" step="any" placeholder="0.00000" value="${t.closePrice||''}" onchange="patchOpen('${t.id}','closePrice',this.value)"></div>
                 </div>
                 ${linkedIntra.length>0?`<div style="margin-bottom:10px;">
                   <div style="font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:1.5px;color:#283593;text-transform:uppercase;margin-bottom:6px;">⚡ LINKED INTRADAY EXECUTION (${linkedIntra.length})</div>
@@ -13225,10 +13227,10 @@
                         ${it.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:8px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:var(--font-mono);font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(it.updateNotes)}</div>`:''}
                         ${(it.tradeNotes&&it.tradeNotes.length>0)?`<div style="margin-bottom:8px;border-top:1px solid #c5cae9;padding-top:6px"><div class="mono-label-blue">NOTES TIMELINE</div>${[...it.tradeNotes].reverse().map(n=>`<div style="margin-bottom:5px;padding:6px 8px;background:#f0f2ff;border-radius:4px;border-left:3px solid #9fa8da"><div class="mono-ts">${formatTsWithNY(n.at)}</div><div style="font-size:12px;line-height:1.5">${rteDisplay(n.text)||''}</div></div>`).join('')}</div>`:''}
                         <div class="intra-sub-prices">
-                          <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${it.entryPrice||''}" onchange="patchOpen(${it.id},'entryPrice',this.value)"></div>
-                          <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${it.slPrice||''}" onchange="patchOpen(${it.id},'slPrice',this.value)"></div>
-                          <div class="otc-field"><label>TP Target</label><input type="number" step="any" placeholder="0.00000" value="${it.tpPrice||''}" onchange="patchOpen(${it.id},'tpPrice',this.value)"></div>
-                          <div class="otc-field"><label>Lot Size</label><input type="number" step="any" placeholder="0.00" value="${it.lotSize||''}" onchange="patchOpen(${it.id},'lotSize',this.value)"></div>
+                          <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${it.entryPrice||''}" onchange="patchOpen('${it.id}','entryPrice',this.value)"></div>
+                          <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${it.slPrice||''}" onchange="patchOpen('${it.id}','slPrice',this.value)"></div>
+                          <div class="otc-field"><label>TP Target</label><input type="number" step="any" placeholder="0.00000" value="${it.tpPrice||''}" onchange="patchOpen('${it.id}','tpPrice',this.value)"></div>
+                          <div class="otc-field"><label>Lot Size</label><input type="number" step="any" placeholder="0.00" value="${it.lotSize||''}" onchange="patchOpen('${it.id}','lotSize',this.value)"></div>
                         </div>
                         ${ssLazySection(it.id)}
                         <div class="intra-sub-actions">
