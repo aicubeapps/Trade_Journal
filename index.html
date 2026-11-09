@@ -16063,7 +16063,7 @@
             let lastErr;
             for (let attempt = 0; attempt < 3; attempt++) {
                 const resp = await fetch(
-                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${key}`,
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${key}`,
                     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
                 );
                 if (resp.status === 429) {
@@ -16352,7 +16352,7 @@ NEXT_WEEK: [one concrete focus tied to this week's observations]`;
                 t.aiReview = {
                     ..._parseDailyAiResponse(raw),
                     generatedAt: new Date().toISOString(),
-                    model: 'gemini-2.0-flash-lite',
+                    model: 'gemini-3.5-flash',
                     error: null,
                 };
             } catch(e) {
@@ -16394,7 +16394,7 @@ NEXT_WEEK: [one concrete focus tied to this week's observations]`;
                     ..._parseWeeklyAiResponse(raw),
                     dailyCount: dailySummaries.length,
                     generatedAt: new Date().toISOString(),
-                    model: 'gemini-2.0-flash-lite',
+                    model: 'gemini-3.5-flash',
                     error: null,
                 };
             } catch(e) {
