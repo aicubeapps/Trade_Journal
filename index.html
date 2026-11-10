@@ -6581,8 +6581,12 @@
                     <div class="field"><label>Close Price</label><input type="number" step="any" id="cmClose" placeholder="0.00000" oninput="updateCmAutoResult()"></div>
                     <div class="field"><label>Stop Loss</label><input type="number" step="any" id="cmSL" placeholder="0.00000" oninput="updateCmAutoResult()"></div>
                 </div>
-                <div class="field"><label>Bias Played Out <span style="font-size:7px;color:var(--muted);font-weight:400;">(auto, from trade direction)</span></label>
-                    <div id="cmBiasPlayedAuto" style="font-family:var(--font-mono);font-size:13px;font-weight:700;padding:6px 8px;background:var(--cream);border-radius:4px;">—</div>
+                <div class="field"><label>Bias Played Out</label>
+                    <div class="seg-btns" id="cmBiasBtns">
+                        <button class="seg-btn" onclick="cmSeg(this,'biasPlayed','BULLISH','sel-bull')">▲ BULL</button>
+                        <button class="seg-btn" onclick="cmSeg(this,'biasPlayed','BEARISH','sel-bear')">▼ BEAR</button>
+                        <button class="seg-btn" onclick="cmSeg(this,'biasPlayed','NEUTRAL','sel-skip')">— NEUT</button>
+                    </div>
                 </div>
                 <div class="field-row">
                     <div class="field"><label>TP 1R Hit</label>
@@ -13307,17 +13311,10 @@
             S.cmTradeType = srcTrade.tradeType || t.tradeType || 'BUY';
             rteSet('cmNotes', '');
             document.getElementById('cmSsGrid').innerHTML = '';
-            ['cmResultBtns'].forEach(id =>
+            ['cmResultBtns', 'cmBiasBtns'].forEach(id =>
                 document.getElementById(id).querySelectorAll('.seg-btn').forEach(b => b.className = b.className.replace(
                     /sel-\w+/g, '').trim())
             );
-            const autoPlayed = S.cmTradeType === 'SELL' ? 'BEARISH' : 'BULLISH';
-            const autoPlayedEl = document.getElementById('cmBiasPlayedAuto');
-            if (autoPlayedEl) {
-                autoPlayedEl.textContent = (autoPlayed === 'BULLISH' ? '▲ ' : '▼ ') + autoPlayed;
-                autoPlayedEl.style.color = autoPlayed === 'BULLISH' ? 'var(--bull)' : 'var(--bear)';
-            }
-            S.cmData.biasPlayed = autoPlayed;
             populateCmAccountSelect(t);
             document.getElementById('closeModal').classList.add('open');
             setTimeout(() => updateCmAutoResult(), 50);
@@ -13487,6 +13484,7 @@
         }
 
         async function saveClosure() {
+            if (!S.cmData.biasPlayed) { alert('Select bias that played out.'); return; }
             if (S.cmSS.some(ss => ss._uploading)) { showToast('Screenshot still uploading — please wait', 'warn'); return; }
             const t = S.trades.find(t => idEq(t.id, S.cmEditId));
             if (!t) return;
@@ -13495,9 +13493,6 @@
             const slVal = parseFloat(document.getElementById('cmSL').value) || t.slPrice;
             // Use S.cmTradeType — set in openCloseModal to account for linked intraday direction
             const effectiveTradeType = S.cmTradeType || t.tradeType || 'BUY';
-            // Bias Played Out is auto-derived from the trade's own executed direction —
-            // a BUY is inherently a bullish position taken, a SELL inherently bearish.
-            S.cmData.biasPlayed = effectiveTradeType === 'SELL' ? 'BEARISH' : 'BULLISH';
             let result = S.cmData.result;
             if (result !== 'SKIP' && entryVal && closeVal && slVal) {
                 const isSell = (effectiveTradeType === 'SELL');
