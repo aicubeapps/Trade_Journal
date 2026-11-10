@@ -6588,6 +6588,13 @@
                         <button class="seg-btn" onclick="cmSeg(this,'biasPlayed','NEUTRAL','sel-skip')">— NEUT</button>
                     </div>
                 </div>
+                <div class="field" id="cmFlipField"><label>Did the market flip your bias? <span style="font-size:7px;color:var(--muted);font-weight:400;">(scores intraday execution)</span></label>
+                    <div class="seg-btns" id="cmFlipBtns">
+                        <button class="seg-btn" onclick="cmSeg(this,'biasFlip','NONE','sel-skip')">NO FLIP</button>
+                        <button class="seg-btn" onclick="cmSeg(this,'biasFlip','FLIP_ADAPTED','sel-bull')">FLIPPED · RE-ALIGNED</button>
+                        <button class="seg-btn" onclick="cmSeg(this,'biasFlip','FLIP_HELD','sel-bear')">FLIPPED · HELD ORIGINAL</button>
+                    </div>
+                </div>
                 <div class="field-row">
                     <div class="field"><label>TP 1R Hit</label>
                         <div style="font-family:var(--font-mono);font-size:13px;font-weight:700" id="cmTp1rAuto">— auto</div>
@@ -6715,6 +6722,20 @@
                             <button class="seg-btn" onclick="ecSeg(this,'result','SKIP','sel-skip')">SKIP TRADE</button>
                             <button class="seg-btn" onclick="ecClearSkip(this)">CLEAR</button>
                         </div>
+                    </div>
+                </div>
+                <div class="field" id="ecBiasField"><label>Bias Played Out</label>
+                    <div class="seg-btns" id="ecBiasBtns">
+                        <button class="seg-btn" onclick="ecSeg(this,'biasPlayed','BULLISH','sel-bull')">▲ BULL</button>
+                        <button class="seg-btn" onclick="ecSeg(this,'biasPlayed','BEARISH','sel-bear')">▼ BEAR</button>
+                        <button class="seg-btn" onclick="ecSeg(this,'biasPlayed','NEUTRAL','sel-skip')">— NEUT</button>
+                    </div>
+                </div>
+                <div class="field" id="ecFlipField" style="display:none;"><label>Did the market flip your bias? <span style="font-size:7px;color:var(--muted);font-weight:400;">(scores intraday execution)</span></label>
+                    <div class="seg-btns" id="ecFlipBtns">
+                        <button class="seg-btn" onclick="ecSeg(this,'biasFlip','NONE','sel-skip')">NO FLIP</button>
+                        <button class="seg-btn" onclick="ecSeg(this,'biasFlip','FLIP_ADAPTED','sel-bull')">FLIPPED · RE-ALIGNED</button>
+                        <button class="seg-btn" onclick="ecSeg(this,'biasFlip','FLIP_HELD','sel-bear')">FLIPPED · HELD ORIGINAL</button>
                     </div>
                 </div>
                 <div class="field" id="ecAccountField" style="display:none;">
@@ -9283,7 +9304,7 @@
             snap.execution = buildAggArray(
                 ranges.map(r => ({
                     meta: { range: r.label },
-                    trades: intraScored.filter(t => { const s = t.intraScores?.executionScore||0; return s>=r.min&&s<=r.max; })
+                    trades: intraScored.filter(t => { const s = (t.intraScores?.execScore ?? t.intraScores?.executionScore) || 0; return s>=r.min&&s<=r.max; })
                 }))
             );
 
@@ -9370,7 +9391,7 @@
                 intra: {
                     contextSum: intraScored.reduce((a,t)=>a+(t.intraScores?.contextScore||0),0),
                     setupSum: intraScored.reduce((a,t)=>a+(t.intraScores?.setupScore||0),0),
-                    execSum: intraScored.reduce((a,t)=>a+(t.intraScores?.executionScore||0),0),
+                    execSum: intraScored.reduce((a,t)=>a+((t.intraScores?.execScore ?? t.intraScores?.executionScore) || 0),0),
                     count: intraScored.length,
                 },
             };
@@ -9432,7 +9453,7 @@
                 count: intraScored.length,
                 contextSum: intraScored.reduce((a,t)=>a+(t.intraScores?.contextScore||0),0),
                 setupSum: intraScored.reduce((a,t)=>a+(t.intraScores?.setupScore||0),0),
-                execSum: intraScored.reduce((a,t)=>a+(t.intraScores?.executionScore||0),0),
+                execSum: intraScored.reduce((a,t)=>a+((t.intraScores?.execScore ?? t.intraScores?.executionScore) || 0),0),
             };
 
             // Grade performance — daily bias trades graded by checklist engine
@@ -12800,15 +12821,20 @@
 
             let execScore = 0;
             const allSteps = ex.lq === true && ex.disp !== 'None' && ex.disp !== null && ex.mss === true && ex.ret === true;
-            if (allSteps) execScore += 40;
+            if (allSteps) execScore += 30;
             const today = trade.date;
             const todayTrades = S.trades.filter(t => t.isIntraday && t.date === today && t.status === 'closed');
-            if (todayTrades.length <= 1) execScore += 30;
-            if (trade.biasSet && trade.biasPlayed && trade.biasSet === trade.biasPlayed) execScore += 30;
-            else if (trade.biasSet && trade.biasPlayed) execScore += 15;
-            else execScore += 5;
+            if (todayTrades.length <= 1) execScore += 20;
+            // Bias / flip block: clean 50 · neutral 25 · flipped & re-aligned 35 · flipped & held -30
+            const biasFlip = ex.biasFlip || _deriveBiasFlip(trade.biasSet, trade.biasPlayed, trade.tradeType);
+            if (!trade.biasPlayed) execScore += 5;
+            else if (biasFlip === 'FLIP_ADAPTED') execScore += 35;
+            else if (biasFlip === 'FLIP_HELD') execScore -= 30;
+            else if (trade.biasSet === trade.biasPlayed) execScore += 50;
+            else execScore += 25;
+            execScore = Math.max(0, Math.min(100, execScore));
 
-            const finalScore = (contextScore * 0.35) + (setupScore * 0.40) + (execScore * 0.25);
+            const finalScore = (contextScore * 0.30) + (setupScore * 0.30) + (execScore * 0.40);
 
             let grade = 'Invalid';
             if (finalScore >= 85) grade = 'A+';
@@ -12832,6 +12858,7 @@
                 contextScore,
                 setupScore,
                 execScore,
+                biasFlip,
                 finalScore,
                 grade,
                 explanation,
@@ -13295,7 +13322,7 @@
             if (!t) return;
             S.cmEditId = id;
             _pendingUploadTradeId = id;
-            S.cmData = { result: '', biasPlayed: '', tp1r: 'N/A', tp15r: 'N/A' };
+            S.cmData = { result: '', biasPlayed: '', biasFlip: '', tp1r: 'N/A', tp15r: 'N/A' };
             S.cmSS = [];
             document.getElementById('closeModalTitle').textContent = 'CLOSE TRADE — ' + t.pair;
             // For entry/SL: prefer linked intraday's values if they exist (actual execution prices)
@@ -13311,7 +13338,7 @@
             S.cmTradeType = srcTrade.tradeType || t.tradeType || 'BUY';
             rteSet('cmNotes', '');
             document.getElementById('cmSsGrid').innerHTML = '';
-            ['cmResultBtns', 'cmBiasBtns'].forEach(id =>
+            ['cmResultBtns', 'cmBiasBtns', 'cmFlipBtns'].forEach(id =>
                 document.getElementById(id).querySelectorAll('.seg-btn').forEach(b => b.className = b.className.replace(
                     /sel-\w+/g, '').trim())
             );
@@ -13437,6 +13464,35 @@
             el.closest('.seg-btns').querySelectorAll('.seg-btn').forEach(b => b.className = b.className.replace(/sel-\w+/g,
                 '').trim());
             el.classList.add(cls);
+            if (field === 'biasPlayed') cmSuggestFlip();
+        }
+
+        // ── Bias-flip helpers (execution score) ──
+        // A flip exists only when bias set and bias played are opposite directions.
+        function _flipNeeded(biasSet, biasPlayed) {
+            const d = ['BULLISH', 'BEARISH'];
+            return d.includes(biasSet) && d.includes(biasPlayed) && biasSet !== biasPlayed;
+        }
+        // NONE | FLIP_ADAPTED (traded the new direction) | FLIP_HELD (stayed with original direction)
+        function _deriveBiasFlip(biasSet, biasPlayed, tradeType) {
+            if (!_flipNeeded(biasSet, biasPlayed)) return 'NONE';
+            const dir = tradeType === 'SELL' ? 'BEARISH' : 'BULLISH';
+            return dir === biasPlayed ? 'FLIP_ADAPTED' : 'FLIP_HELD';
+        }
+        function _setFlipBtns(containerId, val) {
+            const el = document.getElementById(containerId);
+            if (!el) return;
+            const btns = el.querySelectorAll('.seg-btn');
+            btns.forEach(b => b.className = b.className.replace(/sel-\w+/g, '').trim());
+            const map = { NONE: [0, 'sel-skip'], FLIP_ADAPTED: [1, 'sel-bull'], FLIP_HELD: [2, 'sel-bear'] };
+            if (map[val] && btns[map[val][0]]) btns[map[val][0]].classList.add(map[val][1]);
+        }
+        function cmSuggestFlip() {
+            const t = S.trades.find(x => idEq(x.id, S.cmEditId));
+            if (!t) return;
+            const v = _deriveBiasFlip(t.biasSet, S.cmData.biasPlayed, S.cmTradeType);
+            S.cmData.biasFlip = v;
+            _setFlipBtns('cmFlipBtns', v);
         }
 
         function cmClearSkip(el) {
@@ -13488,6 +13544,10 @@
             if (S.cmSS.some(ss => ss._uploading)) { showToast('Screenshot still uploading — please wait', 'warn'); return; }
             const t = S.trades.find(t => idEq(t.id, S.cmEditId));
             if (!t) return;
+            const _flipNeed = _flipNeeded(t.biasSet, S.cmData.biasPlayed);
+            if (_flipNeed && S.cmData.biasFlip === 'NONE') { alert('Bias played is opposite to your bias — choose how you handled the flip.'); return; }
+            if (!_flipNeed && S.cmData.biasFlip && S.cmData.biasFlip !== 'NONE') { alert('A flip applies only when Bias Played is the opposite of your bias. Select NO FLIP.'); return; }
+            const _flipVal = _flipNeed ? (S.cmData.biasFlip || _deriveBiasFlip(t.biasSet, S.cmData.biasPlayed, S.cmTradeType)) : 'NONE';
             const entryVal = parseFloat(document.getElementById('cmEntry').value) || t.entryPrice;
             const closeVal = parseFloat(document.getElementById('cmClose').value) || t.closePrice;
             const slVal = parseFloat(document.getElementById('cmSL').value) || t.slPrice;
@@ -13560,6 +13620,7 @@
             assignTradeAccount(t.id, _selectedAccountId || null); // fire-and-forget, non-blocking
 
             if (t.isIntraday) {
+                t.intraExData = { ...(t.intraExData || {}), biasFlip: _flipVal };
                 t.intraScores = computeHiddenScores(t);
             }
 
@@ -13599,6 +13660,10 @@
                         if (closeVal) it.closePrice = closeVal;
                         it.closeTime = closeTime;
                         if (it.isIntraday) {
+                            const _itFlip = _flipNeeded(it.biasSet, S.cmData.biasPlayed)
+                                ? (_flipVal !== 'NONE' ? _flipVal : _deriveBiasFlip(it.biasSet, S.cmData.biasPlayed, it.tradeType))
+                                : 'NONE';
+                            it.intraExData = { ...(it.intraExData || {}), biasFlip: _itFlip };
                             it.intraScores = computeHiddenScores(it);
                         }
                         saveTrade(it);
@@ -13668,7 +13733,18 @@
             if (!t) return;
             S.ecEditId = id;
             _pendingUploadTradeId = id;
-            S.ecData = { result: t.result, tp1r: t.tp1r || 'N/A', tp15r: t.tp15r || 'N/A' };
+            S.ecData = { result: t.result, tp1r: t.tp1r || 'N/A', tp15r: t.tp15r || 'N/A',
+                biasPlayed: t.biasPlayed || '',
+                biasFlip: t.isIntraday ? ((t.intraExData && t.intraExData.biasFlip) || _deriveBiasFlip(t.biasSet, t.biasPlayed, t.tradeType)) : '' };
+            (() => {
+                const bb = document.querySelectorAll('#ecBiasBtns .seg-btn');
+                bb.forEach(b => b.className = b.className.replace(/sel-\w+/g, '').trim());
+                const bi = { BULLISH: [0, 'sel-bull'], BEARISH: [1, 'sel-bear'], NEUTRAL: [2, 'sel-skip'] }[t.biasPlayed];
+                if (bi && bb[bi[0]]) bb[bi[0]].classList.add(bi[1]);
+                const ff = document.getElementById('ecFlipField');
+                if (ff) ff.style.display = t.isIntraday ? '' : 'none';
+                _setFlipBtns('ecFlipBtns', S.ecData.biasFlip);
+            })();
             S.ecSS = [];
             document.getElementById('editClosedTitle').textContent = 'EDIT — ' + t.pair;
             document.getElementById('ecEntry').value = t.entryPrice || '';
@@ -13701,6 +13777,13 @@
             el.closest('.seg-btns').querySelectorAll('.seg-btn').forEach(b => b.className = b.className.replace(/sel-\w+/g,
                 '').trim());
             el.classList.add(cls);
+            if (field === 'biasPlayed') {
+                const t = S.trades.find(x => idEq(x.id, S.ecEditId));
+                if (t && t.isIntraday) {
+                    S.ecData.biasFlip = _deriveBiasFlip(t.biasSet, val, t.tradeType);
+                    _setFlipBtns('ecFlipBtns', S.ecData.biasFlip);
+                }
+            }
         }
 
         function ecClearSkip(el) {
@@ -13733,6 +13816,15 @@
             const t = S.trades.find(t => idEq(t.id, S.ecEditId));
             if (!t) return;
             if (S.ecSS.some(ss => ss._uploading)) { showToast('Screenshot still uploading — please wait', 'warn'); return; }
+            const _ecPlayed = S.ecData.biasPlayed || t.biasPlayed || '';
+            let _ecFlip = 'NONE';
+            if (t.isIntraday) {
+                const _need = _flipNeeded(t.biasSet, _ecPlayed);
+                if (_need && S.ecData.biasFlip === 'NONE') { alert('Bias played is opposite to your bias — choose how you handled the flip.'); return; }
+                if (!_need && S.ecData.biasFlip && S.ecData.biasFlip !== 'NONE') { alert('A flip applies only when Bias Played is the opposite of your bias. Select NO FLIP.'); return; }
+                _ecFlip = _need ? (S.ecData.biasFlip || _deriveBiasFlip(t.biasSet, _ecPlayed, t.tradeType)) : 'NONE';
+            }
+            if (S.ecData.biasPlayed) t.biasPlayed = S.ecData.biasPlayed;
             if (S.ecData.result === 'SKIP') t.result = S.ecData.result;
             const entryVal = parseFloat(document.getElementById('ecEntry').value) || t.entryPrice;
             const closeVal = parseFloat(document.getElementById('ecClose').value) || t.closePrice;
@@ -13761,6 +13853,7 @@
                 t._ssLoaded = true; }
             t.biasMatch = (t.biasSet && t.biasPlayed && t.biasSet === t.biasPlayed) ? 'YES' : 'NO';
             if (t.isIntraday) {
+                t.intraExData = { ...(t.intraExData || {}), biasFlip: _ecFlip };
                 t.intraScores = computeHiddenScores(t);
                 const ecAccSel = document.getElementById('ecAccountSelect');
                 if (ecAccSel) assignTradeAccount(t.id, ecAccSel.value || null);
