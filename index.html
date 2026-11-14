@@ -5439,7 +5439,7 @@
                 <span class="ni-label">Weekly Bias</span>
                 <span class="ni-badge" id="weeklyBadge" style="display:none">0</span>
             </button>
-            <button class="nav-item" id="navitem-idea" onclick="navTo('idea')">
+            <button class="nav-item" id="navitem-idea" onclick="startNewDaily()">
                 <span class="ni-icon">📊</span>
                 <span class="ni-label">Daily Bias</span>
             </button>
@@ -5566,7 +5566,7 @@
                             <span class="qt-icon">📅</span>
                             <div><div class="qt-label">WEEKLY BIAS</div><div class="qt-sub" id="weeklyTileSub">Swing journals</div></div>
                         </button>
-                        <button class="qn-tile" onclick="navTo('idea')">
+                        <button class="qn-tile" onclick="startNewDaily()">
                             <span class="qt-icon">📊</span>
                             <div><div class="qt-label">DAILY BIAS</div><div class="qt-sub">Daily market analysis</div></div>
                         </button>
@@ -10018,7 +10018,7 @@
                     S.wbEntryId = null;
                     // Assign fresh upload trade ID for new entry so screenshots
                     // uploaded before save use the correct storage path
-                    if (!_pendingUploadTradeId) _pendingUploadTradeId = crypto.randomUUID();
+                    if (!_pendingUploadTradeId || isTradeIdInUse(_pendingUploadTradeId)) _pendingUploadTradeId = newUniqueTradeId();
                 }
                 renderTagsInWrap('ideaTagWrap', S.ideaTags, 'idea');
                 refreshWbEntryDropdown();
@@ -10037,7 +10037,9 @@
                 S.intraDecision = null;
                 S.intraKill = false;
                 S.intraExData = { lq: null, disp: null, mss: null, ret: null };
-                if (!_pendingUploadTradeId) _pendingUploadTradeId = crypto.randomUUID();
+                if (!_pendingUploadTradeId || (isTradeIdInUse(_pendingUploadTradeId) &&
+                        !(S.intradayMode === 'edit' && idEq(S.intradayEditId, _pendingUploadTradeId))))
+                    _pendingUploadTradeId = newUniqueTradeId();
                 renderIntradayView();
                 refreshIntraWeeklyDropdown();
                 updateIntradayBadge();
@@ -10080,7 +10082,7 @@
                 if (pairFld) { pairFld.value = '';
                     pairFld.disabled = false;
                     pairFld.style.background = ''; }
-                if (dateFld) { dateFld.value = new Date().toISOString().split('T')[0];
+                if (dateFld) { dateFld.value = localDateStr();
                     dateFld.disabled = false;
                     dateFld.style.background = ''; }
                 if (sessFld) { sessFld.selectedIndex = 0;
@@ -10382,7 +10384,7 @@
 
         function openNewWeeklyModal() {
             S.wbEditId = null;
-            _pendingUploadTradeId = crypto.randomUUID();
+            _pendingUploadTradeId = newUniqueTradeId();
             S.wbData = { bias: '' };
             S.wbSS = [];
             S.wbAnswers = {};
@@ -10474,7 +10476,7 @@
                 if (S.wbSS.length > 0) w.screenshots = [...(w.screenshots || []), ...S.wbSS];
             } else {
                 const entry = {
-                    id: _pendingUploadTradeId || crypto.randomUUID(),
+                    id: freshIdOrNew(_pendingUploadTradeId),
                     status: 'open',
                     pair,
                     date,
@@ -11235,6 +11237,7 @@
                 <div class="wb-actions">
                   ${w.status==='open'?`
                     <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px" onclick="openAddNoteModal('${w.id}')">+ ADD NOTE</button>
+                    <button class="btn-primary" style="background:#4a148c;border-color:#4a148c;font-size:8px" onclick="startNewDaily('${w.id}')">📊 NEW DAILY BIAS</button>
                     <button class="btn-primary" style="background:#1b5e20;border-color:#1b5e20;font-size:8px" onclick="newIntradayFromWeekly('${w.id}')">⚡ NEW INTRADAY</button>
                     <button class="btn-ghost" style="font-size:8px" onclick="openEditWeeklyModal('${w.id}')">✏ EDIT</button>
                     <button class="btn-gold" style="font-size:8px" onclick="closeWeeklyBias('${w.id}')">📋 REVIEW & CLOSE</button>
@@ -11339,6 +11342,7 @@
 
         function newIntradayFromWeekly(weeklyId) {
             navTo('intraday');
+            fullResetIntraday(); // clean form + fresh unique ID (no stale edit state)
             setTimeout(() => {
                 const sel = document.getElementById('intraWeeklyLink');
                 if (sel) { sel.value = weeklyId;
@@ -11699,7 +11703,7 @@
             S.intraKill = false;
             S.intraScores = null;
             S.intraSS = [];
-            _pendingUploadTradeId = crypto.randomUUID();
+            _pendingUploadTradeId = newUniqueTradeId();
             S.intraType = 'BUY';
             S.intraPaper = false;
             S.intraTags = ['intraday'];
@@ -11746,7 +11750,7 @@
                 if (!trade) { alert('Trade not found.'); return; }
             } else {
                 trade = {
-                    id: _pendingUploadTradeId || crypto.randomUUID(),
+                    id: freshIdOrNew(_pendingUploadTradeId),
                     status: 'open',
                     isIntraday: true,
                     weeklyLinkId: weeklyLinkId,
@@ -12250,13 +12254,86 @@
             });
         }
 
+        // ── Unique trade-ID helpers (Daily, Intraday, Weekly) ──
+        // An ID is "in use" if any trade OR weekly already has it. New entries must never
+        // attach to or save under an ID that is in use (stale _pendingUploadTradeId overwrite bug).
+        function isTradeIdInUse(id) {
+            return !!id && ((S.trades || []).some(t => idEq(t.id, id)) ||
+                (S.weeklies || []).some(w => idEq(w.id, id)));
+        }
+        function newUniqueTradeId() {
+            let id;
+            do { id = crypto.randomUUID(); } while (isTradeIdInUse(id));
+            return id;
+        }
+        // Validate a candidate ID for a NEW entry: keep it only if it is set and unused.
+        function freshIdOrNew(id) {
+            return (id && !isTradeIdInUse(id)) ? id : newUniqueTradeId();
+        }
+
+        // Local calendar date (YYYY-MM-DD). toISOString() returns the UTC date, which is a
+        // day early for Daily Bias plans written late evening UTC / early morning IST.
+        function localDateStr(d) {
+            d = d || new Date();
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0');
+        }
+
+        // Single entry point for starting a NEW Daily Bias entry (sidebar, home tile, empty-state
+        // buttons, Weekly Bias card). Always opens a clean form with a fresh crypto.randomUUID(),
+        // so a new plan can never inherit an existing trade's/weekly's ID through a stale
+        // _pendingUploadTradeId. weeklyId (optional) pre-links the entry to that Weekly Bias card.
+        function startNewDaily(weeklyId) {
+            const draftDirty = countAnswered() > 0 || (S.ideaSS || []).length > 0 ||
+                (rteGet('ideaNotes') || '').trim() !== '';
+            if (draftDirty && S.checklistMode !== 'edit' &&
+                !confirm('Start a fresh Daily Bias? Your current unsaved entry will be cleared.')) {
+                navTo('idea');
+                return;
+            }
+            S.answers = {};
+            S.kills = {};
+            S.killOpen = false;
+            S.ideaSS = [];
+            S.ideaTags = [];
+            S.checklistMode = null;
+            S.checklistEditId = null;
+            S.ideaModel = localStorage.getItem('ict_ideaModel') || 'omar';
+            S.ideaPaper = false;
+            _pendingUploadTradeId = newUniqueTradeId();
+            navTo('idea');
+            const pairFld = document.getElementById('ideaPair');
+            const dateFld = document.getElementById('ideaDate');
+            const sessFld = document.getElementById('ideaSession');
+            if (pairFld) pairFld.value = '';
+            if (dateFld) dateFld.value = localDateStr();
+            if (sessFld) sessFld.selectedIndex = 0;
+            rteSet('ideaNotes', '');
+            const ssGrid = document.getElementById('ideaSsGrid');
+            if (ssGrid) ssGrid.innerHTML = '';
+            const vd = document.getElementById('ideaVerdict');
+            if (vd) vd.style.display = 'none';
+            setTradeType('BUY');
+            const paperBtns = document.getElementById('ideaPaperBtns');
+            if (paperBtns) paperBtns.querySelectorAll('.seg-btn').forEach((b, i) => { b.className = b.className
+                    .replace(/sel-\w+/g, '').trim(); if (i === 0) b.classList.add('sel-bull'); });
+            const wk = weeklyId ? S.weeklies.find(w => idEq(w.id, weeklyId)) : null;
+            S.wbEntryId = wk ? wk.id : null;
+            if (wk && pairFld) pairFld.value = wk.pair || '';
+            renderTagsInWrap('ideaTagWrap', S.ideaTags, 'idea');
+            refreshWbEntryDropdown();
+            const wbSel = document.getElementById('wbEntryDropdown');
+            if (wbSel) wbSel.value = S.wbEntryId || '';
+            updateScoreStrip();
+        }
+
         function fullResetChecklist() {
             if (!confirm('Clear ALL — dropdowns, screenshots, pair name, notes? Daily Bias data is preserved.')) return;
             S.answers = {};
             S.kills = {};
             S.killOpen = false;
             S.ideaSS = [];
-            _pendingUploadTradeId = crypto.randomUUID();
+            _pendingUploadTradeId = newUniqueTradeId();
             S.checklistMode = null;
             S.checklistEditId = null;
             S.ideaModel = localStorage.getItem('ict_ideaModel') || 'omar';
@@ -12267,7 +12344,7 @@
             if (pairFld) { pairFld.value = '';
                 pairFld.disabled = false;
                 pairFld.style.background = ''; }
-            if (dateFld) { dateFld.value = new Date().toISOString().split('T')[0];
+            if (dateFld) { dateFld.value = localDateStr();
                 dateFld.disabled = false;
                 dateFld.style.background = ''; }
             if (sessFld) { sessFld.selectedIndex = 0;
@@ -12353,7 +12430,7 @@
             const wbEntryId = wbSel ? (wbSel.value || null) : null;
 
             const trade = {
-                id: _pendingUploadTradeId || crypto.randomUUID(),
+                id: freshIdOrNew(_pendingUploadTradeId),
                 status: 'open',
                 date,
                 pair,
@@ -12394,6 +12471,10 @@
                 intraExData: { lq: null, disp: null, mss: null, ret: null },
                 intraScores: null,
             };
+            // Never reuse an ID that already belongs to a trade or a weekly (stale upload-context guard)
+            if (S.trades.some(t => idEq(t.id, trade.id)) || S.weeklies.some(w => idEq(w.id, trade.id))) {
+                trade.id = crypto.randomUUID();
+            }
             S.trades.unshift(trade);
             saveTrade(trade);
             S.answers = {};
@@ -12402,9 +12483,9 @@
             S.ideaSS = [];
             S.ideaTags = [];
             S.wbEntryId = null;
-            _pendingUploadTradeId = crypto.randomUUID(); // pre-assign for next entry
+            _pendingUploadTradeId = newUniqueTradeId(); // pre-assign for next entry
             document.getElementById('ideaPair').value = '';
-            document.getElementById('ideaDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('ideaDate').value = localDateStr();
             document.getElementById('ideaSession').selectedIndex = 0;
             rteSet('ideaNotes', '');
             document.getElementById('ideaSsGrid').innerHTML = '';
@@ -13131,11 +13212,11 @@
                 c.innerHTML = `<div style="text-align:center;padding:40px 20px;">
                     <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:20px;">No open trades. Start by logging a daily bias.</div>
                     <div style="display:flex;flex-direction:column;gap:10px;max-width:320px;margin:0 auto;">
-                        <button onclick="navTo('idea')" style="font-family:var(--font-mono);font-size:9px;font-weight:700;padding:12px 16px;border:1.5px solid var(--gold);background:var(--gold-lt);color:#7a5c00;border-radius:6px;cursor:pointer;text-align:left;line-height:1.5;">
+                        <button onclick="startNewDaily()" style="font-family:var(--font-mono);font-size:9px;font-weight:700;padding:12px 16px;border:1.5px solid var(--gold);background:var(--gold-lt);color:#7a5c00;border-radius:6px;cursor:pointer;text-align:left;line-height:1.5;">
                             <div style="font-size:11px;margin-bottom:3px;">📊 Open Daily Bias with Liquidity Logic</div>
                             <div style="font-weight:400;opacity:0.8;">Omar Model — HTF sweep + displacement checklist</div>
                         </button>
-                        <button onclick="navTo('idea')" style="font-family:var(--font-mono);font-size:9px;font-weight:700;padding:12px 16px;border:1.5px solid #9fa8da;background:#e8eaf6;color:#283593;border-radius:6px;cursor:pointer;text-align:left;line-height:1.5;">
+                        <button onclick="startNewDaily()" style="font-family:var(--font-mono);font-size:9px;font-weight:700;padding:12px 16px;border:1.5px solid #9fa8da;background:#e8eaf6;color:#283593;border-radius:6px;cursor:pointer;text-align:left;line-height:1.5;">
                             <div style="font-size:11px;margin-bottom:3px;">⚡ Open Daily Bias under CRT Theory</div>
                             <div style="font-weight:400;opacity:0.8;">TTrades Model — closure, CISD + delivery checklist</div>
                         </button>
@@ -15781,6 +15862,7 @@
         function goNewIntradayForTrade() {
             const tradeId = S.intraLinkTradeId;
             document.getElementById('intraLinkModal').classList.remove('open');
+            fullResetIntraday(); // clean form + fresh unique ID
             S._pendingIntraLink = tradeId;
             S.intradayView = 'form';
             navTo('intraday');
@@ -20372,7 +20454,7 @@ NEXT_WEEK: [one concrete focus tied to this week's observations]`;
         })();
 
         // ── INIT ──
-        document.getElementById('ideaDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('ideaDate').value = localDateStr();
         document.getElementById('intraDate').value = new Date().toISOString().split('T')[0];
         setTimeout(() => { renderTagsInWrap('intraTagWrap', S.intraTags, 'intra'); }, 100);
         renderDashboard();
