@@ -7124,12 +7124,12 @@
                         <div class="field"><label>Which liquidity objective was actually reached</label>
                             <select id="wrLiquidityReached" onchange="computeLiquidityAccuracyDisplay()">
                                 <option value="">— Select —</option>
-                                <option value="DOL fully reached">DOL fully reached</option>
-                                <option value="DOL partially reached">DOL partially reached</option>
-                                <option value="DOL not reached">DOL not reached</option>
-                                <option value="Opposite side reached">Opposite side reached</option>
-                                <option value="No clear liquidity objective met">No clear liquidity objective met</option>
-                                <option value="Both sides reached">Both sides reached</option>
+                                <option value="buyside_reached">Buy-side (BSL) fully reached</option>
+                                <option value="sellside_reached">Sell-side (SSL) fully reached</option>
+                                <option value="both_sides_reached">Both sides reached (two-leg delivered)</option>
+                                <option value="partial_reached">Partially reached — target approached but not fully tapped</option>
+                                <option value="not_reached">Target not reached</option>
+                                <option value="opposite_reached">Opposite side reached — direction wrong</option>
                             </select>
                         </div>
                     </div>
@@ -7148,10 +7148,11 @@
                         <div class="field"><label>How swing phase evolved</label>
                             <select id="wrPhaseEvolved" onchange="computePhaseAccuracy()">
                                 <option value="">— Select —</option>
-                                <option value="Frontside played out as expected">Frontside played out as expected</option>
-                                <option value="Backside played out as expected">Backside played out as expected</option>
-                                <option value="Range / consolidation dominated">Range / consolidation dominated</option>
-                                <option value="Phase flipped unexpectedly">Phase flipped unexpectedly</option>
+                                <option value="two_leg_played">Two-leg delivered — Pullback then Continuation both played out</option>
+                                <option value="pullback_only">Pullback only — Continuation did not deliver</option>
+                                <option value="continuation_only">Continuation only — no prior pullback, straight expansion</option>
+                                <option value="range_dominated">Range / consolidation dominated — no clear leg</option>
+                                <option value="phase_flipped">Phase flipped unexpectedly — structure invalidated</option>
                             </select>
                         </div>
                     </div>
@@ -7735,24 +7736,24 @@
         const SWEEP_LOW = new Set(['d_low', 'wk_low', 'mo_low']);
 
         const CONFIDENCE_RULES = [
-            { states: ['bearish_reversal'], test: (v) => IRL_WEEKLY.has(v.irl) && (SWEEP_HIGH.has(v.sweep)),
+            // Reversals — highest confidence: weekly zone + external sweep done + ERL zone
+            { states: ['bearish_reversal'], test: (v) => IRL_WEEKLY.has(v.irl) && v.ext_liq === 'swept_bsl' && (v.zone_type === 'erl' || v.zone_type === 'irl_erl'),
             confidence: 'high' },
-            { states: ['bullish_reversal'], test: (v) => IRL_WEEKLY.has(v.irl) && (SWEEP_LOW.has(v.sweep)),
+            { states: ['bullish_reversal'], test: (v) => IRL_WEEKLY.has(v.irl) && v.ext_liq === 'swept_ssl' && (v.zone_type === 'erl' || v.zone_type === 'irl_erl'),
             confidence: 'high' },
+            // Reversals — medium: weekly zone present
             { states: ['bearish_reversal', 'bullish_reversal'], test: (v) => IRL_WEEKLY.has(v.irl),
             confidence: 'medium' },
             { states: ['bearish_reversal', 'bullish_reversal'], test: () => true, confidence: 'low' },
-            { states: ['bullish_continuation'], test: (v) => v.location === 'discount' && v.dol === 'not_reached' && (v
-                    .phase === 'frontside' || v.phase === 'backside') && (IRL_WEEKLY.has(v.irl) || IRL_DAILY.has(v
-                    .irl)), confidence: 'high' },
-            { states: ['bullish_continuation'], test: (v) => (v.location === 'discount' && v.dol === 'partial') || (v
-                    .location === 'equilibrium' && v.dol === 'not_reached'), confidence: 'medium' },
+            // Bullish continuation — high: discount + weekly zone + active leg or two-leg setup
+            { states: ['bullish_continuation'], test: (v) => v.location === 'discount' && (v.ext_liq === 'targeting_ssl' || v.ext_liq === 'swept_ssl') && (v.active_leg === 'pullback' || v.active_leg === 'continuation' || v.active_leg === 'pullback_then_continuation') && (IRL_WEEKLY.has(v.irl) || IRL_DAILY.has(v.irl)), confidence: 'high' },
+            // Bullish continuation — medium: equilibrium location or ssl not yet swept
+            { states: ['bullish_continuation'], test: (v) => (v.location === 'discount' && v.ext_liq === 'targeting_ssl') || (v.location === 'equilibrium'), confidence: 'medium' },
             { states: ['bullish_continuation'], test: () => true, confidence: 'low' },
-            { states: ['bearish_continuation'], test: (v) => v.location === 'premium' && v.dol === 'not_reached' && (v
-                    .phase === 'frontside' || v.phase === 'backside') && (IRL_WEEKLY.has(v.irl) || IRL_DAILY.has(v
-                    .irl)), confidence: 'high' },
-            { states: ['bearish_continuation'], test: (v) => (v.location === 'premium' && v.dol === 'partial') || (v
-                    .location === 'equilibrium' && v.dol === 'not_reached'), confidence: 'medium' },
+            // Bearish continuation — high: premium + weekly zone + active leg or two-leg setup
+            { states: ['bearish_continuation'], test: (v) => v.location === 'premium' && (v.ext_liq === 'targeting_bsl' || v.ext_liq === 'swept_bsl') && (v.active_leg === 'pullback' || v.active_leg === 'continuation' || v.active_leg === 'pullback_then_continuation') && (IRL_WEEKLY.has(v.irl) || IRL_DAILY.has(v.irl)), confidence: 'high' },
+            // Bearish continuation — medium: equilibrium location or bsl not yet swept
+            { states: ['bearish_continuation'], test: (v) => (v.location === 'premium' && v.ext_liq === 'targeting_bsl') || (v.location === 'equilibrium'), confidence: 'medium' },
             { states: ['bearish_continuation'], test: () => true, confidence: 'low' },
             { states: ['neutral'], test: () => true, confidence: 'low' },
         ];
@@ -7845,8 +7846,6 @@
         const WB_DISPLAY = {
             structure: { bullish: '▲ Bullish', bearish: '▼ Bearish' },
             location: { discount: 'Discount', equilibrium: 'Equilibrium', premium: 'Premium' },
-            dol: { not_reached: 'Not Reached', partial: 'Partially Reached', reached: '✓ Reached' },
-            phase: { frontside: 'Frontside', backside: 'Backside', range: 'Range' },
             irl: {
                 wk_bull_fvg: 'Weekly Bullish FVG',
                 wk_bear_fvg: 'Weekly Bearish FVG',
@@ -7856,12 +7855,29 @@
                 d_ob: 'Daily Breaker / OB',
                 none: 'None'
             },
-            sweep: {
-                wk_high: 'Weekly High Swept',
-                wk_low: 'Weekly Low Swept',
-                mo_high: 'Monthly High Swept',
-                mo_low: 'Monthly Low Swept',
-                none: 'No External Sweep'
+            zone_type: { irl: 'IRL', erl: 'ERL', irl_erl: 'IRL + ERL' },
+            active_leg: { pullback: 'Pullback', continuation: 'Continuation', pullback_then_continuation: 'Pullback → Continuation', range: 'Range' },
+            ext_liq: {
+                swept_bsl: 'BSL Swept',
+                swept_ssl: 'SSL Swept',
+                targeting_bsl: 'Targeting BSL',
+                targeting_ssl: 'Targeting SSL',
+                swept_both: 'Both Sides Swept'
+            },
+            liq_target: {
+                bsl_above: 'BSL Above',
+                ssl_below: 'SSL Below',
+                bsl_then_ssl: 'BSL → SSL',
+                ssl_then_bsl: 'SSL → BSL',
+                irl_above: 'IRL Fill Above',
+                irl_below: 'IRL Fill Below'
+            },
+            weekly_scenario: {
+                mon_low_bull: 'Mon Low → Bullish',
+                mon_high_bear: 'Mon High → Bearish',
+                straight_continuation: 'Straight Continuation',
+                monday_range_then_move: 'Mon Sweep Both → Deliver',
+                ranging: 'Ranging Week'
             },
         };
 
@@ -7875,7 +7891,8 @@
                 { id: 'wb_k_maxone', text: 'Max 1 trade per day — second attempt after a loss is blocked.' },
             ],
             questions: [
-                { id: 'wb_swing_structure', label: 'What is the current swing structure?', hint: 'Swing Low → Swing High = Bullish Structure (HH + HL). Swing High → Swing Low = Bearish Structure (LH + LL). This is the foundation of the entire analysis — every other question is interpreted relative to this.',
+                { id: 'wb_swing_structure', label: 'What is the current swing structure?',
+                    hint: 'Swing Low → Swing High = Bullish Structure (HH + HL pattern). Swing High → Swing Low = Bearish Structure (LH + LL pattern). This is the foundation — every other question is interpreted relative to this. When in doubt, go to the highest timeframe that shows a clear, unambiguous leg.',
                     options: [
                         { label: '— Select —', val: '' },
                         { label: 'Swing Low → Swing High — Bullish Structure', val: 'bullish' },
@@ -7890,7 +7907,7 @@
             kills: [],
             questions: [
                 { id: 'wb_price_location', label: 'Where is price positioned within the current swing range?',
-                    hint: 'Measure from the swing\'s origin to its terminus. Discount = below 50% of the range. Equilibrium = the 50% midpoint. Premium = above 50%. Bullish Structure: Discount favours continuation, Premium favours reversal. Bearish Structure: Premium favours continuation, Discount favours reversal.',
+                    hint: 'Measure from the swing origin to its terminus. Discount = below 50% of the range. Equilibrium = at the 50% midpoint. Premium = above 50%. In Bullish Structure: Discount favours continuation, Premium favours reversal. In Bearish Structure: Premium favours continuation, Discount favours reversal. Equilibrium = lower conviction in either direction.',
                     options: [
                         { label: '— Select —', val: '' },
                         { label: 'Discount — below equilibrium (below 50% of the swing)', val: 'discount' },
@@ -7901,47 +7918,12 @@
         }, {
             id: 'wb_htf3',
             num: '03',
-            title: 'HTF Draw on Liquidity (DOL)',
-            tf: 'Weekly / Daily — has the primary objective been met?',
-            kills: [],
-            questions: [
-                { id: 'wb_htf_dol', label: 'Has the HTF Draw on Liquidity been reached?',
-                    hint: 'The DOL is the external liquidity pool price is drawn toward — an old high, old low, or buyside/sellside pool. Not Reached = expansion potential intact, continuation favoured. Partially Reached = continuation still possible but lower conviction. Reached = primary objective complete, reversal becomes possible.',
-                    options: [
-                        { label: '— Select —', val: '' },
-                        { label: 'Not Reached — primary objective intact, expansion potential exists', val: 'not_reached' },
-                        { label: 'Partially Reached — price approached DOL but has not fully tapped it',
-                        val: 'partial' },
-                        { label: 'Reached — HTF DOL has been tapped or swept', val: 'reached' },
-                    ] }
-            ]
-        }, {
-            id: 'wb_htf4',
-            num: '04',
-            title: 'Current Swing Phase',
-            tf: 'Daily / 4H — where in the cycle is price?',
-            kills: [
-                { id: 'wb_k_range', text: 'Range phase confirmed — no directional edge. Do not force a trade.' },
-            ],
-            questions: [
-                { id: 'wb_swing_phase', label: 'What phase is the current swing in?',
-                    hint: 'Frontside = the corrective pullback leg after displacement. Price retraces into an FVG or OB. Backside = the continuation leg where price reacts from the FVG/OB and resumes the trend. Range = no clear directional phase, price is consolidating without purpose.',
-                    options: [
-                        { label: '— Select —', val: '' },
-                        { label: 'Frontside — corrective pullback, price retracing into FVG/OB', val: 'frontside' },
-                        { label: 'Backside — continuation leg, price resuming trend from FVG/OB', val: 'backside' },
-                        { label: 'Range — no clear trend phase, price consolidating', val: 'range' },
-                    ] }
-            ]
-        }, {
-            id: 'wb_htf5',
-            num: '05',
-            title: 'HTF Reaction Area',
+            title: 'HTF Reaction Zone',
             tf: 'Weekly / Daily — zone type and timeframe both matter',
             kills: [],
             questions: [
-                { id: 'wb_htf_irl', label: 'What HTF reaction area is price at or approaching?',
-                    hint: 'Weekly zones carry more weight than Daily zones and increase confidence more. Bullish FVG / Bearish FVG indicates directional alignment. Weekly OB/Breaker and Daily OB/Breaker are direction-neutral but still valid reaction areas. No zone = lower confidence regardless of all other conditions.',
+                { id: 'wb_htf_irl', label: 'What HTF zone is price reacting from or approaching?',
+                    hint: 'This is the specific zone price is currently reacting from or approaching. Weekly zones carry more weight than Daily zones and increase confidence. FVG indicates a displacement gap — price should fill or react from it. OB/Breaker is a turning candle or broken structure block. No zone = no confluence, lower confidence regardless of all other conditions.',
                     options: [
                         { label: '— Select —', val: '' },
                         { label: 'Weekly Bullish FVG — unmitigated, from bullish displacement', val: 'wk_bull_fvg' },
@@ -7950,59 +7932,142 @@
                         { label: 'Daily Bearish FVG — unmitigated, from bearish displacement', val: 'd_bear_fvg' },
                         { label: 'Weekly Breaker / OB — unmitigated Weekly OB or Breaker block', val: 'wk_ob' },
                         { label: 'Daily Breaker / OB — unmitigated Daily OB or Breaker block', val: 'd_ob' },
-                        { label: 'None — no clear HTF reaction area at current price', val: 'none' },
+                        { label: 'None — no clear HTF reaction zone at current price', val: 'none' },
+                    ] }
+            ]
+        }, {
+            id: 'wb_htf4',
+            num: '04',
+            title: 'Zone Classification',
+            tf: 'Weekly / Daily — IRL vs ERL determines continuation vs reversal bias',
+            kills: [],
+            questions: [
+                { id: 'wb_zone_type', label: 'Is the current reaction zone an IRL or ERL?',
+                    hint: 'An Internal Range Level (IRL) sits inside the current swing — an FVG, OB, or Breaker block between the swing origin and extreme. Price reaching an IRL mid-swing favours continuation. An External Range Level (ERL) is at the swing extreme itself — an old high or low where liquidity pools above/below. Price reaching an ERL favours reversal. IRL + ERL confluent = zone is both internal and at the structural extreme — highest reversal confidence.',
+                    options: [
+                        { label: '— Select —', val: '' },
+                        { label: 'IRL — Internal Range Level (FVG, OB within the swing)', val: 'irl' },
+                        { label: 'ERL — External Range Level (at the swing extreme — old high or old low)', val: 'erl' },
+                        { label: 'IRL + ERL — zone is both internal and at the swing extreme (confluent)', val: 'irl_erl' },
+                    ] }
+            ]
+        }, {
+            id: 'wb_htf5',
+            num: '05',
+            title: 'Active Market Leg',
+            tf: 'Daily / 4H — where in the cycle is price?',
+            kills: [
+                { id: 'wb_k_range', text: 'Range phase confirmed — no directional edge. Do not force a trade.' },
+            ],
+            questions: [
+                { id: 'wb_active_leg', label: 'What is the current active market leg?',
+                    hint: 'Pullback / Retracement = the corrective leg — price is moving into an IRL (FVG, OB) against the primary direction. This is the setup leg, not the trade leg. Continuation / Expansion = the impulsive leg — price has reacted from the IRL and is now moving toward the target. Pullback then Continuation = two-leg week in progress — Monday sweeps one side first (the setup leg), then the week delivers in the primary direction. This is the OMAR model week. Range = no clear leg, avoid directional bias.',
+                    options: [
+                        { label: '— Select —', val: '' },
+                        { label: 'Pullback / Retracement — corrective leg, price moving into IRL (FVG/OB)', val: 'pullback' },
+                        { label: 'Continuation / Expansion — impulsive leg, price moving toward target', val: 'continuation' },
+                        { label: 'Pullback then Continuation — two-leg week (OMAR: sweep first, then deliver)', val: 'pullback_then_continuation' },
+                        { label: 'Range — no clear leg, price consolidating', val: 'range' },
                     ] }
             ]
         }, {
             id: 'wb_htf6',
             num: '06',
             title: 'External Liquidity Status',
-            tf: 'Weekly / Monthly — major reversal-strength variable',
+            tf: 'Weekly / Monthly — swept or targeting determines setup leg completeness',
             kills: [],
             questions: [
-                { id: 'wb_ext_sweep', label: 'Has external liquidity been swept at the current swing extreme?',
-                    hint: 'A reversal candidate is significantly stronger when external liquidity has already been taken. Example: Bullish Structure + Premium + DOL Reached + Weekly Bearish OB + Weekly High Swept = strongest possible bearish reversal setup. No sweep = reversal is possible but lacks the full confirmation of a liquidity raid.',
+                { id: 'wb_ext_liq', label: 'What is the status of external liquidity at the current swing extreme?',
+                    hint: 'External liquidity is the pool of stops and orders sitting above old highs (Buy-side / BSL) or below old lows (Sell-side / SSL). Swept = that liquidity has already been taken — a raid is complete, the market can now reverse or continue from that level. Targeting = the market is still drawn toward that pool — the raid has not happened yet. A swept pool is a significantly stronger reversal anchor than an unswept one. If BSL was swept, a bearish move is now more credible. If SSL was swept, a bullish move is now more credible.',
                     options: [
                         { label: '— Select —', val: '' },
-                        { label: 'Weekly High Swept — price has taken buy-side liquidity above a Weekly High',
-                            val: 'wk_high' },
-                        { label: 'Weekly Low Swept — price has taken sell-side liquidity below a Weekly Low',
-                            val: 'wk_low' },
-                        { label: 'Monthly High Swept — price has taken buy-side liquidity above a Monthly High',
-                            val: 'mo_high' },
-                        { label: 'Monthly Low Swept — price has taken sell-side liquidity below a Monthly Low',
-                            val: 'mo_low' },
-                        { label: 'No External Liquidity Sweep — no significant sweep at the current extreme',
-                            val: 'none' },
+                        { label: 'BSL Swept — Buy-side liquidity above a swing high has been taken', val: 'swept_bsl' },
+                        { label: 'SSL Swept — Sell-side liquidity below a swing low has been taken', val: 'swept_ssl' },
+                        { label: 'Targeting BSL — market is drawn toward buy-side, raid not yet complete', val: 'targeting_bsl' },
+                        { label: 'Targeting SSL — market is drawn toward sell-side, raid not yet complete', val: 'targeting_ssl' },
+                        { label: 'Both Sides Swept — equal highs and equal lows both cleared', val: 'swept_both' },
+                    ] }
+            ]
+        }, {
+            id: 'wb_htf7',
+            num: '07',
+            title: 'Next Liquidity Target (DOL)',
+            tf: 'Weekly / Daily — primary draw on liquidity for the week',
+            kills: [],
+            questions: [
+                { id: 'wb_liq_target', label: 'What is the market\'s primary liquidity target this week?',
+                    hint: 'This is the market\'s primary Draw on Liquidity for the week — where price is being magnetically pulled toward. BSL above = an old high, equal highs, or buy-side pool is the target. SSL below = an old low, equal lows, or sell-side pool is the target. BSL then SSL = market will first sweep buy-side (Monday move up) before delivering bearish to sell-side. SSL then BSL = market will first sweep sell-side (Monday move down) before delivering bullish to buy-side. IRL above/below = the target is an internal zone, not an external pool — expect a fill or reaction rather than a full structural move.',
+                    options: [
+                        { label: '— Select —', val: '' },
+                        { label: 'BSL Above — old high, equal highs, or buy-side pool is the target', val: 'bsl_above' },
+                        { label: 'SSL Below — old low, equal lows, or sell-side pool is the target', val: 'ssl_below' },
+                        { label: 'BSL then SSL — sweep buy-side first, then deliver bearish to sell-side', val: 'bsl_then_ssl' },
+                        { label: 'SSL then BSL — sweep sell-side first, then deliver bullish to buy-side', val: 'ssl_then_bsl' },
+                        { label: 'IRL Fill Above — internal gap or OB fill to the upside is the target', val: 'irl_above' },
+                        { label: 'IRL Fill Below — internal gap or OB fill to the downside is the target', val: 'irl_below' },
+                    ] }
+            ]
+        }, {
+            id: 'wb_htf8',
+            num: '08',
+            title: 'Expected Weekly Development',
+            tf: 'Weekly narrative — this answer is scored at close',
+            kills: [],
+            questions: [
+                { id: 'wb_weekly_scenario', label: 'How is the market expected to develop this week?',
+                    hint: 'This is your predicted weekly narrative — how the week is expected to unfold. Monday makes the LOW = Monday prints the week\'s low, rest of week expands bullish (classic OMAR bullish delivery). Monday makes the HIGH = Monday prints the week\'s high, rest of week expands bearish (classic OMAR bearish delivery). Straight continuation = no Monday sweep needed, week opens and expands directly in the primary direction. Monday sweeps both sides = Monday is noisy, Tue/Wed sets the direction after both sides are cleared. Ranging week = no directional expansion expected. This answer is scored directly against the actual week outcome at close.',
+                    options: [
+                        { label: '— Select —', val: '' },
+                        { label: 'Monday makes the LOW — week expands bullish from Monday low', val: 'mon_low_bull' },
+                        { label: 'Monday makes the HIGH — week expands bearish from Monday high', val: 'mon_high_bear' },
+                        { label: 'Straight continuation — no Monday sweep, direct expansion from open', val: 'straight_continuation' },
+                        { label: 'Monday sweeps both sides — Tue/Wed sets direction after both cleared', val: 'monday_range_then_move' },
+                        { label: 'Ranging week — no clear directional expansion expected', val: 'ranging' },
                     ] }
             ]
         }];
 
         function extractWBValues(ans) {
             return {
-                structure: ans['wb_swing_structure'] ? ans['wb_swing_structure'].val : null,
-                location: ans['wb_price_location'] ? ans['wb_price_location'].val : null,
-                dol: ans['wb_htf_dol'] ? ans['wb_htf_dol'].val : null,
-                phase: ans['wb_swing_phase'] ? ans['wb_swing_phase'].val : null,
-                irl: ans['wb_htf_irl'] ? ans['wb_htf_irl'].val : null,
-                sweep: ans['wb_ext_sweep'] ? ans['wb_ext_sweep'].val : null,
+                structure:  ans['wb_swing_structure']  ? ans['wb_swing_structure'].val  : null,
+                location:   ans['wb_price_location']   ? ans['wb_price_location'].val   : null,
+                irl:        ans['wb_htf_irl']           ? ans['wb_htf_irl'].val           : null,
+                zone_type:  ans['wb_zone_type']         ? ans['wb_zone_type'].val         : null,
+                active_leg: ans['wb_active_leg']        ? ans['wb_active_leg'].val        : null,
+                ext_liq:    ans['wb_ext_liq']           ? ans['wb_ext_liq'].val           : null,
+                liq_target: ans['wb_liq_target']        ? ans['wb_liq_target'].val        : null,
+                scenario:   ans['wb_weekly_scenario']   ? ans['wb_weekly_scenario'].val   : null,
             };
         }
 
         function computeWBMarketState(ans) {
             const v = extractWBValues(ans);
-            if (!v.structure || !v.location || !v.dol || !v.phase || !v.irl || !v.sweep) return null;
+            if (!v.structure || !v.location || !v.irl || !v.active_leg || !v.liq_target) return null;
             const irlPresent = v.irl !== 'none';
-            const dolReached = v.dol === 'reached';
-            const isActivePh = v.phase === 'frontside' || v.phase === 'backside';
-            const dolNotReached = v.dol === 'not_reached';
-            const dolPartial = v.dol === 'partial';
-            if (v.structure === 'bullish' && v.location === 'premium' && dolReached && irlPresent) return 'bearish_reversal';
-            if (v.structure === 'bearish' && v.location === 'discount' && dolReached && irlPresent) return 'bullish_reversal';
-            if (v.structure === 'bullish' && (v.location === 'discount' || v.location === 'equilibrium') && (dolNotReached ||
-                    dolPartial) && isActivePh) return 'bullish_continuation';
-            if (v.structure === 'bearish' && (v.location === 'premium' || v.location === 'equilibrium') && (dolNotReached ||
-                    dolPartial) && isActivePh) return 'bearish_continuation';
+            const bslSwept = v.ext_liq === 'swept_bsl';
+            const sslSwept = v.ext_liq === 'swept_ssl';
+            const extSwept = bslSwept || sslSwept || v.ext_liq === 'swept_both';
+            const erlZone = v.zone_type === 'erl' || v.zone_type === 'irl_erl';
+            const twoLeg = v.active_leg === 'pullback_then_continuation';
+            const continuation = v.active_leg === 'continuation';
+            const pullback = v.active_leg === 'pullback';
+            const isActiveleg = pullback || continuation || twoLeg;
+            const targetingDown = v.liq_target === 'ssl_below' || v.liq_target === 'irl_below';
+            const targetingUp = v.liq_target === 'bsl_above' || v.liq_target === 'irl_above';
+            const twoLegBear = v.liq_target === 'bsl_then_ssl';
+            const twoLegBull = v.liq_target === 'ssl_then_bsl';
+            // Reversal: ERL zone + external sweep done + target opposite to structure
+            if (v.structure === 'bullish' && v.location === 'premium' && extSwept && erlZone && targetingDown) return 'bearish_reversal';
+            if (v.structure === 'bearish' && v.location === 'discount' && extSwept && erlZone && targetingUp) return 'bullish_reversal';
+            // Reversal via ERL zone alone (sweep not yet taken but zone is ERL)
+            if (v.structure === 'bullish' && v.location === 'premium' && erlZone && irlPresent && targetingDown) return 'bearish_reversal';
+            if (v.structure === 'bearish' && v.location === 'discount' && erlZone && irlPresent && targetingUp) return 'bullish_reversal';
+            // Two-leg weekly scenario (OMAR sweep week)
+            if (v.structure === 'bearish' && twoLegBear && (twoLeg || pullback)) return 'bearish_continuation';
+            if (v.structure === 'bullish' && twoLegBull && (twoLeg || pullback)) return 'bullish_continuation';
+            // Straight continuation
+            if (v.structure === 'bullish' && (v.location === 'discount' || v.location === 'equilibrium') && isActiveleg && targetingUp) return 'bullish_continuation';
+            if (v.structure === 'bearish' && (v.location === 'premium' || v.location === 'equilibrium') && isActiveleg && targetingDown) return 'bearish_continuation';
             return 'neutral';
         }
 
@@ -10521,77 +10586,68 @@
                 explanation: 'The actual environment diverged significantly from the predicted environment. The directional bias or confidence level was materially wrong.' };
         }
 
-        function computeLiquidityAccuracy(predictedDOL, actualReached) {
-            if (!predictedDOL || !actualReached) return { result: '—', explanation: 'Select liquidity reached above.' };
-            const dolMap = {
-                'not_reached': 'Not Reached',
-                'partial': 'Partially Reached',
-                'reached': 'Reached'
-            };
-            const predLabel = dolMap[predictedDOL] || predictedDOL;
-            if (actualReached === 'DOL fully reached' && predictedDOL === 'reached') {
-                return { result: 'Correct', explanation: 'The DOL was fully reached as predicted.' };
+        function computeLiquidityAccuracy(predictedTarget, actualReached) {
+            if (!predictedTarget || !actualReached) return { result: '—', explanation: 'Select liquidity reached above.' };
+            const predLabel = WB_DISPLAY.liq_target[predictedTarget] || predictedTarget;
+            // Two-leg predictions: bsl_then_ssl / ssl_then_bsl
+            if (predictedTarget === 'bsl_then_ssl') {
+                if (actualReached === 'both_sides_reached') return { result: 'Correct', explanation: 'Two-leg delivered as predicted — BSL swept then SSL reached.' };
+                if (actualReached === 'buyside_reached') return { result: 'Partially Correct', explanation: 'BSL (first leg) was reached but SSL (second leg) was not delivered yet.' };
+                if (actualReached === 'sellside_reached') return { result: 'Partially Correct', explanation: 'SSL was reached directly — predicted BSL sweep first leg may have been skipped or occurred on a lower timeframe.' };
+                if (actualReached === 'opposite_reached') return { result: 'Incorrect', explanation: 'Liquidity was taken on the wrong side. The predicted two-leg setup did not play out.' };
             }
-            if (actualReached === 'DOL partially reached' && predictedDOL === 'partial') {
-                return { result: 'Correct', explanation: 'The DOL was partially reached as predicted.' };
+            if (predictedTarget === 'ssl_then_bsl') {
+                if (actualReached === 'both_sides_reached') return { result: 'Correct', explanation: 'Two-leg delivered as predicted — SSL swept then BSL reached.' };
+                if (actualReached === 'sellside_reached') return { result: 'Partially Correct', explanation: 'SSL (first leg) was reached but BSL (second leg) was not delivered yet.' };
+                if (actualReached === 'buyside_reached') return { result: 'Partially Correct', explanation: 'BSL was reached directly — predicted SSL sweep first leg may have been skipped or occurred on a lower timeframe.' };
+                if (actualReached === 'opposite_reached') return { result: 'Incorrect', explanation: 'Liquidity was taken on the wrong side. The predicted two-leg setup did not play out.' };
             }
-            if (actualReached === 'DOL not reached' && predictedDOL === 'not_reached') {
-                return { result: 'Correct', explanation: 'The DOL was not reached as predicted.' };
-            }
-            if (actualReached === 'DOL fully reached' && (predictedDOL === 'partial' || predictedDOL === 'not_reached')) {
-                return { result: 'Partially Correct',
-                    explanation: 'The DOL was fully reached, but the prediction was more conservative (partial or not reached).' };
-            }
-            if (actualReached === 'DOL partially reached' && predictedDOL === 'not_reached') {
-                return { result: 'Partially Correct',
-                    explanation: 'The DOL was partially reached, but the prediction was that it would not be reached at all.' };
-            }
-            if (actualReached === 'Opposite side reached') {
-                return { result: 'Incorrect', explanation: 'Liquidity was taken on the opposite side to the predicted DOL. The directional expectation was wrong.' };
-            }
-            if (actualReached === 'Both sides reached') {
-                return { result: 'Partially Correct',
-                    explanation: 'Both sides of liquidity were taken. The predicted DOL was reached, but so was the opposite side — market was two-sided.' };
-            }
-            return { result: 'Partially Correct',
-                explanation: 'The liquidity outcome differed from the prediction, but not completely opposite.' };
+            // Single-target predictions
+            const bullishTarget = predictedTarget === 'bsl_above' || predictedTarget === 'irl_above';
+            const bearishTarget = predictedTarget === 'ssl_below' || predictedTarget === 'irl_below';
+            if (bullishTarget && actualReached === 'buyside_reached') return { result: 'Correct', explanation: 'Buy-side target reached as predicted.' };
+            if (bearishTarget && actualReached === 'sellside_reached') return { result: 'Correct', explanation: 'Sell-side target reached as predicted.' };
+            if (actualReached === 'partial_reached') return { result: 'Partially Correct', explanation: 'Target was approached but not fully tapped. Directional call was correct but target was not fully delivered.' };
+            if (actualReached === 'not_reached') return { result: 'Partially Correct', explanation: 'Target was not reached this week. The directional bias may still be valid — look for delivery next week.' };
+            if (actualReached === 'opposite_reached') return { result: 'Incorrect', explanation: 'Liquidity was taken on the opposite side to the predicted target. The directional expectation was wrong.' };
+            if (actualReached === 'both_sides_reached') return { result: 'Partially Correct', explanation: 'Both sides of liquidity were taken. The predicted target was reached, but so was the opposite side — market was two-sided.' };
+            return { result: 'Partially Correct', explanation: 'The liquidity outcome differed from the prediction, but was not a complete directional miss.' };
         }
 
-        function computeSwingPhaseAccuracy(predictedPhase, actualEvolved) {
-            if (!predictedPhase || !actualEvolved) return { result: '—', explanation: 'Select swing phase evolution above.' };
-            const phaseMap = {
-                'frontside': 'Frontside',
-                'backside': 'Backside',
-                'range': 'Range'
-            };
-            const predLabel = phaseMap[predictedPhase] || predictedPhase;
-            if (actualEvolved === 'Frontside played out as expected' && predictedPhase === 'frontside') {
-                return { result: 'Correct', explanation: 'The frontside phase played out as predicted.' };
+        function computeSwingPhaseAccuracy(predictedLeg, actualEvolved) {
+            if (!predictedLeg || !actualEvolved) return { result: '—', explanation: 'Select swing phase evolution above.' };
+            const predLabel = WB_DISPLAY.active_leg[predictedLeg] || predictedLeg;
+            // Two-leg prediction
+            if (predictedLeg === 'pullback_then_continuation') {
+                if (actualEvolved === 'two_leg_played') return { result: 'Correct', explanation: 'Two-leg week delivered as predicted — pullback followed by continuation both played out.' };
+                if (actualEvolved === 'pullback_only') return { result: 'Partially Correct', explanation: 'First leg (pullback/sweep) played out but the continuation leg did not deliver this week.' };
+                if (actualEvolved === 'continuation_only') return { result: 'Partially Correct', explanation: 'Week delivered as a straight continuation — the expected Monday sweep was skipped.' };
+                if (actualEvolved === 'range_dominated') return { result: 'Incorrect', explanation: 'Range dominated instead of the predicted two-leg setup. No clear leg delivered.' };
+                if (actualEvolved === 'phase_flipped') return { result: 'Incorrect', explanation: 'Phase flipped unexpectedly. The two-leg setup was invalidated by a structural shift.' };
             }
-            if (actualEvolved === 'Backside played out as expected' && predictedPhase === 'backside') {
-                return { result: 'Correct', explanation: 'The backside phase played out as predicted.' };
+            // Pullback prediction
+            if (predictedLeg === 'pullback') {
+                if (actualEvolved === 'pullback_only') return { result: 'Correct', explanation: 'Pullback leg played out as predicted.' };
+                if (actualEvolved === 'two_leg_played') return { result: 'Partially Correct', explanation: 'Two-leg delivered — pullback occurred as predicted and continuation followed. Direction correct, underestimated the full week.' };
+                if (actualEvolved === 'continuation_only') return { result: 'Incorrect', explanation: 'Straight continuation — no pullback setup leg. The predicted corrective leg did not appear.' };
+                if (actualEvolved === 'range_dominated') return { result: 'Partially Correct', explanation: 'Range dominated instead of the predicted pullback leg.' };
+                if (actualEvolved === 'phase_flipped') return { result: 'Incorrect', explanation: 'Phase flipped unexpectedly. Pullback prediction was invalidated.' };
             }
-            if (actualEvolved === 'Range / consolidation dominated' && predictedPhase === 'range') {
-                return { result: 'Correct', explanation: 'The range phase played out as predicted.' };
+            // Continuation prediction
+            if (predictedLeg === 'continuation') {
+                if (actualEvolved === 'continuation_only') return { result: 'Correct', explanation: 'Straight continuation delivered as predicted.' };
+                if (actualEvolved === 'two_leg_played') return { result: 'Partially Correct', explanation: 'Two-leg played — continuation delivered but was preceded by a Monday sweep not anticipated.' };
+                if (actualEvolved === 'pullback_only') return { result: 'Incorrect', explanation: 'Only the pullback leg appeared — continuation did not deliver. The expected impulsive leg was absent.' };
+                if (actualEvolved === 'range_dominated') return { result: 'Incorrect', explanation: 'Range dominated instead of the predicted continuation expansion.' };
+                if (actualEvolved === 'phase_flipped') return { result: 'Incorrect', explanation: 'Phase flipped unexpectedly. Continuation prediction was invalidated.' };
             }
-            if (actualEvolved === 'Phase flipped unexpectedly') {
-                return { result: 'Incorrect', explanation: 'The swing phase flipped unexpectedly. The directional bias was invalidated by a structural shift.' };
+            // Range prediction
+            if (predictedLeg === 'range') {
+                if (actualEvolved === 'range_dominated') return { result: 'Correct', explanation: 'Range / consolidation dominated as predicted.' };
+                if (actualEvolved === 'phase_flipped') return { result: 'Partially Correct', explanation: 'Phase shifted — a directional leg appeared from what was expected to range.' };
+                return { result: 'Incorrect', explanation: 'A directional leg delivered instead of the predicted range. The market had more conviction than expected.' };
             }
-            if (actualEvolved === 'Range / consolidation dominated' && (predictedPhase === 'frontside' || predictedPhase ===
-                    'backside')) {
-                return { result: 'Partially Correct',
-                    explanation: 'Range/consolidation dominated instead of the predicted directional phase. The market did not deliver the expected swing leg.' };
-            }
-            if (actualEvolved === 'Frontside played out as expected' && predictedPhase === 'backside') {
-                return { result: 'Partially Correct',
-                    explanation: 'Frontside played out instead of the predicted backside. The direction was correct but the phase timing was off.' };
-            }
-            if (actualEvolved === 'Backside played out as expected' && predictedPhase === 'frontside') {
-                return { result: 'Partially Correct',
-                    explanation: 'Backside played out instead of the predicted frontside. The direction was correct but the phase timing was off.' };
-            }
-            return { result: 'Partially Correct',
-                explanation: 'The swing phase evolution differed from the prediction but was not a complete miss.' };
+            return { result: 'Partially Correct', explanation: 'The swing phase evolution differed from the prediction but was not a complete miss.' };
         }
 
         function computeEnvQualityValidation(predictedEnv, actualQuality) {
@@ -10679,25 +10735,16 @@
             const confLabel = result?.confidence ? (result.confidence.charAt(0).toUpperCase() + result.confidence.slice(1)) :
                 '—';
             const stateLabel = result?.meta?.label || '—';
-            const dolLabel = result ? (w.wbChecklistAnswers?.['wb_htf_dol']?.val || '—') : '—';
-            const phaseLabel = result ? (w.wbChecklistAnswers?.['wb_swing_phase']?.val || '—') : '—';
+            const liqTargetLabel = result ? (w.wbChecklistAnswers?.['wb_liq_target']?.val || '—') : '—';
+            const activeLegLabel = result ? (w.wbChecklistAnswers?.['wb_active_leg']?.val || '—') : '—';
             const irlLabel = result ? (w.wbChecklistAnswers?.['wb_htf_irl']?.val || '—') : '—';
-            const sweepLabel = result ? (w.wbChecklistAnswers?.['wb_ext_sweep']?.val || '—') : '—';
+            const extLiqLabel = result ? (w.wbChecklistAnswers?.['wb_ext_liq']?.val || '—') : '—';
+            const scenarioLabel = result ? (w.wbChecklistAnswers?.['wb_weekly_scenario']?.val || '—') : '—';
 
-            const dolDisplay = {
-                'not_reached': 'Not Reached',
-                'partial': 'Partially Reached',
-                'reached': '✓ Reached'
-            } [dolLabel] || dolLabel;
-
-            const phaseDisplay = {
-                'frontside': 'Frontside',
-                'backside': 'Backside',
-                'range': 'Range'
-            } [phaseLabel] || phaseLabel;
-
+            const dolDisplay = WB_DISPLAY.liq_target[liqTargetLabel] || liqTargetLabel;
+            const phaseDisplay = WB_DISPLAY.active_leg[activeLegLabel] || activeLegLabel;
             const irlDisplay = WB_DISPLAY.irl[irlLabel] || irlLabel;
-            const sweepDisplay = WB_DISPLAY.sweep[sweepLabel] || sweepLabel;
+            const sweepDisplay = WB_DISPLAY.ext_liq[extLiqLabel] || extLiqLabel;
 
             document.getElementById('wrPairDisplay').textContent = w.pair + ' — Week of ' + w.date;
 
@@ -10707,17 +10754,18 @@
               <div class="rs-item"><div class="rs-val" style="font-size:11px;">${envLabel}</div>Environment</div>
               <div class="rs-item"><div class="rs-val" style="font-size:11px;">${confLabel}</div>Confidence</div>
               <div class="rs-item"><div class="rs-val" style="font-size:11px;">${stateLabel}</div>Market State</div>
-              <div class="rs-item"><div class="rs-val" style="font-size:11px;">${dolDisplay}</div>DOL Status</div>
-              <div class="rs-item"><div class="rs-val" style="font-size:11px;">${phaseDisplay}</div>Swing Phase</div>
-              <div class="rs-item"><div class="rs-val" style="font-size:11px;">${irlDisplay}</div>Reaction Area</div>
-              <div class="rs-item"><div class="rs-val" style="font-size:11px;">${sweepDisplay}</div>External Liquidity</div>
+              <div class="rs-item"><div class="rs-val" style="font-size:11px;">${dolDisplay}</div>Liq Target</div>
+              <div class="rs-item"><div class="rs-val" style="font-size:11px;">${phaseDisplay}</div>Active Leg</div>
+              <div class="rs-item"><div class="rs-val" style="font-size:11px;">${irlDisplay}</div>Reaction Zone</div>
+              <div class="rs-item"><div class="rs-val" style="font-size:11px;">${sweepDisplay}</div>Ext Liquidity</div>
               <div class="rs-item"><div class="rs-val" style="font-size:11px;">${w.bias||'—'}</div>Bias</div>
             </div>
           `;
 
             S.wrData.predictedEnv = result?.envData?.env || '';
-            S.wrData.predictedDOL = dolLabel;
-            S.wrData.predictedPhase = phaseLabel;
+            S.wrData.predictedDOL = liqTargetLabel;
+            S.wrData.predictedPhase = activeLegLabel;
+            S.wrData.predictedScenario = scenarioLabel;
             S.wrData.predictedEnvQuality = result?.envData?.env || '';
 
             document.getElementById('wrPredictedDOL').textContent = dolDisplay || '—';
@@ -16351,10 +16399,11 @@
             const wbv = extractWBValues ? extractWBValues(ans) : {};
             const dispMap = { bullish: 'Bullish Structure (HH+HL)', bearish: 'Bearish Structure (LH+LL)' };
             const locMap  = { discount: 'Discount (below 50%)', equilibrium: 'Equilibrium (50%)', premium: 'Premium (above 50%)' };
-            const dolMap  = { not_reached: 'Not Reached', partial: 'Partially Reached', reached: '✓ Reached' };
-            const phaseMap = { frontside: 'Frontside (corrective pullback)', backside: 'Backside (continuation)', range: 'Range (no clear phase)' };
+            const liqTargetMap = WB_DISPLAY?.liq_target || {};
+            const activeLegMap = WB_DISPLAY?.active_leg || {};
             const irlMap  = WB_DISPLAY?.irl  || {};
-            const sweepMap = WB_DISPLAY?.sweep || {};
+            const sweepMap = WB_DISPLAY?.ext_liq || {};
+            const scenarioMap = WB_DISPLAY?.weekly_scenario || {};
             const r = calcR(t);
             const rDisplay = r !== null ? (r >= 0 ? '+' : '') + r.toFixed(2) + 'R' : '—';
             let intraBlock = 'None — daily-only trade, no linked intraday execution.';
@@ -16384,10 +16433,12 @@ Entry: ${t.entryPrice || '—'}  |  Close: ${t.closePrice || '—'}  |  SL: ${t.
 === DAILY CHECKLIST ===
 01 Swing Structure:       ${dispMap[wbv.structure] || wbv.structure || '—'}
 02 Price Location:        ${locMap[wbv.location] || wbv.location || '—'}
-03 HTF Draw on Liquidity: ${dolMap[wbv.dol] || wbv.dol || '—'}
-04 Swing Phase:           ${phaseMap[wbv.phase] || wbv.phase || '—'}
-05 HTF Reaction Area:     ${irlMap[wbv.irl] || wbv.irl || '—'}
-06 External Liquidity:    ${sweepMap[wbv.sweep] || wbv.sweep || '—'}
+03 HTF Reaction Zone:     ${irlMap[wbv.irl] || wbv.irl || '—'}
+04 Zone Classification:   ${wbv.zone_type || '—'}
+05 Active Market Leg:     ${activeLegMap[wbv.active_leg] || wbv.active_leg || '—'}
+06 External Liquidity:    ${sweepMap[wbv.ext_liq] || wbv.ext_liq || '—'}
+07 Liq Target (DOL):      ${liqTargetMap[wbv.liq_target] || wbv.liq_target || '—'}
+08 Weekly Scenario:       ${scenarioMap[wbv.scenario] || wbv.scenario || '—'}
 
 === DAILY ANALYSIS NOTES ===
 ${t.ideaNotes ? t.ideaNotes.replace(/<[^>]+>/g, '') : '—'}
@@ -16427,10 +16478,11 @@ LESSON: [single most important takeaway]`;
             const result = w.wbChecklistAnswers ? runWBEngine(w.wbChecklistAnswers) : null;
             const dispMap = { bullish: 'Bullish Structure (HH+HL)', bearish: 'Bearish Structure (LH+LL)' };
             const locMap  = { discount: 'Discount', equilibrium: 'Equilibrium', premium: 'Premium' };
-            const dolMap  = { not_reached: 'Not Reached', partial: 'Partially Reached', reached: '✓ Reached' };
-            const phaseMap = { frontside: 'Frontside', backside: 'Backside', range: 'Range' };
+            const liqTargetMap = WB_DISPLAY?.liq_target || {};
+            const activeLegMap = WB_DISPLAY?.active_leg || {};
             const irlMap  = WB_DISPLAY?.irl  || {};
-            const sweepMap = WB_DISPLAY?.sweep || {};
+            const sweepMap = WB_DISPLAY?.ext_liq || {};
+            const scenarioMap = WB_DISPLAY?.weekly_scenario || {};
             const r = w.weeklyReview || {};
             const ps = r.performanceStats || {};
             let dailyBlock = 'No individual trade AI reviews available.';
@@ -16443,7 +16495,7 @@ LESSON: [single most important takeaway]`;
 Be direct and specific. Reference concrete details from the checklist, screenshots, and review answers.
 
 === FRAMEWORK ===
-ICT weekly bias system. 6-question checklist before week open. Structured close review at week end.
+ICT weekly bias system. 8-question checklist before week open. Structured close review at week end.
 
 === WEEKLY BIAS ===
 Pair: ${w.pair}  |  Week of: ${w.date}
@@ -16454,10 +16506,12 @@ Derived environment: ${result?.envData?.envLabel || '—'} (${result?.confidence
 Checklist:
 01 Swing Structure:       ${dispMap[v.structure] || v.structure || '—'}
 02 Price Location:        ${locMap[v.location] || v.location || '—'}
-03 HTF Draw on Liquidity: ${dolMap[v.dol] || v.dol || '—'}
-04 Swing Phase:           ${phaseMap[v.phase] || v.phase || '—'}
-05 HTF Reaction Area:     ${irlMap[v.irl] || v.irl || '—'}
-06 External Liquidity:    ${sweepMap[v.sweep] || v.sweep || '—'}
+03 HTF Reaction Zone:     ${irlMap[v.irl] || v.irl || '—'}
+04 Zone Classification:   ${v.zone_type || '—'}
+05 Active Market Leg:     ${activeLegMap[v.active_leg] || v.active_leg || '—'}
+06 External Liquidity:    ${sweepMap[v.ext_liq] || v.ext_liq || '—'}
+07 Liq Target (DOL):      ${liqTargetMap[v.liq_target] || v.liq_target || '—'}
+08 Weekly Scenario:       ${scenarioMap[v.scenario] || v.scenario || '—'}
 
 Weekly notes: ${w.notes ? w.notes.replace(/<[^>]+>/g, '') : '—'}
 
