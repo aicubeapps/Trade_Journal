@@ -14897,8 +14897,9 @@
             const v = raw.toUpperCase().replace(/[^A-Z]/g, '');
             if (v.includes('XAU') || v.includes('GOLD')) return 'XAUUSD';
             if (v.includes('EUR') && v.includes('USD')) return 'EURUSD';
-            if (v.includes('GBP') && v.includes('USD')) return 'GBPUSD';
+            if (v.includes('NQ') || v.includes('NAS')) return 'NQ';
             if (v.includes('USD') && v.includes('CHF')) return 'USDCHF';
+            if (v.includes('GBP') && v.includes('USD')) return 'GBPUSD';
             return null;
         }
         function jheatTier(count) {
