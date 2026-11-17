@@ -7703,8 +7703,6 @@
         const HTF_DISPLAY = {
             structure: { bullish: '▲ Bullish', bearish: '▼ Bearish' },
             location: { discount: 'Discount', equilibrium: 'Equilibrium', premium: 'Premium' },
-            dol: { not_reached: 'Not Reached', partial: 'Partially Reached', reached: '✓ Reached' },
-            phase: { frontside: 'Frontside', backside: 'Backside', range: 'Range' },
             irl: {
                 wk_bull_fvg: 'Weekly Bullish FVG',
                 wk_bear_fvg: 'Weekly Bearish FVG',
@@ -7717,15 +7715,11 @@
                 h4_ob: '4H Breaker / OB',
                 none: 'None'
             },
-            sweep: {
-                d_high: 'Daily High Swept',
-                d_low: 'Daily Low Swept',
-                wk_high: 'Weekly High Swept',
-                wk_low: 'Weekly Low Swept',
-                mo_high: 'Monthly High Swept',
-                mo_low: 'Monthly Low Swept',
-                none: 'No External Sweep'
-            },
+            zone_type: { irl: 'IRL', erl: 'ERL', irl_erl: 'IRL + ERL' },
+            active_leg: { pullback: 'Pullback', continuation: 'Continuation', pullback_then_continuation: 'Pullback → Continuation', range: 'Range' },
+            ext_liq: { swept_bsl: 'BSL Swept', swept_ssl: 'SSL Swept', targeting_bsl: 'Targeting BSL', targeting_ssl: 'Targeting SSL', swept_both: 'Both Sides Swept' },
+            liq_target: { bsl_above: 'BSL Above', ssl_below: 'SSL Below', bsl_then_ssl: 'BSL → SSL', ssl_then_bsl: 'SSL → BSL', irl_above: 'IRL Fill Above', irl_below: 'IRL Fill Below' },
+            daily_scenario: { am_low_bull: 'AM Low → Bullish', am_high_bear: 'AM High → Bearish', straight_continuation: 'Straight Continuation', am_sweep_both_deliver: 'AM Sweeps Both → PM Delivers', ranging_day: 'Ranging Day' },
         };
 
         const IRL_WEEKLY = new Set(['wk_bull_fvg', 'wk_bear_fvg', 'wk_ob', 'd_bull_fvg', 'd_bear_fvg', 'd_ob']);
@@ -7775,29 +7769,44 @@
 
         function extractHTFValues(ans) {
             return {
-                structure: ans['q_swing_structure'] ? ans['q_swing_structure'].val : null,
-                location: ans['q_price_location'] ? ans['q_price_location'].val : null,
-                dol: ans['q_htf_dol'] ? ans['q_htf_dol'].val : null,
-                phase: ans['q_swing_phase'] ? ans['q_swing_phase'].val : null,
-                irl: ans['q_htf_irl'] ? ans['q_htf_irl'].val : null,
-                sweep: ans['q_ext_sweep'] ? ans['q_ext_sweep'].val : null,
+                structure:  ans['q_swing_structure'] ? ans['q_swing_structure'].val : null,
+                location:   ans['q_price_location']  ? ans['q_price_location'].val  : null,
+                irl:        ans['q_htf_irl']          ? ans['q_htf_irl'].val          : null,
+                zone_type:  ans['q_zone_type']        ? ans['q_zone_type'].val        : null,
+                active_leg: ans['q_active_leg']       ? ans['q_active_leg'].val       : null,
+                ext_liq:    ans['q_ext_liq']          ? ans['q_ext_liq'].val          : null,
+                liq_target: ans['q_liq_target']       ? ans['q_liq_target'].val       : null,
+                scenario:   ans['q_daily_scenario']   ? ans['q_daily_scenario'].val   : null,
             };
         }
 
         function computeHTFMarketState(ans) {
             const v = extractHTFValues(ans);
-            if (!v.structure || !v.location || !v.dol || !v.phase || !v.irl || !v.sweep) return null;
-            const irlPresent = v.irl !== 'none';
-            const dolReached = v.dol === 'reached';
-            const isActivePh = v.phase === 'frontside' || v.phase === 'backside';
-            const dolNotReached = v.dol === 'not_reached';
-            const dolPartial = v.dol === 'partial';
-            if (v.structure === 'bullish' && v.location === 'premium' && dolReached && irlPresent) return 'bearish_reversal';
-            if (v.structure === 'bearish' && v.location === 'discount' && dolReached && irlPresent) return 'bullish_reversal';
-            if (v.structure === 'bullish' && (v.location === 'discount' || v.location === 'equilibrium') && (dolNotReached ||
-                    dolPartial) && isActivePh) return 'bullish_continuation';
-            if (v.structure === 'bearish' && (v.location === 'premium' || v.location === 'equilibrium') && (dolNotReached ||
-                    dolPartial) && isActivePh) return 'bearish_continuation';
+            if (!v.structure || !v.location || !v.irl || !v.active_leg || !v.liq_target) return null;
+            const irlPresent   = v.irl !== 'none';
+            const bslSwept     = v.ext_liq === 'swept_bsl';
+            const sslSwept     = v.ext_liq === 'swept_ssl';
+            const extSwept     = bslSwept || sslSwept || v.ext_liq === 'swept_both';
+            const erlZone      = v.zone_type === 'erl' || v.zone_type === 'irl_erl';
+            const twoLeg       = v.active_leg === 'pullback_then_continuation';
+            const continuation = v.active_leg === 'continuation';
+            const pullback     = v.active_leg === 'pullback';
+            const isActiveLeg  = pullback || continuation || twoLeg;
+            const targetingDown = v.liq_target === 'ssl_below' || v.liq_target === 'irl_below';
+            const targetingUp   = v.liq_target === 'bsl_above' || v.liq_target === 'irl_above';
+            const twoLegBear    = v.liq_target === 'bsl_then_ssl';
+            const twoLegBull    = v.liq_target === 'ssl_then_bsl';
+            // Reversal signals: structure + location oppose each other, ERL zone, external sweep done
+            if (v.structure === 'bullish' && v.location === 'premium' && extSwept && erlZone && targetingDown) return 'bearish_reversal';
+            if (v.structure === 'bearish' && v.location === 'discount' && extSwept && erlZone && targetingUp)  return 'bullish_reversal';
+            if (v.structure === 'bullish' && v.location === 'premium' && erlZone && irlPresent && targetingDown) return 'bearish_reversal';
+            if (v.structure === 'bearish' && v.location === 'discount' && erlZone && irlPresent && targetingUp)  return 'bullish_reversal';
+            // Two-leg continuation
+            if (v.structure === 'bearish' && twoLegBear && (twoLeg || pullback)) return 'bearish_continuation';
+            if (v.structure === 'bullish' && twoLegBull && (twoLeg || pullback)) return 'bullish_continuation';
+            // Straight continuation
+            if (v.structure === 'bullish' && (v.location === 'discount' || v.location === 'equilibrium') && isActiveLeg && targetingUp)   return 'bullish_continuation';
+            if (v.structure === 'bearish' && (v.location === 'premium'  || v.location === 'equilibrium') && isActiveLeg && targetingDown) return 'bearish_continuation';
             return 'neutral';
         }
 
@@ -8293,7 +8302,8 @@
                 { id: 'k_maxone', text: 'Max 1 trade per day — second attempt after a loss is blocked.' },
             ],
             questions: [
-                { id: 'q_swing_structure', label: 'What is the current swing structure?', hint: 'Swing Low → Swing High = Bullish Structure (HH + HL). Swing High → Swing Low = Bearish Structure (LH + LL). This is the foundation of the entire analysis — every other question is interpreted relative to this.',
+                { id: 'q_swing_structure', label: 'What is the current swing structure?',
+                    hint: 'Swing Low → Swing High = Bullish Structure (HH + HL). Swing High → Swing Low = Bearish Structure (LH + LL). This is the foundation of the entire analysis — every other question is interpreted relative to this.',
                     options: [
                         { label: '— Select —', val: '' },
                         { label: 'Swing Low → Swing High — Bullish Structure', val: 'bullish' },
@@ -8319,79 +8329,114 @@
         }, {
             id: 'bc_htf3',
             num: '03',
-            title: 'HTF Draw on Liquidity (DOL)',
-            tf: 'Weekly / Daily — has the primary objective been met?',
-            kills: [],
-            questions: [
-                { id: 'q_htf_dol', label: 'Has the HTF Draw on Liquidity been reached?',
-                    hint: 'The DOL is the external liquidity pool price is drawn toward — an old high, old low, or buyside/sellside pool. Not Reached = expansion potential intact, continuation favoured. Partially Reached = continuation still possible but lower conviction. Reached = primary objective complete, reversal becomes possible. Partial does NOT automatically produce Neutral.',
-                    options: [
-                        { label: '— Select —', val: '' },
-                        { label: 'Not Reached — primary objective intact, expansion potential exists', val: 'not_reached' },
-                        { label: 'Partially Reached — price approached DOL but has not fully tapped it',
-                        val: 'partial' },
-                        { label: 'Reached — HTF DOL has been tapped or swept', val: 'reached' },
-                    ] }
-            ]
-        }, {
-            id: 'bc_htf4',
-            num: '04',
-            title: 'Current Swing Phase',
-            tf: 'Daily / 4H — where in the cycle is price?',
-            kills: [
-                { id: 'k_range', text: 'Range phase confirmed — no directional edge. Do not force a trade.' },
-            ],
-            questions: [
-                { id: 'q_swing_phase', label: 'What phase is the current swing in?',
-                    hint: 'Frontside = the corrective pullback leg after displacement. Price retraces into an FVG or OB. Backside = the continuation leg where price reacts from the FVG/OB and resumes the trend. Range = no clear directional phase, price is consolidating without purpose.',
-                    options: [
-                        { label: '— Select —', val: '' },
-                        { label: 'Frontside — corrective pullback, price retracing into FVG/OB', val: 'frontside' },
-                        { label: 'Backside — continuation leg, price resuming trend from FVG/OB', val: 'backside' },
-                        { label: 'Range — no clear trend phase, price consolidating', val: 'range' },
-                    ] }
-            ]
-        }, {
-            id: 'bc_htf5',
-            num: '05',
             title: 'HTF Reaction Area',
             tf: 'Daily / 4H — zone type and timeframe both matter',
             kills: [],
             questions: [
                 { id: 'q_htf_irl', label: 'What reaction area is price at or approaching?',
-                    hint: 'Daily zones carry more weight than 4H zones and increase confidence more. Bullish FVG / Bearish FVG indicates directional alignment. Daily OB/Breaker and 4H OB/Breaker are direction-neutral but still valid reaction areas. No zone = lower confidence regardless of all other conditions.',
+                    hint: 'Daily zones carry more weight than 4H zones and increase confidence more. Bullish FVG / Bearish FVG indicates directional alignment. OB/Breaker is direction-neutral but still a valid reaction area. No zone = lower confidence regardless of all other conditions.',
                     options: [
                         { label: '— Select —', val: '' },
-                        { label: 'Daily Bullish FVG — unmitigated, from bullish displacement', val: 'd_bull_fvg' },
-                        { label: 'Daily Bearish FVG — unmitigated, from bearish displacement', val: 'd_bear_fvg' },
+                        { label: 'Weekly Bullish FVG — unmitigated, from bullish displacement on Weekly', val: 'wk_bull_fvg' },
+                        { label: 'Weekly Bearish FVG — unmitigated, from bearish displacement on Weekly', val: 'wk_bear_fvg' },
+                        { label: 'Daily Bullish FVG — unmitigated, from bullish displacement on Daily', val: 'd_bull_fvg' },
+                        { label: 'Daily Bearish FVG — unmitigated, from bearish displacement on Daily', val: 'd_bear_fvg' },
                         { label: '4H Bullish FVG — unmitigated, from bullish displacement on 4H', val: 'h4_bull_fvg' },
                         { label: '4H Bearish FVG — unmitigated, from bearish displacement on 4H', val: 'h4_bear_fvg' },
+                        { label: 'Weekly Breaker / OB — unmitigated Weekly OB or Breaker block', val: 'wk_ob' },
                         { label: 'Daily Breaker / OB — unmitigated Daily OB or Breaker block', val: 'd_ob' },
                         { label: '4H Breaker / OB — unmitigated 4H OB or Breaker block', val: 'h4_ob' },
                         { label: 'None — no clear reaction area at current price', val: 'none' },
                     ] }
             ]
         }, {
+            id: 'bc_htf4',
+            num: '04',
+            title: 'Zone Type',
+            tf: 'Daily / 4H — IRL, ERL, or both?',
+            kills: [],
+            questions: [
+                { id: 'q_zone_type', label: 'Is the reaction zone an IRL, ERL, or both?',
+                    hint: 'IRL (Internal Range Level) = an FVG or OB sitting inside the current swing — a reaction zone, not the final target. ERL (External Range Level) = the swing extreme itself (old high / old low) — a liquidity pool and potential reversal point. IRL + ERL = price is at a confluence where an internal zone sits at or very near the swing extreme. Knowing the zone type changes how the engine reads the setup: ERL presence raises reversal probability.',
+                    options: [
+                        { label: '— Select —', val: '' },
+                        { label: 'IRL — Internal Range Level (FVG or OB inside the swing)', val: 'irl' },
+                        { label: 'ERL — External Range Level (swing extreme / liquidity pool)', val: 'erl' },
+                        { label: 'IRL + ERL — confluence of internal zone at the swing extreme', val: 'irl_erl' },
+                    ] }
+            ]
+        }, {
+            id: 'bc_htf5',
+            num: '05',
+            title: 'Active Leg Today',
+            tf: 'Daily / 4H — where in the delivery cycle is price?',
+            kills: [
+                { id: 'k_range', text: 'Range confirmed — no directional edge. Do not force a trade.' },
+            ],
+            questions: [
+                { id: 'q_active_leg', label: 'Which leg is active in today\'s daily delivery?',
+                    hint: 'Pullback = the corrective leg — price is retracing into an IRL (FVG, OB) against the primary direction. This is the setup leg, not the trade leg. Continuation = the impulsive leg — price has reacted from the IRL and is now moving toward the liquidity target. Pullback then Continuation = two-leg day in progress — AM sweeps one side first (the setup leg), then price delivers in the primary direction. This is the intraday OMAR model day. Range = no clear leg, avoid directional bias.',
+                    options: [
+                        { label: '— Select —', val: '' },
+                        { label: 'Pullback — corrective leg, price retracing into FVG / OB', val: 'pullback' },
+                        { label: 'Continuation — impulsive leg, price expanding toward liquidity target', val: 'continuation' },
+                        { label: 'Pullback then Continuation — two-leg day (AM sweep, PM delivery)', val: 'pullback_then_continuation' },
+                        { label: 'Range — no clear directional leg, price consolidating', val: 'range' },
+                    ] }
+            ]
+        }, {
             id: 'bc_htf6',
             num: '06',
             title: 'External Liquidity Status',
-            tf: 'Daily / Weekly — major reversal-strength variable',
+            tf: 'Daily / Weekly — major context variable',
             kills: [],
             questions: [
-                { id: 'q_ext_sweep', label: 'Has external liquidity been swept at the current swing extreme?',
-                    hint: 'A reversal candidate is significantly stronger when external liquidity has already been taken. Example: Bearish Structure + Premium + DOL Reached + Daily Bearish OB + Daily High Swept = strong bearish reversal setup. No sweep = reversal is possible but lacks the full confirmation of a liquidity raid.',
+                { id: 'q_ext_liq', label: 'What is the external liquidity status at the current swing extreme?',
+                    hint: 'BSL = Buy-Side Liquidity (resting stops above a swing high). SSL = Sell-Side Liquidity (resting stops below a swing low). Swept = price has already raided that pool. Targeting = pool is still intact and price is moving toward it. A swept + reversed condition at the ERL is the strongest reversal signal. If both sides have been swept, the market is two-sided and conviction drops.',
                     options: [
                         { label: '— Select —', val: '' },
-                        { label: 'Daily High Swept — price has taken buy-side liquidity above a Daily High',
-                            val: 'd_high' },
-                        { label: 'Daily Low Swept — price has taken sell-side liquidity below a Daily Low',
-                            val: 'd_low' },
-                        { label: 'Weekly High Swept — price has taken buy-side liquidity above a Weekly High',
-                            val: 'wk_high' },
-                        { label: 'Weekly Low Swept — price has taken sell-side liquidity below a Weekly Low',
-                            val: 'wk_low' },
-                        { label: 'No External Liquidity Sweep — no significant sweep at the current extreme',
-                            val: 'none' },
+                        { label: 'BSL Swept — Buy-side liquidity above the swing high has been taken', val: 'swept_bsl' },
+                        { label: 'SSL Swept — Sell-side liquidity below the swing low has been taken', val: 'swept_ssl' },
+                        { label: 'Targeting BSL — price is expanding toward buy-side liquidity above', val: 'targeting_bsl' },
+                        { label: 'Targeting SSL — price is expanding toward sell-side liquidity below', val: 'targeting_ssl' },
+                        { label: 'Both Sides Swept — liquidity taken on both sides, two-sided market', val: 'swept_both' },
+                    ] }
+            ]
+        }, {
+            id: 'bc_htf7',
+            num: '07',
+            title: 'Liquidity Target / DOL',
+            tf: 'Daily — what is price seeking today?',
+            kills: [],
+            questions: [
+                { id: 'q_liq_target', label: 'What is the liquidity target — the Draw on Liquidity — for today?',
+                    hint: 'This is the specific level price is being drawn toward. BSL Above = old high, swing high, buy stops above price. SSL Below = old low, swing low, sell stops below price. BSL then SSL = two-leg day: AM sweeps BSL first, then delivers to SSL. SSL then BSL = AM sweeps SSL first, then delivers to BSL. IRL Fill Above / Below = price is targeting an internal FVG fill rather than an external extreme. This answer is paired with the close-time review — was this target actually reached?',
+                    options: [
+                        { label: '— Select —', val: '' },
+                        { label: 'BSL Above — targeting buy-side liquidity above price', val: 'bsl_above' },
+                        { label: 'SSL Below — targeting sell-side liquidity below price', val: 'ssl_below' },
+                        { label: 'BSL then SSL — two-leg: sweep BSL first, then deliver to SSL', val: 'bsl_then_ssl' },
+                        { label: 'SSL then BSL — two-leg: sweep SSL first, then deliver to BSL', val: 'ssl_then_bsl' },
+                        { label: 'IRL Fill Above — targeting an internal FVG / OB fill above price', val: 'irl_above' },
+                        { label: 'IRL Fill Below — targeting an internal FVG / OB fill below price', val: 'irl_below' },
+                    ] }
+            ]
+        }, {
+            id: 'bc_htf8',
+            num: '08',
+            title: 'Daily Scenario',
+            tf: 'Daily — which OMAR delivery model applies today?',
+            kills: [],
+            questions: [
+                { id: 'q_daily_scenario', label: 'Which daily delivery scenario best describes your expectation for today?',
+                    hint: 'This is your predicted daily narrative — how the session is expected to unfold. AM Low → Bullish = price makes its low in the AM session, then expands bullish into the afternoon (classic OMAR bullish daily). AM High → Bearish = price makes its high in the AM session, then expands bearish (classic OMAR bearish daily). Straight continuation = no AM sweep needed, session opens and expands directly in the primary direction. AM sweeps both sides = AM is noisy, PM sets the direction after both sides are cleared. Ranging day = no directional expansion expected. This answer is scored at close against the actual day.',
+                    options: [
+                        { label: '— Select —', val: '' },
+                        { label: 'AM Low → Bullish PM delivery — session low set in AM, bullish expansion PM', val: 'am_low_bull' },
+                        { label: 'AM High → Bearish PM delivery — session high set in AM, bearish expansion PM', val: 'am_high_bear' },
+                        { label: 'Straight Continuation — no AM sweep, session opens and expands directly', val: 'straight_continuation' },
+                        { label: 'AM Sweeps Both → PM Delivers — AM is noisy, PM sets direction', val: 'am_sweep_both_deliver' },
+                        { label: 'Ranging Day — no directional expansion expected', val: 'ranging_day' },
                     ] }
             ]
         }];
@@ -12145,22 +12190,23 @@
                 <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">TRADE DIRECTION</span>
                 <span class="pill pill-${bias==='BULLISH'?'bull':bias==='BEARISH'?'bear':'neutral'}">${bias==='BULLISH'?'▲ ':bias==='BEARISH'?'▼ ':''}${bias}</span>
               </div>` : ''}
-            ` : `<div style="padding:12px 14px;font-family:var(--font-mono);font-size:10px;color:var(--muted)">Answer all 6 questions above to generate the Daily Expectation, Confidence level, and Tomorrow's plan.</div>`}`;
+            ` : `<div style="padding:12px 14px;font-family:var(--font-mono);font-size:10px;color:var(--muted)">Answer all 8 questions above to generate the Daily Expectation, Confidence level, and Tomorrow's plan.</div>`}`;
             } else {
-                const irlLabel = S.answers['q_htf_irl'] ? (HTF_DISPLAY.irl[S.answers['q_htf_irl'].val] || '—') : '—';
-                const sweepLabel = S.answers['q_ext_sweep'] ? (HTF_DISPLAY.sweep[S.answers['q_ext_sweep'].val] || '—') :
-                '—';
+                const irlLabel     = S.answers['q_htf_irl']       ? (HTF_DISPLAY.irl[S.answers['q_htf_irl'].val]             || '—') : '—';
+                const zoneLabel    = S.answers['q_zone_type']      ? (HTF_DISPLAY.zone_type[S.answers['q_zone_type'].val]     || '—') : '—';
+                const legLabel     = S.answers['q_active_leg']     ? (HTF_DISPLAY.active_leg[S.answers['q_active_leg'].val]   || '—') : '—';
+                const extLiqLabel  = S.answers['q_ext_liq']        ? (HTF_DISPLAY.ext_liq[S.answers['q_ext_liq'].val]         || '—') : '—';
+                const liqTgtLabel  = S.answers['q_liq_target']     ? (HTF_DISPLAY.liq_target[S.answers['q_liq_target'].val]   || '—') : '—';
+                const scenLabel    = S.answers['q_daily_scenario'] ? (HTF_DISPLAY.daily_scenario[S.answers['q_daily_scenario'].val] || '—') : '—';
                 const summaryRows = [
-                    ['Structure', S.answers['q_swing_structure'] ? HTF_DISPLAY.structure[S.answers['q_swing_structure']
-                        .val] || '—' : '—'],
-                    ['Location', S.answers['q_price_location'] ? HTF_DISPLAY.location[S.answers['q_price_location']
-                        .val] || '—' : '—'],
-                    ['HTF DOL', S.answers['q_htf_dol'] ? HTF_DISPLAY.dol[S.answers['q_htf_dol'].val] || '—' : '—'],
-                    ['Phase', S.answers['q_swing_phase'] ? HTF_DISPLAY.phase[S.answers['q_swing_phase'].val] || '—' :
-                        '—'
-                    ],
-                    ['HTF Reaction Area', irlLabel],
-                    ['External Liquidity', sweepLabel],
+                    ['Structure',          S.answers['q_swing_structure'] ? HTF_DISPLAY.structure[S.answers['q_swing_structure'].val] || '—' : '—'],
+                    ['Location',           S.answers['q_price_location']  ? HTF_DISPLAY.location[S.answers['q_price_location'].val]   || '—' : '—'],
+                    ['HTF Reaction Area',  irlLabel],
+                    ['Zone Type',          zoneLabel],
+                    ['Active Leg',         legLabel],
+                    ['Ext. Liquidity',     extLiqLabel],
+                    ['Liq. Target / DOL',  liqTgtLabel],
+                    ['Daily Scenario',     scenLabel],
                 ];
                 sd.innerHTML = `<div class="card-head" style="${result?'background:'+result.meta.bg:''}">
               <div class="card-num" style="background:${result?result.meta.color:'var(--muted)'}">⚡</div>
@@ -12168,7 +12214,7 @@
                 <div class="card-title" style="${result?'color:'+result.meta.color:''}">HTF Market State</div>
                 <div class="card-tf">Pre-market analysis output — rule-priority engine</div>
               </div>
-              <div class="card-pts-badge" style="${result?'border-color:'+result.meta.color+';color:'+result.meta.color+';background:'+result.meta.bg:''}">${result?result.meta.emoji+' '+result.meta.label:'Answer all 6 questions'}</div>
+              <div class="card-pts-badge" style="${result?'border-color:'+result.meta.color+';color:'+result.meta.color+';background:'+result.meta.bg:''}">${result?result.meta.emoji+' '+result.meta.label:'Answer all 8 questions'}</div>
             </div>
             ${result ? `
               <div style="padding:12px 14px;border-bottom:1px solid var(--cream);">
@@ -12204,12 +12250,12 @@
                 <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">TRADE DIRECTION</span>
                 <span class="pill pill-${bias==='BULLISH'?'bull':bias==='BEARISH'?'bear':'neutral'}">${bias==='BULLISH'?'▲ ':bias==='BEARISH'?'▼ ':''}${bias}</span>
               </div>` : ''}
-            ` : `<div style="padding:12px 14px;font-family:var(--font-mono);font-size:10px;color:var(--muted)">Answer all 6 questions above to generate the HTF Market State, Confidence level, and Trading Plan.</div>`}`;
+            ` : `<div style="padding:12px 14px;font-family:var(--font-mono);font-size:10px;color:var(--muted)">Answer all 8 questions above to generate the HTF Market State, Confidence level, and Trading Plan.</div>`}`;
             }
             c.appendChild(sd);
         }
 
-        const UPDATABLE_QS = new Set(['q_htf_dol', 'q_htf_irl', 'q_ext_sweep', 'q_swing_phase']);
+        const UPDATABLE_QS = new Set(['q_htf_irl', 'q_zone_type', 'q_active_leg', 'q_ext_liq', 'q_liq_target', 'q_daily_scenario']);
 
         function toggleKillItem(key) { S.kills[key] = !S.kills[key];
             renderEntrySection(); }
@@ -12228,7 +12274,7 @@
                 bc = 'var(--bear)'; } else if (!allAns) { icon = '📋';
                 title = isTT ? 'Complete TTrades Daily Analysis' : 'Complete HTF Analysis';
                 msg = isTT ? "Answer all 6 questions above to generate the Daily Expectation and Tomorrow's plan." :
-                    'Answer all 6 questions above to generate the Market State, Confidence, and Trading Plan.';
+                    'Answer all 8 questions above to generate the Market State, Confidence, and Trading Plan.';
                 bc = 'var(--border)'; } else if (isTT) {
                 const ttResult = runTTEngine(S.answers);
                 const state = ttResult ? ttResult.state : 'range';
@@ -12453,7 +12499,7 @@
             const confLabel = result ? { high: '· High Confidence', medium: '· Medium Confidence', low: '· Low Confidence' } [
                 result.confidence
             ] || '' : '';
-            const pendingMsg = isTT ? 'Answer all 6 questions' : 'Answer all 6 questions';
+            const pendingMsg = isTT ? 'Answer all 6 questions' : 'Answer all 8 questions';
             document.getElementById('scoreVerdict').textContent = result ? (verdictMap[result.state] || '') + '  ' +
                 confLabel : pendingMsg;
             document.getElementById('progFill').style.width = pct + '%';
